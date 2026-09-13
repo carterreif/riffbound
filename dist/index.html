@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b0c10">
+  <meta name="description" content="Play Guitar, Drums, Bass or vocal pitch pads with an animated rock band in Riffbound. Hit the notes, build a streak, and unleash Overdrive on a live concert stage.">
+  <title>Riffbound — Play the riff</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230b0c10'/%3E%3Cpath d='M35 6 13 37h17l-3 21 24-33H33z' fill='%23eaff5a'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="assets/app-icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <a class="brand" href="./" aria-label="Riffbound home"><svg viewBox="0 0 30 40" aria-hidden="true"><path d="M18 1 2 23h12l-2 16L29 15H17z"/></svg>RIFFBOUND<span class="brand-mark">®</span></a>
+      <div class="edition"><span class="live-dot"></span> FREE PLAY <span class="slash">/</span> VOL. 01</div>
+      <div class="top-actions"><button id="mobileBackButton" class="quiet mobile-back">Soundcheck</button><button id="helpButton" class="quiet" aria-label="How to play">? <span>How to play</span></button><button id="pauseButton" class="quiet" aria-label="Pause track" disabled><span id="pauseIcon">Ⅱ</span> <span id="pauseText">Pause</span></button></div>
+    </header>
+
+    <main class="arena">
+      <aside class="setlist">
+        <div class="eyebrow"><span class="tiny-line"></span> ON THE SETLIST</div>
+        <div class="track-number">01 <span id="trackSource">/ ORIGINAL SESSION</span></div>
+        <h1 id="trackTitle">IRON<br><span>VOLTAGE</span></h1>
+        <p id="trackArtist" class="artist">The Riffbound Sessions</p>
+        <div class="track-tags"><span id="trackKind">HEAVY ROCK</span><span id="trackBpm">112 BPM</span><span id="trackLength">1:11</span></div>
+        <div class="game-tools" aria-label="Game tools"><button id="libraryButton" class="quiet">Manage songs</button><button id="practiceButton" class="quiet">Practice</button><button id="timingButton" class="quiet">Timing</button><button id="offlineButton" class="quiet">Install / offline</button></div>
+        <section class="song-setlist" aria-labelledby="setlistHeading">
+          <div class="song-setlist-heading"><h2 id="setlistHeading">YOUR SETLIST</h2><span id="setlistCount">1 track</span></div>
+          <input id="setlistSearch" class="setlist-search" type="search" placeholder="Find a song…" aria-label="Search your setlist" autocomplete="off">
+          <div id="setlistEntries" class="setlist-entries" aria-label="Choose a song"></div>
+          <p id="setlistStatus" role="status" aria-live="polite">Loading saved songs…</p>
+          <p class="setlist-hint">Uploads appear here automatically. Saved in this browser. Select a song, then Play track.</p>
+        </section>
+        <section class="auto-chart" aria-label="Automatic song charting">
+          <div class="auto-chart-heading">AUTO CHART</div>
+          <label class="select-label" for="chartScope">1. WHAT SHOULD WE CHART?</label>
+          <select id="chartScope"><option value="single">One instrument</option><option value="whole">Whole song — all four charts</option><option value="separate">Separate parts — choose several</option></select>
+          <fieldset id="partsGroup" hidden><legend>PARTS TO BUILD</legend><div class="choice-row parts-grid"><label><input id="partGuitar" type="checkbox" checked><span>Guitar</span></label><label><input id="partDrums" type="checkbox" checked><span>Drums</span></label><label><input id="partBass" type="checkbox"><span>Bass</span></label><label><input id="partVocals" type="checkbox"><span>Vocals</span></label></div></fieldset>
+          <p id="scopeHint" class="secondary">Upload a full song or an isolated track. Only the selected part is charted.</p>
+          <fieldset id="chartTargetGroup"><legend id="chartTargetLegend">2. CHOOSE AN INSTRUMENT</legend><div class="choice-row mode-row"><label><input type="radio" name="chartTarget" value="guitar" checked><span>Guitar</span></label><label><input type="radio" name="chartTarget" value="drums"><span>Drums</span></label><label><input type="radio" name="chartTarget" value="bass"><span>Bass</span></label><label><input type="radio" name="chartTarget" value="vocals"><span>Vocals</span></label></div></fieldset>
+          <input id="songFile" type="file" accept="audio/*,.mp3,.wav,.m4a,.ogg,.flac,.aac,.aiff" hidden>
+          <button id="uploadButton" class="upload-button">3. Upload song for Guitar</button>
+          <p id="uploadHint">Upload a full song or isolated track. Build one part, selected parts, or all four charts.</p>
+          <p class="upload-limits">MP3, WAV, or other supported audio · up to 8 min / 80 MB. Processed and saved on this device.</p>
+          <div id="uploadProgress" hidden><progress id="chartProgress" max="100" value="0" aria-label="Automatic chart progress"></progress><button id="cancelUpload" class="text-button">Cancel</button></div>
+          <p id="chartStatus" role="status" aria-live="polite"></p>
+          <div id="chartPreview" class="chart-preview" hidden>
+            <p id="chartSummary"></p>
+            <canvas id="chartOverview" width="600" height="72" aria-label="Generated chart overview"></canvas>
+            <p id="chartMapping"></p>
+            <p id="chartDetails"></p>
+            <button id="buildPartsButton" class="upload-button" hidden>Build selected parts for this song</button>
+            <button id="rechartButton" class="text-button">Rebuild this instrument’s chart</button>
+            <label for="previewPosition">Preview from <span id="previewTime">0:00</span></label>
+            <input id="previewPosition" type="range" min="0" max="100" step="0.1" value="0">
+            <button id="previewButton" class="upload-button">▶ Preview chart</button>
+            <p>Watch the notes play automatically. Preview does not save a score.</p>
+          </div>
+          <button id="demoButton" class="text-button" hidden>Back to Iron Voltage demo</button>
+        </section>
+        <div class="divider"></div>
+        <fieldset id="difficultyGroup"><legend>DIFFICULTY</legend><div class="choice-row difficulty-row">
+          <label><input type="radio" name="difficulty" value="easy"><span>Easy<small>3 FRETS</small></span></label>
+          <label><input type="radio" name="difficulty" value="medium" checked><span>Medium<small>4 FRETS</small></span></label>
+          <label><input type="radio" name="difficulty" value="hard"><span>Hard<small>5 FRETS</small></span></label>
+          <label><input type="radio" name="difficulty" value="expert"><span>Expert<small>+ CHORDS</small></span></label>
+        </div></fieldset>
+        <fieldset id="modeGroup"><legend>PLAY STYLE</legend><div class="choice-row mode-row">
+          <label><input type="radio" name="mode" value="tap" checked><span>Tap frets</span></label>
+          <label><input type="radio" name="mode" value="strum"><span>Hold + strum</span></label>
+        </div></fieldset>
+        <p id="modeHint" class="mode-hint">Press a fret key as its note hits the line.</p>
+        <p class="mobile-tip">Touch to play · Use several fingers for chords and drum hits. Rotate your phone for wider pads.</p>
+        <label class="highway-speed" for="highwaySpeed">Highway speed <span id="highwaySpeedValue">1.0×</span><input id="highwaySpeed" type="range" min="0.7" max="1.6" step="0.1" value="1"></label>
+        <button id="playButton" class="play-button"><span class="play-triangle">▶</span><span id="playText">PLAY TRACK</span><span class="button-arrow">↗</span></button>
+        <p id="startHint" class="start-hint">Sound on. Headphones recommended.</p>
+        <div class="track-progress"><div class="time-row"><span id="elapsed">0:00</span><span id="section">READY TO ROCK</span><span id="remaining">1:11</span></div><div class="progress-rail"><div id="songProgress"></div></div></div>
+      </aside>
+
+      <section class="stage" aria-label="Five-lane rhythm game">
+        <canvas id="performance" aria-hidden="true"></canvas>
+        <div class="stage-top"><span id="stageStatus" class="stage-status">SOUNDCHECK</span><button id="mobilePlayButton" class="quiet mobile-play">Play yourself</button><fieldset id="instrumentGroup" class="instrument-picker"><legend class="visually-hidden">Chart instrument</legend><label><input type="radio" name="instrument" value="guitar" checked><span>Guitar</span></label><label><input type="radio" name="instrument" value="drums"><span>Drums</span></label><label><input type="radio" name="instrument" value="bass"><span>Bass</span></label><label><input type="radio" name="instrument" value="vocals"><span>Vocals</span></label></fieldset></div>
+        <canvas id="highway" aria-label="Notes scroll down five colored lanes toward the fret line. Use D, F, J, K, and L or the touch buttons below."></canvas>
+        <div id="announcement" class="announcement" aria-live="polite"><span id="announceSmall">YOUR STAGE IS WAITING</span><strong id="announceBig">LET IT RIP.</strong></div>
+        <div id="judgment" class="judgment" aria-hidden="true"></div>
+        <div id="streakCallout" class="streak-callout" aria-hidden="true"></div>
+        <div class="fret-controls" id="fretControls">
+          <button data-lane="0" class="fret green" aria-label="Green fret, D"><span>D</span></button>
+          <button data-lane="1" class="fret red" aria-label="Red fret, F"><span>F</span></button>
+          <button data-lane="2" class="fret yellow" aria-label="Yellow fret, J"><span>J</span></button>
+          <button data-lane="3" class="fret blue" aria-label="Blue fret, K"><span>K</span></button>
+          <button data-lane="4" class="fret orange" aria-label="Orange fret, L"><span>L</span></button>
+        </div>
+        <div id="drumLabels" class="drum-labels" hidden><span>Snare</span><span>Hi-hat</span><span>Tom</span><span>Cymbal</span><span>Floor tom</span></div>
+        <div id="hitLineLabel" class="hit-line-label">HIT THE NOTE AT THE FRET LINE</div>
+        <button id="touchStrum" class="touch-strum" hidden>STRUM <span class="key-hint">· ENTER</span></button>
+        <button id="kickButton" class="kick-button" hidden aria-label="Kick pedal, Space or Enter">KICK PEDAL <span class="key-hint">· SPACE / ENTER</span></button>
+      </section>
+
+      <aside class="scoreboard" aria-label="Live score">
+        <div class="score-label">TOTAL SCORE</div><div id="score" class="score-value">000,000</div>
+        <div class="score-divider"></div>
+        <div class="streak-wrap"><div><div class="score-label">NOTE STREAK</div><div id="streak" class="streak-value">0</div></div><div id="multiplierRing" class="multiplier-ring"><span id="multiplier">1<small>×</small></span></div></div>
+        <div class="accuracy-row"><span>ACCURACY</span><strong id="accuracy">—</strong></div>
+        <div class="accuracy-row"><span>BEST STREAK</span><strong id="bestStreak">0</strong></div>
+        <div class="crowd-block"><div class="meter-title"><span>CROWD ENERGY</span><span id="crowdLabel">STEADY</span></div><div class="crowd-rail"><div id="crowdFill"></div></div><div class="meter-ticks"><span>QUIET</span><span>LOUD</span></div></div>
+        <div class="overdrive-block"><div class="overdrive-title"><svg viewBox="0 0 30 40" aria-hidden="true"><path d="M18 1 2 23h12l-2 16L29 15H17z"/></svg> OVERDRIVE</div><div class="drive-bars" id="driveBars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><p id="driveHint">Hit notes to charge. Double your multiplier.</p><button id="driveButton" disabled><kbd id="driveKey">SPACE</kbd><span id="driveText">CHARGING · 0%</span></button></div>
+        <div class="personal-best"><span>YOUR LOCAL BEST</span><strong id="localBest">—</strong></div>
+      </aside>
+    </main>
+
+    <footer class="bottom-bar"><div class="control-guide"><span><kbd>D</kbd><kbd>F</kbd><kbd>J</kbd><kbd>K</kbd><kbd>L</kbd> <span id="controlType">Frets</span></span><span id="strumGuide" hidden><kbd>↵</kbd> Strum</span><span id="kickGuide" hidden><kbd>SPACE / ↵</kbd> Kick</span><span><kbd id="overdriveKey">SPACE</kbd> Overdrive</span><span><kbd>ESC</kbd> Pause</span></div><label class="volume-control"><button id="muteButton" aria-label="Mute sound">♫</button><span>VOLUME</span><input id="volume" type="range" min="0" max="100" value="70" aria-label="Music volume"></label></footer>
+    <div id="statusMessage" class="status-message" role="status"></div>
+    <div id="saveStatus" class="save-status" role="status"></div>
+  </div>
+
+  <dialog id="libraryDialog" class="game-dialog tools-dialog"><button class="close-dialog" data-close="libraryDialog" aria-label="Close songs">×</button><div class="eyebrow">ON THIS DEVICE</div><h2>Manage songs</h2><p>Your audio and charts stay in this browser. Export a backup to move a song to another device or protect it from cleared browser storage.</p><div class="tool-actions"><button id="saveCurrentButton" class="upload-button">Save current song</button><button id="exportCurrentButton" class="quiet">Export current song</button><button id="importBackupButton" class="quiet">Import backup</button></div><div id="libraryEmptyActions" class="tool-actions" hidden><button id="libraryUploadDrums" class="upload-button">Upload drums</button><button id="libraryUploadGuitar" class="quiet">Upload guitar</button><button id="libraryUploadBass" class="quiet">Upload bass</button><button id="libraryUploadVocals" class="quiet">Upload vocals</button></div><input id="backupFile" type="file" accept=".riffpack,application/octet-stream" hidden><p id="librarySaveStatus" role="status" aria-live="polite" hidden></p><p id="audioAttachmentStatus" class="secondary" hidden></p><div id="audioRecovery" class="tool-actions" hidden><button id="reconnectAudioButton" class="upload-button">Reconnect original audio</button></div><input id="reconnectAudioFile" type="file" accept="audio/*,.wav,.mp3,.ogg,.m4a,.flac" hidden><p id="libraryStatus" role="status"></p><div id="songList" class="song-list"></div><p class="secondary" id="gameVersion">Game version 31</p></dialog>
+
+  <dialog id="practiceDialog" class="game-dialog tools-dialog"><button class="close-dialog" data-close="practiceDialog" aria-label="Close practice">×</button><div class="eyebrow">REPEAT. IMPROVE.</div><h2>Practice a section</h2><p>Loop a fill or solo. Practice does not change your best score.</p><div class="practice-range"><label for="loopStart">Start (seconds)<input id="loopStart" type="number" min="0" step="0.1" value="0"></label><label for="loopEnd">End (seconds)<input id="loopEnd" type="number" min="1" step="0.1" value="15"></label></div><label class="select-label" for="practiceRate">Playback speed<select id="practiceRate"><option value="0.5">50% — slow</option><option value="0.75" selected>75% — medium</option><option value="1">100% — original</option></select></label><p class="secondary">Slower playback also lowers the audio pitch. Highway speed changes note spacing without changing the song.</p><p id="practiceStatus" role="status"></p><button id="practiceLaunch" class="play-button">START PRACTICE <span>↗</span></button></dialog>
+
+  <dialog id="timingDialog" class="game-dialog tools-dialog"><button class="close-dialog" data-close="timingDialog" aria-label="Close timing">×</button><div class="eyebrow">MATCH YOUR DEVICE</div><h2>Timing calibration</h2><p>Use the speakers or headphones you play with. Listen to the clicks, then tap in time with them. Keep tapping for the whole test.</p><button id="calibrationStart" class="upload-button">Start tap test</button><button id="calibrationTap" class="calibration-pad" disabled>TAP TO THE BEAT</button><p id="calibrationStatus" role="status">Twelve beats. The first two help you settle into the rhythm.</p><label for="timingOffset">Timing adjustment <strong id="timingOffsetValue">0 ms</strong></label><input id="timingOffset" type="range" min="-250" max="250" step="1" value="0"><p class="secondary">Positive values give your taps more time; negative values move the hit window earlier. This adjusts playback timing, not which drum a color represents.</p><div class="tool-actions"><button id="calibrationSave" class="play-button">SAVE TIMING</button><button id="calibrationReset" class="quiet">Reset to 0 ms</button></div></dialog>
+
+  <dialog id="offlineDialog" class="game-dialog tools-dialog"><button class="close-dialog" data-close="offlineDialog" aria-label="Close offline settings">×</button><div class="eyebrow">TAKE THE STAGE WITH YOU</div><h2>Install &amp; play offline</h2><p>Save the game once while online. Songs in your setlist are stored on this device and can be opened offline.</p><button id="downloadGameButton" class="upload-button">Save game for offline play</button><p id="offlineStatus" role="status"></p><button id="reloadGameButton" class="upload-button" hidden>Use updated game</button><button id="installAppButton" class="upload-button" hidden>Install Riffbound</button><p id="installInstructions">On iPhone, open this link in Safari, then Share → Add to Home Screen. On Android, use your browser’s Install or Add to Home Screen option.</p><p class="secondary">Keep a .riffpack backup of songs you want to keep. Clearing browser data removes local songs and the offline copy.</p></dialog>
+
+  <dialog id="helpDialog" class="game-dialog"><button class="close-dialog" data-close="helpDialog" aria-label="Close instructions">×</button><div class="eyebrow">SOUNDCHECK</div><h2>Find your rhythm.</h2><p>Colored notes travel down the highway. Play them when they reach the glowing fret line near the bottom.</p><p>Choose <b>Guitar, Drums, Bass or Vocals</b> beside the chart before starting a track.</p><ol class="instructions"><li><strong>Auto-chart your song</strong><span>Choose <b>Guitar, Drums, Bass or Vocals</b> above the upload button, then upload a full song or isolated track. <b>Whole song</b> builds all four charts; <b>Separate parts</b> builds the parts you check. Each part has its own preview and highway; the original song plays in every mode. Changing instruments rebuilds the song separately. Pick <b>Easy, Medium, Hard or Expert</b>, then choose <b>Preview chart</b> to watch the notes play automatically. Move <b>Preview from</b> to hear another part. Choose <b>Play track</b> or <b>Play yourself</b> when you are ready.</span></li><li><strong>Tap frets</strong><span>Press <b>D F J K L</b> for green, red, yellow, blue, and orange. On a phone, tap the colored fret buttons.</span></li><li><strong>Hold + strum</strong><span>Hold the matching fret keys, then press <b>Enter</b> at the right moment. Hold all the matching frets for chords.</span></li><li><strong>Play a vocal melody</strong><span>Vocal pitch runs from low to high across the five colors. Tap D F J K L or the matching pads and hold long notes. This mode charts the melody for pad play; it does not use your microphone or recognize lyrics. Other pitched instruments in a full recording can affect the estimate.</span></li><li><strong>Keep it ringing</strong><span>Hold a fret through a long note's tail for extra points. Build a streak to reach a 4× multiplier.</span></li><li><strong>Play the drums</strong><span>The drum lanes run left to right: <b>D — red snare</b>, <b>F — yellow closed/open hi-hat</b>, <b>J — blue tom</b>, <b>K — orange cymbal</b>, and <b>L — green floor tom</b>. The <b>green pad / L</b> also hits orange cymbal notes; one green hit covers orange and green notes arriving together. Press <b>Space or Enter</b> for wide purple kick bars. Alternate both keys for fast kicks, or use the wide touch pedal. Play other simultaneous notes together. On a phone, tap the matching ring or the kick pedal.</span></li><li><strong>Unleash Overdrive</strong><span>At 50% charge, press <b>Shift on drums</b>, <b>Space on Guitar, Bass or Vocals</b>, or the Overdrive button to double your multiplier. Escape pauses the track.</span></li></ol><p class="help-footnote">Easy uses fewer notes and simpler rhythms; Medium adds more notes; Hard adds denser fills and chords; Expert keeps all detected notes. Guitar and Bass use three frets on Easy, four on Medium, and five on Hard/Expert. Drum colors always represent the same drums. Vocal melody keeps its five pitch colors. Space or Enter plays the drum kick; Shift activates drum Overdrive. This is free play: missed notes lower crowd energy, but the song keeps going. The built-in track uses original synthesized music. Uploaded charts estimate instrument parts from the mixed audio; they are not exact transcriptions.</p><button class="play-button" data-close="helpDialog">GOT IT. LET'S ROCK. <span>↗</span></button></dialog>
+
+  <dialog id="resultDialog" class="game-dialog results"><div class="eyebrow">SESSION COMPLETE</div><h2 id="resultTitle">That's a wrap.</h2><div id="resultStars" class="result-stars" aria-label="Song rating"></div><div class="result-total" id="resultScore">0</div><div class="score-label">FINAL SCORE</div><div class="result-grid"><div><strong id="resultAccuracy">0%</strong><span>NOTES HIT</span></div><div><strong id="resultStreak">0</strong><span>BEST STREAK</span></div><div><strong id="resultPerfect">0</strong><span>PERFECT HITS</span></div></div><p id="resultNotes"></p><div id="newBest" class="new-best" hidden>NEW PERSONAL BEST</div><button id="replayButton" class="play-button">PLAY AGAIN <span>↗</span></button><button id="backButton" class="back-button">Back to soundcheck</button></dialog>
+  <script src="chart-difficulties.js"></script>
+  <script src="engine.js"></script>
+  <script src="audio-clock.js"></script>
+  <script src="playback-tools.js"></script>
+  <script src="song-library.js"></script>
+  <script src="performance-motion.js"></script>
+  <script src="stage-mesh.js"></script>
+  <script src="stage.js"></script>
+  <script src="game.js"></script>
+  <script src="offline-assets.js"></script>
+  <script src="offline.js"></script>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3a8855139d0a5ff',t:'MTc4OTMxNjg2MQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
