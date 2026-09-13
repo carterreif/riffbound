@@ -1,5 +1,6 @@
 name: Import Riffbound v31 source extras
 
+# Retry after validating all staged archive segments.
 on:
   push:
     branches: [main]
