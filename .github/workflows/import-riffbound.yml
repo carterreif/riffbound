@@ -1,0 +1,65 @@
+name: Import Riffbound v31 build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/import-riffbound.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import-build:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download current Riffbound v31 browser build
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://riffbound.aaronreifschneider.chatgpt.site'
+          files=(
+            'index.html'
+            'styles.css'
+            'game.js'
+            'autochart.js'
+            'chart-difficulties.js'
+            'drum-separation.js'
+            'engine.js'
+            'audio-clock.js'
+            'performance-motion.js'
+            'playback-tools.js'
+            'reference-charts.js'
+            'song-library.js'
+            'stage-mesh.js'
+            'stage.js'
+            'offline-assets.js'
+            'offline.js'
+            'sw.js'
+            'manifest.webmanifest'
+            'assets/app-icon-192.png'
+            'assets/app-icon-512.png'
+            'assets/band-atlas.png'
+            'assets/concert-stage.png'
+          )
+          mkdir -p dist/assets
+          for f in "${files[@]}"; do
+            echo "Downloading $f"
+            curl --fail --location --retry 3 --silent --show-error "$base/$f" --output "dist/$f"
+          done
+      - name: Commit imported game build
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add dist
+          if git diff --cached --quiet; then
+            echo 'No build changes to commit.'
+            exit 0
+          fi
+          git commit -m 'Import Riffbound v31 playable build'
+          git push
