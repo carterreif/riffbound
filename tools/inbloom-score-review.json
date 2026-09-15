@@ -1,0 +1,793 @@
+{
+  "revision": 2,
+  "audioId": "551b1a24c46298a1467c11c1cceffa5e7fb7cc6be63c16a378a34b755b7960c3",
+  "duration": 272.66185941043085,
+  "scorePage": 1,
+  "scoreImageSha256": "a086a1a65c910b115f71f1d2e811f46d870f6940da3e8bf2df129a80ea586882",
+  "scope": "Expert and Hard only; original Easy and Medium retained",
+  "reviewedBars": [
+    5,
+    14
+  ],
+  "barStartsSeconds": [
+    15.19,
+    18.384,
+    21.619,
+    24.823,
+    28.024,
+    31.251,
+    34.439,
+    37.631,
+    40.909,
+    44.197,
+    47.442
+  ],
+  "notes": [
+    {
+      "bar": 5,
+      "sixteenth": 4,
+      "ms": 15959,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 0
+    },
+    {
+      "bar": 5,
+      "sixteenth": 7,
+      "ms": 16532,
+      "lane": 1,
+      "kind": "treble-attack",
+      "rise": 0.002862,
+      "attackRatio": 2.829,
+      "decay": 0.735
+    },
+    {
+      "bar": 5,
+      "sixteenth": 9,
+      "ms": 16950,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 5
+    },
+    {
+      "bar": 5,
+      "sixteenth": 11,
+      "ms": 17317,
+      "lane": 1,
+      "kind": "treble-attack",
+      "rise": 0.00297,
+      "attackRatio": 2.471,
+      "decay": 0.781
+    },
+    {
+      "bar": 5,
+      "sixteenth": 12,
+      "ms": 17577,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 0
+    },
+    {
+      "bar": 5,
+      "sixteenth": 13,
+      "ms": 17738,
+      "lane": 1,
+      "kind": "treble-attack",
+      "rise": 0.002098,
+      "attackRatio": 1.424,
+      "decay": 0.892
+    },
+    {
+      "bar": 5,
+      "sixteenth": 15,
+      "ms": 18156,
+      "lane": 1,
+      "kind": "treble-attack",
+      "rise": 0.003172,
+      "attackRatio": 3.531,
+      "decay": 0.886
+    },
+    {
+      "bar": 6,
+      "sixteenth": 1,
+      "ms": 18585,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 5
+    },
+    {
+      "bar": 6,
+      "sixteenth": 4,
+      "ms": 19204,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 0
+    },
+    {
+      "bar": 6,
+      "sixteenth": 5,
+      "ms": 19368,
+      "lane": 1,
+      "kind": "treble-attack",
+      "rise": 0.004477,
+      "attackRatio": 1.673,
+      "decay": 1.156
+    },
+    {
+      "bar": 6,
+      "sixteenth": 7,
+      "ms": 19779,
+      "lane": 1,
+      "kind": "treble-attack",
+      "rise": 0.001783,
+      "attackRatio": 1.211,
+      "decay": 0.667
+    },
+    {
+      "bar": 6,
+      "sixteenth": 9,
+      "ms": 20194,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 5
+    },
+    {
+      "bar": 6,
+      "sixteenth": 11,
+      "ms": 20575,
+      "lane": 1,
+      "kind": "treble-attack",
+      "rise": 0.00807,
+      "attackRatio": 4.235,
+      "decay": 0.856
+    },
+    {
+      "bar": 6,
+      "sixteenth": 12,
+      "ms": 20812,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 0
+    },
+    {
+      "bar": 6,
+      "sixteenth": 13,
+      "ms": 20986,
+      "lane": 1,
+      "kind": "treble-attack",
+      "rise": 0.003452,
+      "attackRatio": 1.794,
+      "decay": 0.66
+    },
+    {
+      "bar": 7,
+      "sixteenth": 1,
+      "ms": 21813,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 5
+    },
+    {
+      "bar": 7,
+      "sixteenth": 4,
+      "ms": 22420,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 0
+    },
+    {
+      "bar": 7,
+      "sixteenth": 9,
+      "ms": 23415,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 5
+    },
+    {
+      "bar": 7,
+      "sixteenth": 11,
+      "ms": 23788,
+      "lane": 1,
+      "kind": "treble-attack",
+      "rise": 0.005596,
+      "attackRatio": 1.524,
+      "decay": 0.957
+    },
+    {
+      "bar": 7,
+      "sixteenth": 12,
+      "ms": 24023,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 0
+    },
+    {
+      "bar": 7,
+      "sixteenth": 15,
+      "ms": 24592,
+      "lane": 1,
+      "kind": "treble-attack",
+      "rise": 0.002396,
+      "attackRatio": 1.694,
+      "decay": 1.194
+    },
+    {
+      "bar": 8,
+      "sixteenth": 1,
+      "ms": 25019,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 5
+    },
+    {
+      "bar": 8,
+      "sixteenth": 3,
+      "ms": 25380,
+      "lane": 1,
+      "kind": "treble-attack",
+      "rise": 0.002801,
+      "attackRatio": 2.799,
+      "decay": 1.004
+    },
+    {
+      "bar": 8,
+      "sixteenth": 4,
+      "ms": 25633,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 0
+    },
+    {
+      "bar": 8,
+      "sixteenth": 9,
+      "ms": 26612,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 5
+    },
+    {
+      "bar": 8,
+      "sixteenth": 11,
+      "ms": 26992,
+      "lane": 1,
+      "kind": "treble-attack",
+      "rise": 0.00275,
+      "attackRatio": 1.298,
+      "decay": 1.157
+    },
+    {
+      "bar": 8,
+      "sixteenth": 12,
+      "ms": 27227,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 0
+    },
+    {
+      "bar": 9,
+      "sixteenth": 1,
+      "ms": 28224,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 5
+    },
+    {
+      "bar": 9,
+      "sixteenth": 4,
+      "ms": 28808,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 0
+    },
+    {
+      "bar": 9,
+      "sixteenth": 7,
+      "ms": 29406,
+      "lane": 1,
+      "kind": "treble-attack",
+      "rise": 0.00188,
+      "attackRatio": 1.363,
+      "decay": 1.116
+    },
+    {
+      "bar": 9,
+      "sixteenth": 9,
+      "ms": 29798,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 5
+    },
+    {
+      "bar": 9,
+      "sixteenth": 11,
+      "ms": 30184,
+      "lane": 1,
+      "kind": "treble-attack",
+      "rise": 0.003658,
+      "attackRatio": 4.969,
+      "decay": 0.959
+    },
+    {
+      "bar": 9,
+      "sixteenth": 12,
+      "ms": 30410,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 0
+    },
+    {
+      "bar": 9,
+      "sixteenth": 13,
+      "ms": 30595,
+      "lane": 1,
+      "kind": "treble-attack",
+      "rise": 0.00323,
+      "attackRatio": 5.32,
+      "decay": 0.645
+    },
+    {
+      "bar": 10,
+      "sixteenth": 1,
+      "ms": 31417,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 5
+    },
+    {
+      "bar": 10,
+      "sixteenth": 4,
+      "ms": 32041,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 0
+    },
+    {
+      "bar": 10,
+      "sixteenth": 5,
+      "ms": 32218,
+      "lane": 1,
+      "kind": "treble-attack",
+      "rise": 0.003487,
+      "attackRatio": 1.56,
+      "decay": 1.061
+    },
+    {
+      "bar": 10,
+      "sixteenth": 9,
+      "ms": 33023,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 5
+    },
+    {
+      "bar": 10,
+      "sixteenth": 11,
+      "ms": 33411,
+      "lane": 1,
+      "kind": "treble-attack",
+      "rise": 0.002905,
+      "attackRatio": 3.586,
+      "decay": 1.06
+    },
+    {
+      "bar": 10,
+      "sixteenth": 12,
+      "ms": 33661,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 0
+    },
+    {
+      "bar": 10,
+      "sixteenth": 13,
+      "ms": 33823,
+      "lane": 1,
+      "kind": "treble-attack",
+      "rise": 0.00354,
+      "attackRatio": 3.873,
+      "decay": 0.702
+    },
+    {
+      "bar": 10,
+      "sixteenth": 15,
+      "ms": 34212,
+      "lane": 1,
+      "kind": "treble-attack",
+      "rise": 0.001881,
+      "attackRatio": 2.25,
+      "decay": 1.045
+    },
+    {
+      "bar": 11,
+      "sixteenth": 1,
+      "ms": 34626,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 5
+    },
+    {
+      "bar": 11,
+      "sixteenth": 4,
+      "ms": 35259,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 0
+    },
+    {
+      "bar": 11,
+      "sixteenth": 5,
+      "ms": 35430,
+      "lane": 1,
+      "kind": "treble-attack",
+      "rise": 0.004972,
+      "attackRatio": 3.131,
+      "decay": 0.867
+    },
+    {
+      "bar": 11,
+      "sixteenth": 9,
+      "ms": 36241,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 5
+    },
+    {
+      "bar": 11,
+      "sixteenth": 11,
+      "ms": 36595,
+      "lane": 1,
+      "kind": "treble-attack",
+      "rise": 0.004703,
+      "attackRatio": 2.605,
+      "decay": 0.843
+    },
+    {
+      "bar": 11,
+      "sixteenth": 12,
+      "ms": 36858,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 0
+    },
+    {
+      "bar": 11,
+      "sixteenth": 13,
+      "ms": 37033,
+      "lane": 1,
+      "kind": "treble-attack",
+      "rise": 0.003242,
+      "attackRatio": 2.322,
+      "decay": 0.918
+    },
+    {
+      "bar": 11,
+      "sixteenth": 15,
+      "ms": 37412,
+      "lane": 1,
+      "kind": "treble-attack",
+      "rise": 0.00498,
+      "attackRatio": 1.207,
+      "decay": 0.758
+    },
+    {
+      "bar": 12,
+      "sixteenth": 1,
+      "ms": 37832,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 5
+    },
+    {
+      "bar": 12,
+      "sixteenth": 3,
+      "ms": 38218,
+      "lane": 1,
+      "kind": "treble-attack",
+      "rise": 0.006205,
+      "attackRatio": 2.442,
+      "decay": 0.878
+    },
+    {
+      "bar": 12,
+      "sixteenth": 4,
+      "ms": 38450,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 0
+    },
+    {
+      "bar": 12,
+      "sixteenth": 5,
+      "ms": 38626,
+      "lane": 1,
+      "kind": "treble-attack",
+      "rise": 0.003074,
+      "attackRatio": 1.272,
+      "decay": 0.79
+    },
+    {
+      "bar": 12,
+      "sixteenth": 7,
+      "ms": 39049,
+      "lane": 1,
+      "kind": "treble-attack",
+      "rise": 0.004497,
+      "attackRatio": 1.44,
+      "decay": 1.567
+    },
+    {
+      "bar": 12,
+      "sixteenth": 9,
+      "ms": 39422,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 5
+    },
+    {
+      "bar": 12,
+      "sixteenth": 11,
+      "ms": 39845,
+      "lane": 1,
+      "kind": "treble-attack",
+      "rise": 0.003451,
+      "attackRatio": 1.371,
+      "decay": 0.929
+    },
+    {
+      "bar": 12,
+      "sixteenth": 12,
+      "ms": 40089,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 0
+    },
+    {
+      "bar": 13,
+      "sixteenth": 3,
+      "ms": 41504,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 5
+    },
+    {
+      "bar": 13,
+      "sixteenth": 4,
+      "ms": 41709,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 0
+    },
+    {
+      "bar": 13,
+      "sixteenth": 5,
+      "ms": 41895,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 5
+    },
+    {
+      "bar": 13,
+      "sixteenth": 7,
+      "ms": 42338,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 5
+    },
+    {
+      "bar": 13,
+      "sixteenth": 9,
+      "ms": 42760,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 5
+    },
+    {
+      "bar": 13,
+      "sixteenth": 11,
+      "ms": 43186,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 5
+    },
+    {
+      "bar": 13,
+      "sixteenth": 12,
+      "ms": 43380,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 0
+    },
+    {
+      "bar": 13,
+      "sixteenth": 13,
+      "ms": 43568,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 5
+    },
+    {
+      "bar": 13,
+      "sixteenth": 15,
+      "ms": 43995,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 5
+    },
+    {
+      "bar": 14,
+      "sixteenth": 3,
+      "ms": 44835,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 5
+    },
+    {
+      "bar": 14,
+      "sixteenth": 4,
+      "ms": 45009,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 0
+    },
+    {
+      "bar": 14,
+      "sixteenth": 5,
+      "ms": 45209,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 5
+    },
+    {
+      "bar": 14,
+      "sixteenth": 7,
+      "ms": 45627,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 5
+    },
+    {
+      "bar": 14,
+      "sixteenth": 9,
+      "ms": 46035,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 5
+    },
+    {
+      "bar": 14,
+      "sixteenth": 11,
+      "ms": 46452,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 5
+    },
+    {
+      "bar": 14,
+      "sixteenth": 12,
+      "ms": 46637,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 0
+    },
+    {
+      "bar": 14,
+      "sixteenth": 13,
+      "ms": 46848,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 5
+    },
+    {
+      "bar": 14,
+      "sixteenth": 15,
+      "ms": 47257,
+      "lane": 1,
+      "kind": "score-overlap",
+      "withLane": 5
+    }
+  ],
+  "unresolved": [
+    {
+      "bar": 5,
+      "sixteenth": 2,
+      "expectedSeconds": 15.5892,
+      "reason": "Cymbal wash or insufficient independent treble attack"
+    },
+    {
+      "bar": 5,
+      "sixteenth": 3,
+      "expectedSeconds": 15.7889,
+      "reason": "Cymbal wash or insufficient independent treble attack"
+    },
+    {
+      "bar": 5,
+      "sixteenth": 5,
+      "expectedSeconds": 16.1881,
+      "reason": "Cymbal wash or insufficient independent treble attack"
+    },
+    {
+      "bar": 6,
+      "sixteenth": 15,
+      "expectedSeconds": 21.4168,
+      "reason": "Cymbal wash or insufficient independent treble attack"
+    },
+    {
+      "bar": 7,
+      "sixteenth": 2,
+      "expectedSeconds": 22.0195,
+      "reason": "Cymbal wash or insufficient independent treble attack"
+    },
+    {
+      "bar": 7,
+      "sixteenth": 3,
+      "expectedSeconds": 22.2198,
+      "reason": "Cymbal wash or insufficient independent treble attack"
+    },
+    {
+      "bar": 7,
+      "sixteenth": 5,
+      "expectedSeconds": 22.6202,
+      "reason": "Cymbal wash or insufficient independent treble attack"
+    },
+    {
+      "bar": 7,
+      "sixteenth": 7,
+      "expectedSeconds": 23.0207,
+      "reason": "Cymbal wash or insufficient independent treble attack"
+    },
+    {
+      "bar": 7,
+      "sixteenth": 13,
+      "expectedSeconds": 24.2222,
+      "reason": "Cymbal wash or insufficient independent treble attack"
+    },
+    {
+      "bar": 8,
+      "sixteenth": 5,
+      "expectedSeconds": 25.8233,
+      "reason": "Cymbal wash or insufficient independent treble attack"
+    },
+    {
+      "bar": 8,
+      "sixteenth": 7,
+      "expectedSeconds": 26.2234,
+      "reason": "Cymbal wash or insufficient independent treble attack"
+    },
+    {
+      "bar": 8,
+      "sixteenth": 13,
+      "expectedSeconds": 27.4238,
+      "reason": "Cymbal wash or insufficient independent treble attack"
+    },
+    {
+      "bar": 9,
+      "sixteenth": 3,
+      "expectedSeconds": 28.6291,
+      "reason": "Cymbal wash or insufficient independent treble attack"
+    },
+    {
+      "bar": 9,
+      "sixteenth": 5,
+      "expectedSeconds": 29.0324,
+      "reason": "Cymbal wash or insufficient independent treble attack"
+    },
+    {
+      "bar": 10,
+      "sixteenth": 3,
+      "expectedSeconds": 31.8488,
+      "reason": "Cymbal wash or insufficient independent treble attack"
+    },
+    {
+      "bar": 11,
+      "sixteenth": 3,
+      "expectedSeconds": 35.0375,
+      "reason": "Cymbal wash or insufficient independent treble attack"
+    },
+    {
+      "bar": 12,
+      "sixteenth": 13,
+      "expectedSeconds": 40.2944,
+      "reason": "Cymbal wash or insufficient independent treble attack"
+    }
+  ]
+}

@@ -35,7 +35,7 @@
   const trackDuration=()=>song?.duration??E.DURATION,trackBeat=()=>song?.beat??E.BEAT;
   const chartNotes=()=>song?song.charts[instrument][difficulty]:E.makeChart(difficulty,instrument);
   const effectiveMode=()=>['drums','vocals'].includes(instrument)?'tap':mode;
-  const bestKey=()=>difficulty==='expert'?(song?`riffbound-upload-${instrument==='drums'?'v5':'v3'}-${song.id}-${instrument}-expert-${effectiveMode()}`:instrument==='guitar'?`riffbound-best-v1-expert-${mode}`:`riffbound-best-v2-${instrument}-expert-${effectiveMode()}`):`riffbound-difficulty-v1-${song?.id||'demo'}-${instrument}-${difficulty}-${effectiveMode()}`;
+  const bestKey=()=>song?.quality?.scoreReview&&instrument==='drums'&&['expert','hard'].includes(difficulty)?`riffbound-inbloom-score-v2-${song.id}-${difficulty}-${effectiveMode()}`:difficulty==='expert'?(song?`riffbound-upload-${instrument==='drums'?'v5':'v3'}-${song.id}-${instrument}-expert-${effectiveMode()}`:instrument==='guitar'?`riffbound-best-v1-expert-${mode}`:`riffbound-best-v2-${instrument}-expert-${effectiveMode()}`):`riffbound-difficulty-v1-${song?.id||'demo'}-${instrument}-${difficulty}-${effectiveMode()}`;
   function readBest(){try{return Number(localStorage.getItem(bestKey())||0);}catch{return 0;}}
   function refreshBest(){const n=readBest();$('localBest').textContent=n?n.toLocaleString():'—';}
   function setAnnouncement(small,big,visible=true,countdown=false){
@@ -129,6 +129,7 @@
     const names=instrument==='drums'?['Snare','Hi-hat','Tom','Cymbal','Floor tom','Kick']:['Green','Red','Yellow','Blue','Orange'];
     const source=song.quality?.sources?.[instrument];
     $('chartDetails').textContent=(source?source+'. ':'')+names.map((name,lane)=>`${name}: ${notes.filter(n=>n.lane===lane).length}`).join(' · ')+(source?'. Matched to this recording; preview the groove and fills.':'. Parts are estimated; use preview to check the result.');
+    if(instrument==='drums'&&song.quality?.scoreReview)$('chartDetails').textContent+=' '+song.quality.scoreReview;
     const canvas=$('chartOverview'),c=canvas.getContext('2d'),w=canvas.width,h=canvas.height;
     c.clearRect(0,0,w,h);c.fillStyle='#727f8b55';
     song.waveform.forEach((v,i)=>c.fillRect(i*w/song.waveform.length,h/2-v*h*.42,w/song.waveform.length-1,v*h*.84));
@@ -188,7 +189,17 @@
     if(generation!==uploadGeneration)throw Error('Canceled');
     if(!results.length)throw Error(Object.entries(unavailable).map(([part,message])=>`${partName(part)}: ${message}`).join(' '));
     const base=results.find(r=>r.instrument===instrument)||results[0];
-    return {...base,charts:Object.assign({},...results.map(r=>r.charts)),quality:{...base.quality,sources:Object.fromEntries(results.map(r=>[r.instrument,r.quality?.sources?.[r.instrument]||null])),unavailable,methods:Object.fromEntries(results.map(r=>[r.instrument,r.quality?.method||'Audio analysis']))}};
+    return {...base,charts:Object.assign({},...results.map(r=>r.charts)),quality:{...base.quality,...(results.some(r=>r.quality?.preserveEasyMedium)?{preserveEasyMedium:true,scoreReview:results.find(r=>r.quality?.scoreReview)?.quality.scoreReview}:{}),sources:Object.fromEntries(results.map(r=>[r.instrument,r.quality?.sources?.[r.instrument]||null])),unavailable,methods:Object.fromEntries(results.map(r=>[r.instrument,r.quality?.method||'Audio analysis']))}};
+  }
+  function mergeSongCharts(previous,result){
+    const charts={...previous,...result.charts};
+    if(result.quality?.preserveEasyMedium&&result.charts.drums&&previous?.drums){
+      // Preserve this player's existing lower arrangements on every rebuild
+      // and same-audio reupload, even if they predate the matched reference.
+      charts.drums={...charts.drums};
+      for(const level of ['easy','medium','normal'])if(previous.drums[level])charts.drums[level]=previous.drums[level];
+    }
+    return charts;
   }
   function readyMessage(result){
     const unavailable=Object.keys(result.quality?.unavailable||{});
@@ -203,7 +214,7 @@
     try{
       const samples=song.analysisSamples||await prepareSamples(song.buffer);if(generation!==uploadGeneration)return;
       const result=await analyzeParts(samples,targets,generation,song.id);if(generation!==uploadGeneration)return;
-      song={...song,analysisSamples:samples,charts:{...song.charts,...result.charts},quality:{...song.quality,...result.quality,sources:{...song.quality?.sources,...result.quality.sources},methods:{...song.quality?.methods,...result.quality.methods}}};
+      song={...song,analysisSamples:samples,charts:mergeSongCharts(song.charts,result),quality:{...song.quality,...result.quality,sources:{...song.quality?.sources,...result.quality.sources},methods:{...song.quality?.methods,...result.quality.methods}}};
       instrument=result.instrument;song.instrument=instrument;setSongPercussion();state='idle';newSession();refreshSong();updateUi(0);saveSong();uploadProgress(100,readyMessage(result));setAnnouncement('CHARTS READY','CHOOSE YOUR PART');
     }catch(error){if(generation!==uploadGeneration)return;state='idle';reset();refreshSong();$('chartStatus').textContent=error.message;$('chartStatus').classList.add('error');}
     finally{if(generation===uploadGeneration){$('uploadProgress').hidden=true;updateButtons();}}
@@ -224,7 +235,7 @@
       const samples=song.analysisSamples||await prepareSamples(song.buffer);if(generation!==uploadGeneration)return;
       const result=await runAnalysis(samples,target,generation,song.id);if(generation!==uploadGeneration)return;
       // Analysis may replace chart data, never the original audio or identity.
-      song={...song,...result,id:song.id,title:song.title,filename:song.filename,audioBlob:song.audioBlob,buffer:song.buffer,musicEnd:song.musicEnd,analysisSamples:samples,charts:{...song.charts,...result.charts},quality:{...song.quality,...result.quality,sources:{...song.quality?.sources,[target]:result.quality?.sources?.[target]||null},methods:{...song.quality?.methods,[target]:result.quality?.method||'Audio analysis'}},duration:song.musicEnd+.8};instrument=target;setSongPercussion();state='idle';newSession();refreshSong();updateUi(0);saveSong();
+      song={...song,...result,id:song.id,title:song.title,filename:song.filename,audioBlob:song.audioBlob,buffer:song.buffer,musicEnd:song.musicEnd,analysisSamples:samples,charts:mergeSongCharts(song.charts,result),quality:{...song.quality,...result.quality,sources:{...song.quality?.sources,[target]:result.quality?.sources?.[target]||null},methods:{...song.quality?.methods,[target]:result.quality?.method||'Audio analysis'}},duration:song.musicEnd+.8};instrument=target;setSongPercussion();state='idle';newSession();refreshSong();updateUi(0);saveSong();
       uploadProgress(100,`${partName(target)} chart ready. Preview it before playing.`);setAnnouncement('FOCUSED CHART READY','LET IT RIP.');
     }catch(error){if(generation!==uploadGeneration)return;state='idle';reset();refreshSong();$('chartStatus').textContent=error.message;$('chartStatus').classList.add('error');}
     finally{if(generation===uploadGeneration){$('uploadProgress').hidden=true;updateButtons();}}
@@ -253,7 +264,7 @@
       if(generation!==uploadGeneration)return;
       let previous=song?.id===id?song:null;if(!previous)try{previous=await Library.get(id);}catch{}
       if(generation!==uploadGeneration)return;
-      song={...result,charts:{...previous?.charts,...result.charts},quality:{...result.quality,sources:{...previous?.quality?.sources,...result.quality.sources},methods:{...previous?.quality?.methods,...result.quality.methods}},id,buffer,audioBlob,filename:file.name,analysisSamples:samples,title:file.name.replace(/\.[^.]+$/,'')||'Your song',musicEnd:buffer.duration,duration:buffer.duration+.8};
+      song={...result,charts:mergeSongCharts(previous?.charts,result),quality:{...previous?.quality,...result.quality,sources:{...previous?.quality?.sources,...result.quality.sources},methods:{...previous?.quality?.methods,...result.quality.methods}},id,buffer,audioBlob,filename:file.name,analysisSamples:samples,title:file.name.replace(/\.[^.]+$/,'')||'Your song',musicEnd:buffer.duration,duration:buffer.duration+.8};
       instrument=result.instrument;
       setSongPercussion();
       state='idle';newSession();refreshSong();updateUi(0);uploadProgress(100,readyMessage(result));setAnnouncement('CHARTS READY','LET IT RIP.');saveSong();

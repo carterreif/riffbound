@@ -36,7 +36,7 @@ function setup({mobile=false,chartFixture=null,chartResultExtras={},chartFailure
   class OfflineAudioContext{createBufferSource(){return makeNode();}createChannelSplitter(){return makeNode();}async startRendering(){return buffer;}}
   class Worker{
     constructor(path){assert.equal(path,'autochart.js');this.dead=false;if(chartFixture)return;const sandbox={Math,Float32Array,postMessage:data=>{if(!this.dead)this.onmessage?.({data});}};sandbox.self=sandbox;vm.createContext(sandbox);sandbox.importScripts=path=>{assert.ok(['drum-separation.js','reference-charts.js','chart-difficulties.js'].includes(path));vm.runInContext(fs.readFileSync(require.resolve('../dist/'+path),'utf8'),sandbox);};vm.runInContext(workerCode,sandbox);this.sandbox=sandbox;}
-    postMessage(data){requests.push(data.instrument);requestIds.push(data.audioId);setImmediate(()=>{if(this.dead)return;if(chartFailures[data.instrument]){this.onmessage({data:{type:'error',message:chartFailures[data.instrument]}});return;}const fixture=typeof chartFixture==='function'?chartFixture(data.instrument):chartFixture;if(chartFixture)this.onmessage({data:{type:'complete',result:{...chartResultExtras,charts:{[data.instrument]:{easy:fixture,normal:fixture,expert:fixture}},waveform:[0,.5,1,.5],bpm:120,beat:.5}}});else this.sandbox.onmessage({data});});}terminate(){this.dead=true;}
+    postMessage(data){requests.push(data.instrument);requestIds.push(data.audioId);setImmediate(()=>{if(this.dead)return;if(chartFailures[data.instrument]){this.onmessage({data:{type:'error',message:chartFailures[data.instrument]}});return;}const fixture=typeof chartFixture==='function'?chartFixture(data.instrument):chartFixture;if(chartFixture)this.onmessage({data:{type:'complete',result:{...(typeof chartResultExtras==='function'?chartResultExtras(data.instrument):chartResultExtras),charts:{[data.instrument]:Array.isArray(fixture)?{easy:fixture,normal:fixture,expert:fixture}:fixture},waveform:[0,.5,1,.5],bpm:120,beat:.5}}});else this.sandbox.onmessage({data});});}terminate(){this.dead=true;}
   }
   const libraryCode=require('../dist/song-library.js'),library={...libraryCode,list:async()=>[...savedSongs.values()],get:async id=>savedSongs.get(id),save:async song=>{if(storageFailure)throw Error('Quota exceeded');savedSongs.set(song.id,{...libraryCode.metadata(song),audioBlob:song.audioBlob});},remove:async id=>savedSongs.delete(id),...libraryOverrides};
   const window={RiffEngine:E,RiffPlayback:require('../dist/playback-tools.js'),RiffLibrary:library,RiffMotion:require('../dist/performance-motion.js'),RiffAudioClock:require('../dist/audio-clock.js'),RiffStage:{create:()=>({resize:noop,draw:noop})},AudioContext,OfflineAudioContext,Worker,matchMedia:q=>({matches:mobile&&!q.includes('reduced-motion')}),devicePixelRatio:1,addEventListener:noop};
@@ -423,11 +423,11 @@ test('original In Bloom upload, preview, save, reopen and rebuild retain its mat
   await app.radios.instrument[1].emit('change');await app.radios.difficulty[3].emit('change');await app.upload('Renamed original recording.wav');
   await until(()=>/Saved on this device/.test(n.saveStatus.textContent));
   assert.match(n.chartDetails.textContent,/In Bloom · Matched drum chart/);assert.equal(n.trackKind.textContent,'MATCHED CHART');
-  assert.deepEqual(app.requestIds,[id]);assert.match(n.chartSummary.textContent,/1275 notes/);
+  assert.deepEqual(app.requestIds,[id]);assert.match(n.chartSummary.textContent,/1351 notes/);
   n.previewPosition.value='239';await n.previewPosition.emit('input');await n.previewButton.click();await until(()=>n.previewButton.textContent.includes('Stop'));
   assert.equal(app.sources.at(-1).offset,239);await n.previewButton.click();
   const saved=await s.fresh().get(id),packed=await s.library.unpack(s.library.pack(saved));
-  assert.equal(packed.quality.sources.drums,'In Bloom · Matched drum chart');assert.equal(packed.charts.drums.expert.length,1275);
+  assert.equal(packed.quality.sources.drums,'In Bloom · Matched drum chart');assert.equal(packed.charts.drums.expert.length,1351);
   assert.deepEqual(Buffer.from(await packed.audioBlob.arrayBuffer()),bytes);
   await n.demoButton.click();await n.setlistEntries.children.find(button=>button.dataset.songId===id).click();
   assert.equal(n.trackKind.textContent,'MATCHED CHART');assert.equal(app.requestIds.length,1,'Reopening must not rechart');
@@ -588,4 +588,28 @@ test('rebuilding a saved song retains the full new Expert master and saves all r
   assert.match(fresh.nodes.chartSummary.textContent,/Expert.*24 notes/);assert.equal(fresh.requests.length,0);
   const restored=await require('../dist/song-library.js').unpack(require('../dist/song-library.js').pack(saved));
   for(const level of E.Difficulties.LEVELS)assert.deepEqual(restored.charts.drums[level].map(n=>[n.time,n.lane]),charts[level].map(n=>[n.time,n.lane]));
+});
+
+
+for(const action of ['rebuild','parts','whole','reupload','reupload-after-demo'])test(`In Bloom score review preserves the player's Easy/Medium through ${action}`,async()=>{
+  const crypto=require('node:crypto'),D=E.Difficulties,bytes=Buffer.from([1,1,2,3]),id=crypto.createHash('sha256').update(bytes).digest('hex');
+  const fresh=part=>D.build(Array.from({length:32},(_,i)=>({time:1+i*.25,lane:i%5,duration:0})),part,.5);
+  const lower={easy:[{id:0,time:3.141,lane:0,duration:0}],medium:[{id:0,time:3.141,lane:0,duration:0},{id:1,time:6.789,lane:4,duration:0}],normal:[{id:0,time:8.1,lane:2,duration:0}]};
+  const previous={id,title:'In Bloom saved',instrument:'drums',musicEnd:16,duration:16.8,beat:.5,bpm:120,waveform:[],audioBlob:new Blob([bytes]),charts:{drums:{...fresh('drums'),...lower},guitar:fresh('guitar')}};
+  const app=setup({savedSongs:new Map([[id,previous]]),chartFixture:fresh,chartResultExtras:part=>({quality:part==='drums'?{preserveEasyMedium:true,scoreReview:'Expert and Hard updated'}:{}})}),n=app.nodes;
+  await until(()=>n.setlistEntries.children.length===2);await n.setlistEntries.children[1].click();
+  if(action==='rebuild')await n.rechartButton.click();
+  else if(action==='parts'||action==='whole'){
+    await app.radios.instrument[0].emit('change');n.chartScope.value=action==='whole'?'whole':'separate';await n.chartScope.emit('change');await n.buildPartsButton.click();
+  }else{
+    if(action==='reupload-after-demo'){await n.demoButton.click();await app.radios.instrument[1].emit('change');}
+    await app.upload('Renamed In Bloom.wav');
+  }
+  await until(()=>app.savedSongs.get(id).quality?.preserveEasyMedium);
+  const saved=app.savedSongs.get(id),plain=value=>JSON.parse(JSON.stringify(value));
+  for(const level of ['easy','medium','normal'])assert.deepEqual(plain(saved.charts.drums[level]),lower[level]);
+  for(const level of ['expert','hard'])assert.deepEqual(plain(saved.charts.drums[level]),fresh('drums')[level]);
+  assert.deepEqual(plain(saved.charts.guitar),fresh('guitar'));assert.deepEqual(Buffer.from(await saved.audioBlob.arrayBuffer()),bytes);
+  const reopened=setup({savedSongs:app.savedSongs,chartFixture:[]});await until(()=>reopened.nodes.setlistEntries.children.length===2);await reopened.nodes.setlistEntries.children[1].click();await reopened.radios.instrument[1].emit('change');
+  await reopened.radios.difficulty[0].emit('change');assert.match(reopened.nodes.chartSummary.textContent,/Easy.*1 notes/);assert.equal(reopened.requests.length,0);
 });

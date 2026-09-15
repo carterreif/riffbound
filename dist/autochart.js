@@ -539,6 +539,16 @@
     }
     return {[instrument]:{...charts,...Difficulties.build(charts.expert,instrument,beat)}};
   }
+  function buildMatchedCharts(reference,duration){
+    const updated=buildFocusedCharts(reference.events,'drums',reference.beat,duration,new Float32Array(0),.01);
+    if(reference.baselineEvents){
+      const baseline=buildFocusedCharts(reference.baselineEvents,'drums',reference.beat,duration,new Float32Array(0),.01).drums;
+      // This score review was requested only for Expert and Hard. New uploads
+      // retain the prior Easy/Medium arrangements, plus hidden legacy Normal.
+      for(const level of ['easy','medium','normal'])updated.drums[level]=baseline[level];
+    }
+    return updated;
+  }
   function analyzeMelody(samples,sampleRate,instrument,progress){
     // Bass uses a longer window for low fundamentals. Vocals follow stable
     // voiced pitch segments, including legato changes without a new attack.
@@ -631,10 +641,10 @@
     const reference=instrument==='drums'?References?.match(audioId,duration):null;
     if(reference){
       progress(85,'Loading the matched In Bloom drum chart…');
-      const charts=buildFocusedCharts(reference.events,'drums',reference.beat,duration,new Float32Array(0),.01);
+      const charts=buildMatchedCharts(reference,duration);
       const expert=charts.drums.expert;
-      return {instrument,duration,bpm:reference.bpm,beat:reference.beat,offset:reference.offset,confidence:.7028361194449136,charts,waveform:reference.waveform,chartVersion:12,
-        quality:{counts:Array.from({length:6},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:reference.label,sources:{drums:reference.label}}};
+      return {instrument,duration,bpm:reference.bpm,beat:reference.beat,offset:reference.offset,confidence:.7028361194449136,charts,waveform:reference.waveform,chartVersion:13,
+        quality:{preserveEasyMedium:true,scoreReview:'In Bloom score review: Expert and Hard updated; Easy and Medium retained.',counts:Array.from({length:6},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:reference.label,sources:{drums:reference.label}}};
     }
     const n=2048,hop=256,dt=hop/sampleRate,frames=Math.ceil(samples.length/hop),bins=Math.min(n/2,Math.floor(10000*n/sampleRate));
     const plan=fftPlan(n),re=new Float32Array(n),im=new Float32Array(n),rows=Array.from({length:17},()=>new Float32Array(bins));
@@ -758,7 +768,7 @@
     const quality={counts:Array.from({length:instrument==='drums'?6:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:instrument==='drums'&&events.some(e=>e.part!==undefined)?'Adaptive kit separation':'Attack and tone analysis'};
     return {...timing,instrument,duration,charts,quality,chartVersion:instrument==='drums'?12:4,waveform:waveform.map(v=>v/peak)};
   }
-  const api={analyze,buildFocusedCharts,filterSeparated};
+  const api={analyze,buildFocusedCharts,buildMatchedCharts,filterSeparated};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   else if(typeof document==='undefined')root.onmessage=event=>{try{const result=analyze(event.data,(value,label)=>root.postMessage({type:'progress',value,label}));root.postMessage({type:'complete',result});}catch(error){root.postMessage({type:'error',message:error.message});}};
   else root.RiffAutoChart=api;
