@@ -423,11 +423,11 @@ test('original In Bloom upload, preview, save, reopen and rebuild retain its mat
   await app.radios.instrument[1].emit('change');await app.radios.difficulty[3].emit('change');await app.upload('Renamed original recording.wav');
   await until(()=>/Saved on this device/.test(n.saveStatus.textContent));
   assert.match(n.chartDetails.textContent,/In Bloom · Matched drum chart/);assert.equal(n.trackKind.textContent,'MATCHED CHART');
-  assert.deepEqual(app.requestIds,[id]);assert.match(n.chartSummary.textContent,/1365 notes/);
+  assert.deepEqual(app.requestIds,[id]);assert.match(n.chartSummary.textContent,/1401 notes/);
   n.previewPosition.value='239';await n.previewPosition.emit('input');await n.previewButton.click();await until(()=>n.previewButton.textContent.includes('Stop'));
   assert.equal(app.sources.at(-1).offset,239);await n.previewButton.click();
   const saved=await s.fresh().get(id),packed=await s.library.unpack(s.library.pack(saved));
-  assert.equal(packed.quality.sources.drums,'In Bloom · Matched drum chart');assert.equal(packed.charts.drums.expert.length,1365);
+  assert.equal(packed.quality.sources.drums,'In Bloom · Matched drum chart');assert.equal(packed.charts.drums.expert.length,1401);
   assert.deepEqual(Buffer.from(await packed.audioBlob.arrayBuffer()),bytes);
   await n.demoButton.click();await n.setlistEntries.children.find(button=>button.dataset.songId===id).click();
   assert.equal(n.trackKind.textContent,'MATCHED CHART');assert.equal(app.requestIds.length,1,'Reopening must not rechart');
@@ -596,7 +596,7 @@ for(const action of ['rebuild','parts','whole','reupload','reupload-after-demo']
   const fresh=part=>D.build(Array.from({length:32},(_,i)=>({time:1+i*.25,lane:i%5,duration:0})),part,.5);
   const lower={easy:[{id:0,time:3.141,lane:0,duration:0}],medium:[{id:0,time:3.141,lane:0,duration:0},{id:1,time:6.789,lane:4,duration:0}],normal:[{id:0,time:8.1,lane:2,duration:0}]};
   const previous={id,title:'In Bloom saved',instrument:'drums',musicEnd:16,duration:16.8,beat:.5,bpm:120,waveform:[],audioBlob:new Blob([bytes]),charts:{drums:{...fresh('drums'),...lower},guitar:fresh('guitar')}};
-  const app=setup({savedSongs:new Map([[id,previous]]),chartFixture:fresh,chartResultExtras:part=>({quality:part==='drums'?{preserveEasyMedium:true,scoreRevision:3,scoreReview:'Expert and Hard updated'}:{}})}),n=app.nodes;
+  const app=setup({savedSongs:new Map([[id,previous]]),chartFixture:fresh,chartResultExtras:part=>({quality:part==='drums'?{preserveEasyMedium:true,scoreRevision:4,scoreReview:'Expert and Hard updated'}:{}})}),n=app.nodes;
   await until(()=>n.setlistEntries.children.length===2);await n.setlistEntries.children[1].click();
   if(action==='rebuild')await n.rechartButton.click();
   else if(action==='parts'||action==='whole'){
@@ -607,7 +607,7 @@ for(const action of ['rebuild','parts','whole','reupload','reupload-after-demo']
   }
   await until(()=>app.savedSongs.get(id).quality?.preserveEasyMedium);
   const saved=app.savedSongs.get(id),plain=value=>JSON.parse(JSON.stringify(value));
-  assert.equal(saved.quality.scoreRevision,3);
+  assert.equal(saved.quality.scoreRevision,4);
   for(const level of ['easy','medium','normal'])assert.deepEqual(plain(saved.charts.drums[level]),lower[level]);
   for(const level of ['expert','hard'])assert.deepEqual(plain(saved.charts.drums[level]),fresh('drums')[level]);
   assert.deepEqual(plain(saved.charts.guitar),fresh('guitar'));assert.deepEqual(Buffer.from(await saved.audioBlob.arrayBuffer()),bytes);

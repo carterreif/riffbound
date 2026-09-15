@@ -57,7 +57,7 @@ test('malformed Medium and Hard notes are rejected rather than hidden by migrati
 test('the matched In Bloom chart has four arrangements and applies reviewed upper charts while keeping four increasing difficulty counts',()=>{
   const r=require('../dist/reference-charts.js').match('551b1a24c46298a1467c11c1cceffa5e7fb7cc6be63c16a378a34b755b7960c3',272.66185941043085);
   const charts=A.buildMatchedCharts(r,272.66185941043085).drums;
-  assert.equal(charts.expert.length,1365);
+  assert.equal(charts.expert.length,1401);
   for(const [i,level] of D.LEVELS.entries()){
     if(i)assert.ok(charts[level].length>charts[D.LEVELS[i-1]].length);
     if(level==='hard')for(const n of charts[level])assert.ok(charts.expert.some(e=>e.time===n.time&&e.lane===n.lane));

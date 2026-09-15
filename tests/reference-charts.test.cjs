@@ -33,7 +33,7 @@ test('matched hats and real crash/kick chords follow the recording, without reus
 });
 
 test('every matched strike is playable and simpler difficulty retains the same voice and timing',()=>{
-  const all=charts();assert.equal(all.expert.length,1365);assert.equal(all.normal.length,1275);assert.ok(all.easy.length<all.expert.length);
+  const all=charts();assert.equal(all.expert.length,1401);assert.equal(all.normal.length,1275);assert.ok(all.easy.length<all.expert.length);
   for(const level of ['easy','medium','hard','normal','expert']){
     const session=new E.Session(level,'tap','drums',{notes:all[level],musicEnd:duration});
     for(const n of all[level]){if(level==='hard')assert.ok(all.expert.some(e=>e.time===n.time&&e.lane===n.lane));session.tap(n.lane,n.time);session.update(n.time,new Set([n.lane]));}
@@ -45,8 +45,8 @@ test('the original uploaded WAV selects the matched chart and keeps all prior in
   const bytes=fs.readFileSync(process.env.RIFFBOUND_REFERENCE_WAV),pcm=fs.readFileSync(process.env.RIFFBOUND_REFERENCE_PCM);
   const audioId=crypto.createHash('sha256').update(bytes).digest('hex');assert.equal(audioId,id);
   const result=A.analyze({samples:new Float32Array(pcm.buffer,pcm.byteOffset,pcm.byteLength/4),sampleRate:22050,instrument:'drums',audioId});
-  assert.equal(result.quality.sources.drums,'In Bloom · Matched drum chart');assert.equal(result.chartVersion,14);
-  assert.equal(result.quality.scoreRevision,3);
+  assert.equal(result.quality.sources.drums,'In Bloom · Matched drum chart');assert.equal(result.chartVersion,15);
+  assert.equal(result.quality.scoreRevision,4);
   const notes=result.charts.drums.expert;
   for(const [lane,times] of [[5,[2.242,2.849,3.243,3.470,4.494,4.886,5.278,5.481,6.087,6.477,6.692,7.705,8.117,8.491,8.706,9.321,9.704]],[0,[3.052,4.088,4.285,6.265,7.294,9.504,10.562,10.784]],[1,[5.884,9.121]],[3,[2.242]]])for(const time of times)assert.ok(notes.some(n=>n.lane===lane&&Math.abs(n.time-time)<.035),`Missing ${lane} at ${time}`);
 });
@@ -55,14 +55,14 @@ test('the original uploaded WAV selects the matched chart and keeps all prior in
 test('the score review keeps the shipped Easy/Medium/Normal arrays byte-for-byte',()=>{
   const all=charts(),expected={easy:'a250177763cff234724f9dcadd40d72cb700363b255e7a1e49c913a687fefb04',medium:'6143193a5d6fc4763fd4b093fa52b11e39e167790326d6f9f5e4d9ae5bd7fe59',normal:'d7d04cf3684c7c77633d182f3d235f94faa38d66236b7b54da84b2d57142baf7'};
   for(const [level,digest] of Object.entries(expected))assert.equal(crypto.createHash('sha256').update(JSON.stringify(all[level])).digest('hex'),digest,level);
-  assert.equal(all.easy.length,522);assert.equal(all.medium.length,916);assert.equal(all.hard.length,1313);assert.equal(all.expert.length,1365);
+  assert.equal(all.easy.length,522);assert.equal(all.medium.length,916);assert.equal(all.hard.length,1349);assert.equal(all.expert.length,1401);
   for(const note of all.hard)assert.ok(all.expert.some(n=>n.time===note.time&&n.lane===note.lane));
 });
 
 test('close-up corrections retain the earlier hat review and every baseline strike except two reviewed yellow clicks',()=>{
   const r=reference(),review=require('../tools/inbloom-score-review.json'),key=n=>`${n.time}:${n.lane}`,after=new Set(r.events.map(key));
   const removed=new Set(['3.243:1','9.702:1']);
-  assert.equal(r.baselineEvents.length,1275);assert.equal(r.events.length,1365);assert.equal(after.size,r.events.length,'No duplicate taps');
+  assert.equal(r.baselineEvents.length,1275);assert.equal(r.events.length,1401);assert.equal(after.size,r.events.length,'No duplicate taps');
   for(const note of r.baselineEvents)assert.equal(after.has(key(note)),!removed.has(key(note)));
   for(const note of review.notes)assert.ok(after.has(`${note.ms/1000}:${note.lane}`),'Earlier quiet/overlap hat retained');
   for(const lane of [3,5])assert.deepEqual(r.events.filter(n=>n.lane===lane),r.baselineEvents.filter(n=>n.lane===lane));
@@ -106,5 +106,38 @@ test('each added flam stroke has a renewed broadband and treble attack in the pi
   function power(start,end,treble){let sum=0,count=0;for(let i=Math.round(start*sr);i<Math.round(end*sr);i++){const v=treble?samples[i]-samples[i-1]:samples[i];sum+=v*v;count++;}return sum/count;}
   for(const time of [4.128,4.325,4.707,7.333,7.525,7.936,8.308,10.594,11.190,14.021,14.417]){
     for(const treble of [false,true])assert.ok(power(time+.002,time+.010,treble)>power(time-.010,time-.002,treble)*3,`No renewed ${treble?'treble':'body'} attack at ${time}`);
+  }
+});
+
+test('video screenshots add only 36 yellow notes in six unique measures and preserve the complete preceding reference',()=>{
+  const r=reference(),review=require('../tools/inbloom-score-review.json').videoScreensReview;
+  assert.deepEqual(review.reviewedBars,[33,34,35,36,43,44]);
+  assert.deepEqual(review.screenshots[2].measures,review.screenshots[3].measures);
+  assert.equal(review.additions.length,36);
+  const keys=new Set(review.additions.map(n=>`${n.ms/1000}:${n.lane}`));assert.equal(keys.size,36);
+  const added=r.events.filter(n=>keys.has(`${n.time}:${n.lane}`));assert.equal(added.length,36);
+  assert.ok(added.every(n=>n.lane===1&&((n.time>=104.772&&n.time<117.722)||(n.time>=136.786&&n.time<143.057))));
+  const previous=r.events.filter(n=>!keys.has(`${n.time}:${n.lane}`));
+  assert.equal(crypto.createHash('sha256').update(JSON.stringify(previous)).digest('hex'),'3611a8305f478d818ea935dc9493ddf28a6d933e2550497a9445cf05e5edd604');
+});
+
+test('screenshot backbeats keep yellow hats with red snares, the snare-only ending and recorded kick/cymbal differences',()=>{
+  const all=charts();
+  for(const level of ['expert','hard']){
+    const near=t=>all[level].filter(n=>Math.abs(n.time-t)<.006).map(n=>n.lane);
+    for(const t of [105.567,107.208,108.824,110.426,112.045,113.638,115.262,116.899,117.293,137.568,139.141,140.724,142.287])assert.deepEqual(near(t),[0,1],`${level} backbeat ${t}`);
+    assert.deepEqual(near(117.539),[0]);assert.deepEqual(near(111.237),[3,5]);assert.deepEqual(near(117.104),[1,5]);
+    assert.ok(!all[level].some(n=>n.time>117.59&&n.time<117.67),'Do not invent the unsupported final thirty-second stroke');
+    for(const t of [106.363,106.567,108.006,108.216,112.837,113.067,114.459,114.666])assert.ok(near(t).includes(5),'Both strokes of the kick pair remain');
+  }
+});
+
+test('all fifteen newly measured quiet hats have fresh treble energy in the original recording',{skip:!process.env.RIFFBOUND_REFERENCE_PCM},()=>{
+  const bytes=fs.readFileSync(process.env.RIFFBOUND_REFERENCE_PCM),samples=new Float32Array(bytes.buffer,bytes.byteOffset,bytes.byteLength/4),sr=22050;
+  function power(start,end){let sum=0,count=0;for(let i=Math.round(start*sr);i<Math.round(end*sr);i++){sum+=(samples[i]-samples[i-1])**2;count++;}return sum/count;}
+  const expert=charts().expert;
+  for(const time of [105.751,106.963,107.377,107.767,108.570,108.979,110.184,110.606,111.006,112.202,113.399,114.194,115.008,115.434,116.655]){
+    assert.ok(expert.some(n=>n.time===time&&n.lane===1));
+    assert.ok(power(time+.004,time+.020)>power(time-.020,time-.004)*1.25,`No fresh treble attack at ${time}`);
   }
 });

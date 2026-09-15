@@ -72,3 +72,34 @@ The authoring JSON retains revision 2 decisions and appends a `closeUpReview` wi
 
 
 Final verification: **165 tests passed, none failed or skipped**, with the original WAV and pinned PCM (83.5 seconds). All corrected onsets/colors, close-stroke scoring, Hard reduction, original lower-array hashes, five saved-song update routes and persistence regressions pass. Both authoring tools reproduce the runtime reference byte-for-byte. JavaScript syntax, the entrypoint and local asset references also pass.
+
+
+## Revision 4 — supplied video screenshots (game version 35)
+
+The user provided four screenshots from Duke Grooves' **In Bloom - Drum Cover + Notation**, https://www.youtube.com/watch?v=_tqxCZVz_PI, after the linked video stream could not be retrieved. The screenshots were inspected directly. They show six unique measures: 33–34, 35–36 and two views of 43–44. The repeated views are one passage, not an instruction to double its notes. This revision does not claim to have played or inspected the whole video.
+
+The screenshot drum voices distinguish steady sixteenth hi-hats in the verse, paired kicks, snare backbeats, the open hat with the first fill snare at the end of measure 36, and the slower open-hi-hat pattern in measures 43–44. The supplied original WAV remains the timing source. Existing crash/kick downbeats, consecutive snare backbeats and paired kick positions establish the following alignment; no cover-video timestamp or rigid tempo replaces the recorded onsets.
+
+| Screenshot measure | WAV start, seconds | WAV end, seconds |
+| --- | ---: | ---: |
+| 33 | 104.772 | 108.006 |
+| 34 | 108.006 | 111.237 |
+| 35 | 111.237 | 114.459 |
+| 36 | 114.459 | 117.722 |
+| 43 | 136.786 | 139.924 |
+| 44 | 139.924 | 143.057 |
+
+Expert and Hard gain **36 yellow notes** in these windows: **15 independently measured quiet treble attacks** and **21 score-supported hi-hat overlaps** at exact existing snare/kick timestamps. The overlapping assignments are an interpretation of the notation, not proof that source separation independently recovered each hi-hat. The previously shipped reference is otherwise retained in full: no original red, blue, orange, green or kick note is added, removed, recolored or moved. The same-drum opening flam corrections from revision 3 remain.
+
+Quiet-note review reuses the pinned 22050 Hz mono PCM and the earlier third-order 3500 Hz high-pass analysis with 22-sample power frames, four-frame RMS smoothing and a four-frame positive difference. Candidate searches are bounded to −75/+65 ms around each indicated sixteenth position. Acceptance requires rise ≥ .0014, early/pre-attack power ratio ≥ 1.2, a short decaying envelope (late/early .45–1.65, far/early < .6) and no preceding crash within .8 seconds. Time comes from the leading 40% rise minus 1 ms, not the score grid. Six solo-hat positions remain unresolved. A separate first-difference PCM check gives renewed power ratios of 1.394–7.556 at all fifteen accepted quiet notes.
+
+The recording has some differences from the cover notation. Its sustained cymbal attack at 111.237 seconds is kept orange, rather than replaced or doubled with yellow. The clear low-body kick at 117.104 remains; the indicated hi-hat shares its time. The open hat at 117.293 shares the red snare, and the supported following stroke at 117.539 stays red alone. A final printed thirty-second snare around 117.62 has no distinct renewed broadband attack in the WAV, so another note is not synthesized from that notation. No tom or floor-tom note is invented in these hi-hat passages.
+
+`tools/inbloom-score-review.json` stores the screenshot identities, six measure windows, accepted onset evidence, ambiguous positions and recording differences under `videoScreensReview`. The existing renderer validates these bounded additions and combines them with the earlier overlay, while leaving the original lower-chart baseline intact. Audio, screenshots, video-page metadata and temporary analysis outputs remain excluded from Site assets and GitHub.
+
+New counts are **522 Easy / 916 Medium / 1,349 Hard / 1,401 Expert**. Expert has 304 red, 412 yellow, 18 blue, 88 orange, 33 green and 546 kicks. Hard has 52 fewer notes than Expert, including its existing simpler treatment of opening flams. Easy, Medium and hidden Normal remain byte-for-byte unchanged; each player's stored lower charts are preserved on rebuild and same-audio reupload. Matched score revision 4 uses the existing persisted revision-based score key, so older stored upper charts retain their own scores until rebuilt. Other instruments and generic automatic charting remain unchanged.
+
+This remains a bounded transcription estimate from six unique measures and the original audio. It does not establish perfect full-song accuracy or justify applying these patterns to unshown sections or unrelated uploads.
+
+
+Final verification: **168 tests passed, none failed or skipped**, using the original uploaded WAV and pinned PCM (83.3 seconds). All 36 additions, the fifteen independent quiet-onset checks, the complete preceding-reference hash, lower-chart snapshots, all-note scoring, five update routes and setlist/backup/reopen regressions pass. Both authoring tools reproduce the runtime reference byte-for-byte. JavaScript syntax, the entrypoint and local asset references pass.

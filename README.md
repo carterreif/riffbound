@@ -1,12 +1,12 @@
 # Riffbound
 
-Browser rhythm game, version 34. Play Guitar, Bass, Drums or pitch-pad Vocals with automatic charting and Easy, Medium, Hard and Expert arrangements.
+Browser rhythm game, version 35. Play Guitar, Bass, Drums or pitch-pad Vocals with automatic charting and Easy, Medium, Hard and Expert arrangements.
 
 [Play Riffbound](https://riffbound.aaronreifschneider.chatgpt.site)
 
 Expert keeps every distinct note accepted by the audio analysis. Hard, Medium and Easy progressively reduce that chart while preserving retained timing and drum colors. The preview shows the note totals for all four difficulties. Exact duplicate detections of one physical hit are merged; quiet or closely spaced independent hits remain in Expert.
 
-The matched In Bloom drum chart includes a close-up score-and-audio review for Expert and Hard: separate same-color flam strokes, open hi-hat overlaps and removal of two yellow kick-click artifacts. Easy and Medium retain their previous arrangements.
+The matched In Bloom drum chart includes score-and-audio reviews for Expert and Hard: separate same-color flam strokes, open hi-hat overlaps, removal of two yellow kick-click artifacts, and 36 additional hi-hats guided by supplied video screenshots. Easy and Medium retain their previous arrangements.
 
 For an existing setlist song, open it and choose **Rebuild this instrument’s chart** to apply updated charting to its original audio. The updated arrangements are saved with the original audio.
 

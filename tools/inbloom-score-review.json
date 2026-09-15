@@ -1,5 +1,5 @@
 {
-  "revision": 3,
+  "revision": 4,
   "audioId": "551b1a24c46298a1467c11c1cceffa5e7fb7cc6be63c16a378a34b755b7960c3",
   "duration": 272.66185941043085,
   "scorePage": 1,
@@ -993,5 +993,492 @@
       }
     ],
     "limits": "Open hi-hat overlaps are score-informed voice assignments at existing snare times, not independently isolated hats. Solo hats hidden in crash wash and indistinct grace notes are not filled from a timing grid."
+  },
+  "videoScreensReview": {
+    "sourceUrl": "https://www.youtube.com/watch?v=_tqxCZVz_PI",
+    "sourceTitle": "In Bloom - Drum Cover + Notation",
+    "screenshots": [
+      {
+        "filename": "Inbloom notes 1.png",
+        "sha256": "5edb93dd34a1996be1d04561c470b3cf22655d9be6b8559aeb88ca59ce257649",
+        "measures": [
+          33,
+          34
+        ]
+      },
+      {
+        "filename": "inbloom notes 2.png",
+        "sha256": "458825bce682b188c4e68df77f55a0238a55413a02ee065d0d12372d598addfe",
+        "measures": [
+          35,
+          36
+        ]
+      },
+      {
+        "filename": "inbloom notes 3.png",
+        "sha256": "e37a699d03ffffec70efceddfa76e9bf9d4f5b3c55801d2c12b73cc90d71bc17",
+        "measures": [
+          43,
+          44
+        ]
+      },
+      {
+        "filename": "inbloom notes 4.png",
+        "sha256": "9c845506dd263594a53694e0337d78807bd8c145857cd05193ca9e56c4e330ac",
+        "measures": [
+          43,
+          44
+        ]
+      }
+    ],
+    "reviewedBars": [
+      33,
+      34,
+      35,
+      36,
+      43,
+      44
+    ],
+    "barWindowsSeconds": {
+      "33": [
+        104.772,
+        108.006
+      ],
+      "34": [
+        108.006,
+        111.237
+      ],
+      "35": [
+        111.237,
+        114.459
+      ],
+      "36": [
+        114.459,
+        117.722
+      ],
+      "43": [
+        136.786,
+        139.924
+      ],
+      "44": [
+        139.924,
+        143.057
+      ]
+    },
+    "additions": [
+      {
+        "bar": 33,
+        "sixteenth": 4,
+        "ms": 105567,
+        "lane": 1,
+        "kind": "score-overlap",
+        "withLane": 0,
+        "openHat": false
+      },
+      {
+        "bar": 33,
+        "sixteenth": 5,
+        "ms": 105751,
+        "lane": 1,
+        "kind": "treble-attack",
+        "rise": 0.007239,
+        "attackRatio": 3.423,
+        "decay": 0.591,
+        "tail": 0.258
+      },
+      {
+        "bar": 33,
+        "sixteenth": 9,
+        "ms": 106567,
+        "lane": 1,
+        "kind": "score-overlap",
+        "withLane": 5,
+        "openHat": false
+      },
+      {
+        "bar": 33,
+        "sixteenth": 11,
+        "ms": 106963,
+        "lane": 1,
+        "kind": "treble-attack",
+        "rise": 0.004435,
+        "attackRatio": 2.882,
+        "decay": 0.906,
+        "tail": 0.158
+      },
+      {
+        "bar": 33,
+        "sixteenth": 12,
+        "ms": 107208,
+        "lane": 1,
+        "kind": "score-overlap",
+        "withLane": 0,
+        "openHat": false
+      },
+      {
+        "bar": 33,
+        "sixteenth": 13,
+        "ms": 107377,
+        "lane": 1,
+        "kind": "treble-attack",
+        "rise": 0.006227,
+        "attackRatio": 3.895,
+        "decay": 1.041,
+        "tail": 0.258
+      },
+      {
+        "bar": 33,
+        "sixteenth": 15,
+        "ms": 107767,
+        "lane": 1,
+        "kind": "treble-attack",
+        "rise": 0.002407,
+        "attackRatio": 3.125,
+        "decay": 1.163,
+        "tail": 0.267
+      },
+      {
+        "bar": 34,
+        "sixteenth": 1,
+        "ms": 108216,
+        "lane": 1,
+        "kind": "score-overlap",
+        "withLane": 5,
+        "openHat": false
+      },
+      {
+        "bar": 34,
+        "sixteenth": 3,
+        "ms": 108570,
+        "lane": 1,
+        "kind": "treble-attack",
+        "rise": 0.003537,
+        "attackRatio": 4.815,
+        "decay": 1.032,
+        "tail": 0.383
+      },
+      {
+        "bar": 34,
+        "sixteenth": 4,
+        "ms": 108824,
+        "lane": 1,
+        "kind": "score-overlap",
+        "withLane": 0,
+        "openHat": false
+      },
+      {
+        "bar": 34,
+        "sixteenth": 5,
+        "ms": 108979,
+        "lane": 1,
+        "kind": "treble-attack",
+        "rise": 0.004271,
+        "attackRatio": 2.033,
+        "decay": 0.866,
+        "tail": 0.294
+      },
+      {
+        "bar": 34,
+        "sixteenth": 9,
+        "ms": 109805,
+        "lane": 1,
+        "kind": "score-overlap",
+        "withLane": 5,
+        "openHat": false
+      },
+      {
+        "bar": 34,
+        "sixteenth": 11,
+        "ms": 110184,
+        "lane": 1,
+        "kind": "treble-attack",
+        "rise": 0.001473,
+        "attackRatio": 2.871,
+        "decay": 0.598,
+        "tail": 0.104
+      },
+      {
+        "bar": 34,
+        "sixteenth": 12,
+        "ms": 110426,
+        "lane": 1,
+        "kind": "score-overlap",
+        "withLane": 0,
+        "openHat": false
+      },
+      {
+        "bar": 34,
+        "sixteenth": 13,
+        "ms": 110606,
+        "lane": 1,
+        "kind": "treble-attack",
+        "rise": 0.003147,
+        "attackRatio": 2.253,
+        "decay": 1.046,
+        "tail": 0.225
+      },
+      {
+        "bar": 34,
+        "sixteenth": 15,
+        "ms": 111006,
+        "lane": 1,
+        "kind": "treble-attack",
+        "rise": 0.002878,
+        "attackRatio": 3.11,
+        "decay": 0.8,
+        "tail": 0.21
+      },
+      {
+        "bar": 35,
+        "sixteenth": 1,
+        "ms": 111439,
+        "lane": 1,
+        "kind": "score-overlap",
+        "withLane": 5,
+        "openHat": false
+      },
+      {
+        "bar": 35,
+        "sixteenth": 4,
+        "ms": 112045,
+        "lane": 1,
+        "kind": "score-overlap",
+        "withLane": 0,
+        "openHat": false
+      },
+      {
+        "bar": 35,
+        "sixteenth": 5,
+        "ms": 112202,
+        "lane": 1,
+        "kind": "treble-attack",
+        "rise": 0.002575,
+        "attackRatio": 2.43,
+        "decay": 0.802,
+        "tail": 0.325
+      },
+      {
+        "bar": 35,
+        "sixteenth": 9,
+        "ms": 113067,
+        "lane": 1,
+        "kind": "score-overlap",
+        "withLane": 5,
+        "openHat": false
+      },
+      {
+        "bar": 35,
+        "sixteenth": 11,
+        "ms": 113399,
+        "lane": 1,
+        "kind": "treble-attack",
+        "rise": 0.002633,
+        "attackRatio": 7.788,
+        "decay": 0.674,
+        "tail": 0.117
+      },
+      {
+        "bar": 35,
+        "sixteenth": 12,
+        "ms": 113638,
+        "lane": 1,
+        "kind": "score-overlap",
+        "withLane": 0,
+        "openHat": false
+      },
+      {
+        "bar": 35,
+        "sixteenth": 15,
+        "ms": 114194,
+        "lane": 1,
+        "kind": "treble-attack",
+        "rise": 0.001718,
+        "attackRatio": 2.373,
+        "decay": 0.608,
+        "tail": 0.201
+      },
+      {
+        "bar": 36,
+        "sixteenth": 1,
+        "ms": 114666,
+        "lane": 1,
+        "kind": "score-overlap",
+        "withLane": 5,
+        "openHat": false
+      },
+      {
+        "bar": 36,
+        "sixteenth": 3,
+        "ms": 115008,
+        "lane": 1,
+        "kind": "treble-attack",
+        "rise": 0.001692,
+        "attackRatio": 2.98,
+        "decay": 0.69,
+        "tail": 0.11
+      },
+      {
+        "bar": 36,
+        "sixteenth": 4,
+        "ms": 115262,
+        "lane": 1,
+        "kind": "score-overlap",
+        "withLane": 0,
+        "openHat": false
+      },
+      {
+        "bar": 36,
+        "sixteenth": 5,
+        "ms": 115434,
+        "lane": 1,
+        "kind": "treble-attack",
+        "rise": 0.00371,
+        "attackRatio": 7.07,
+        "decay": 0.585,
+        "tail": 0.213
+      },
+      {
+        "bar": 36,
+        "sixteenth": 9,
+        "ms": 116248,
+        "lane": 1,
+        "kind": "score-overlap",
+        "withLane": 5,
+        "openHat": false
+      },
+      {
+        "bar": 36,
+        "sixteenth": 11,
+        "ms": 116655,
+        "lane": 1,
+        "kind": "treble-attack",
+        "rise": 0.002228,
+        "attackRatio": 2.088,
+        "decay": 1.024,
+        "tail": 0.443
+      },
+      {
+        "bar": 36,
+        "sixteenth": 12,
+        "ms": 116899,
+        "lane": 1,
+        "kind": "score-overlap",
+        "withLane": 0,
+        "openHat": false
+      },
+      {
+        "bar": 36,
+        "sixteenth": 13,
+        "ms": 117104,
+        "lane": 1,
+        "kind": "score-overlap",
+        "withLane": 5,
+        "openHat": false
+      },
+      {
+        "bar": 36,
+        "sixteenth": 14,
+        "ms": 117293,
+        "lane": 1,
+        "kind": "score-overlap",
+        "withLane": 0,
+        "openHat": true
+      },
+      {
+        "bar": 43,
+        "sixteenth": 4,
+        "ms": 137568,
+        "lane": 1,
+        "kind": "score-overlap",
+        "withLane": 0,
+        "openHat": true
+      },
+      {
+        "bar": 43,
+        "sixteenth": 12,
+        "ms": 139141,
+        "lane": 1,
+        "kind": "score-overlap",
+        "withLane": 0,
+        "openHat": true
+      },
+      {
+        "bar": 44,
+        "sixteenth": 4,
+        "ms": 140724,
+        "lane": 1,
+        "kind": "score-overlap",
+        "withLane": 0,
+        "openHat": true
+      },
+      {
+        "bar": 44,
+        "sixteenth": 12,
+        "ms": 142287,
+        "lane": 1,
+        "kind": "score-overlap",
+        "withLane": 0,
+        "openHat": true
+      }
+    ],
+    "unresolved": [
+      {
+        "bar": 33,
+        "sixteenth": 2,
+        "expectedSeconds": 105.1763,
+        "reason": "Cymbal wash or insufficient independent treble attack"
+      },
+      {
+        "bar": 33,
+        "sixteenth": 3,
+        "expectedSeconds": 105.3784,
+        "reason": "Cymbal wash or insufficient independent treble attack"
+      },
+      {
+        "bar": 34,
+        "sixteenth": 7,
+        "expectedSeconds": 109.4196,
+        "reason": "Cymbal wash or insufficient independent treble attack"
+      },
+      {
+        "bar": 35,
+        "sixteenth": 3,
+        "expectedSeconds": 111.8411,
+        "reason": "Cymbal wash or insufficient independent treble attack"
+      },
+      {
+        "bar": 35,
+        "sixteenth": 7,
+        "expectedSeconds": 112.6466,
+        "reason": "Cymbal wash or insufficient independent treble attack"
+      },
+      {
+        "bar": 43,
+        "sixteenth": 2,
+        "expectedSeconds": 137.1782,
+        "reason": "Cymbal wash or insufficient independent treble attack"
+      }
+    ],
+    "recordingDifferences": [
+      {
+        "bar": 35,
+        "ms": 111237,
+        "lane": 3,
+        "decision": "Keep the original WAV cymbal onset and decay; do not replace it with the cover screenshot hi-hat."
+      },
+      {
+        "bar": 36,
+        "ms": 117104,
+        "lane": 5,
+        "decision": "Keep the independently visible low-body kick attack even though it is absent from the cover notation."
+      },
+      {
+        "bar": 36,
+        "expectedSeconds": 117.62,
+        "lane": 0,
+        "decision": "No distinctly renewed broadband snare attack for the final printed thirty-second note. Keep the supported snare at 117.539; do not synthesize another stroke."
+      }
+    ],
+    "limits": "Four screenshots cover six unique measures. The last two show the same measures and do not create duplicate notes. Overlapping hi-hats are score-informed voice assignments at existing recorded strike times; isolated quiet hats require separate treble onset evidence. No video playback or exact full-song transcription is claimed."
   }
 }

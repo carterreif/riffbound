@@ -658,3 +658,30 @@ This is a bounded score-and-audio review. Five ambiguous printed grace-note arti
 
 
 Final verification: **165 tests passed, none failed or skipped**, with the original WAV and pinned PCM (83.5 seconds). All corrected onsets/colors, close-stroke scoring, Hard reduction, original lower-array hashes, five saved-song update routes and persistence regressions pass. Both authoring tools reproduce the runtime reference byte-for-byte. JavaScript syntax, the entrypoint and local asset references also pass.
+
+
+## Version 35 — chart the supplied video screenshots against the original WAV
+
+### Goal and scope
+
+Use the four user-uploaded notation screenshots to improve In Bloom Expert and Hard. The screenshots cover six unique measures (33–36, 43–44); the last two show the same measures. Preserve the earlier reviewed chart, Easy, Medium, hidden Normal, original audio, other instrument charts and saved setlist data. Do not change generic song charting or claim that the inaccessible video was reviewed in full.
+
+### Requirements implemented
+
+- Align the six unique measures with the original WAV using existing crash/kick starts, snare backbeats and kick pairs. Keep measured timing rather than cover timestamps or grid quantization.
+- Add 15 separately measured quiet hi-hats and 21 score-informed hi-hat overlaps, all yellow, to Expert and Hard. Preserve all other events and earlier corrections.
+- Keep the open hi-hat with the first fill snare at 117.293 seconds; the following snare at 117.539 remains red alone. Preserve the original cymbal at 111.237 and kick at 117.104 where the WAV differs from the cover.
+- Leave six uncertain solo hats and one unsupported final thirty-second snare unfilled. Repeated screenshots must not create duplicate taps.
+- Retain the player's lower charts and original audio through every update route. Fresh counts: 522 Easy, 916 Medium, 1,349 Hard, 1,401 Expert.
+- Persist matched score revision 4 using the existing versioned personal-best behavior, and refresh offline assets for the published correction.
+
+### Acceptance and verification
+
+Verify the exact 36 additions are yellow and bounded to the six measures; remove them and compare a hash of the complete preceding reference to establish that no other event changed. Check first-difference PCM energy at all fifteen quiet onsets, snare/hi-hat chords, snare-only ending, kick pairs, recording-specific differences and absence of the unsupported fill note. Retain lower-array golden hashes, all-note scoring, exact-WAV match, all five saved-song update routes, preview, export/import backup and reopen checks. Both authoring tools must reproduce the runtime reference. Full results are recorded below after execution.
+
+### Limitations and use
+
+The screenshot overlap assignments are score-informed estimates, and the cover can differ from the WAV. This is not a complete annotation of every note in the song. Existing setlist charts change only after opening the song, selecting Drums and choosing **Rebuild this instrument's chart**, or reuploading the identical original WAV. No live-browser or physical-device playthrough is claimed. Detailed measure anchors and evidence are in `docs/inbloom-chart-review.md`, revision 4.
+
+
+Final verification: **168 tests passed, none failed or skipped**, using the original uploaded WAV and pinned PCM (83.3 seconds). All 36 additions, the fifteen independent quiet-onset checks, the complete preceding-reference hash, lower-chart snapshots, all-note scoring, five update routes and setlist/backup/reopen regressions pass. Both authoring tools reproduce the runtime reference byte-for-byte. JavaScript syntax, the entrypoint and local asset references pass.
