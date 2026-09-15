@@ -254,8 +254,13 @@
       if(early.bands[4]<early.total*.002||noise.early<1e-9)continue;
       // A sustained, independently measured treble attack can coexist with a
       // kick or snare even when the learned spectral part missed it entirely.
-      events.push({...attack,lane:3});
-      if(noise.decay<.35&&noise.excess>.45&&!events.some(e=>[0,1].includes(e.lane)&&Math.abs(e.time-attack.time)<.03))events.push({...attack,lane:1});
+      // Keep provenance when treble recovery revisits the very same spectral
+      // frame as an existing detector. Later color correction may turn that
+      // earlier candidate into a cymbal too; those are one measured strike.
+      const shared=events.find(e=>e.attack&&(e.frame===attack.frame||e.attack.frame===attack.frame)&&Math.abs(e.time-attack.time)<.012);
+      const recovered={...attack,attack:attack.attack||shared?.attack};
+      events.push({...recovered,lane:3});
+      if(noise.decay<.35&&noise.excess>.45&&!events.some(e=>[0,1].includes(e.lane)&&Math.abs(e.time-attack.time)<.03))events.push({...recovered,lane:1});
     }
     return events;
   }
@@ -488,46 +493,48 @@
     return unique;
   }
   function buildFocusedCharts(events,instrument,beat,duration,energy,dt){
-    // Merge only duplicate detections of the same voice. Difficulty must not
-    // discard independent strikes or move them onto the tempo grid.
-    events=(instrument==='drums'?Array.from({length:6},(_,lane)=>thin(events.filter(e=>e.lane===lane),.012)).flat():thin(events,.012)).sort((a,b)=>a.time-b.time);
+    // Expert is the audio master: never discard an accepted attack because
+    // it is quiet or close to another one. Merge only detections explicitly
+    // tied to the same measured voice/attack, or exact voice/time duplicates.
+    const measured=new Map(),hatAnchors=new Map();
+    if(instrument==='drums')for(const event of events){
+      if(event.lane!==1||!event.hatAttack||!event.attack)continue;
+      const anchors=hatAnchors.get(event.attack.time)||new Map();
+      anchors.set(event.hatAttack.time,event.hatAttack);hatAnchors.set(event.attack.time,anchors);
+    }
+    for(const event of events){
+      const voice=instrument==='drums'?event.lane:event.pitch;
+      let anchor=instrument==='drums'?event.attack:null;
+      if(instrument==='drums'&&event.lane===1){
+        // A body detector and treble detector may describe the same hi-hat.
+        // Alias that shared attack only when it has one unambiguous hat onset;
+        // distinct measured hi-hat anchors must remain separate.
+        const hats=hatAnchors.get(event.attack?.time);
+        anchor=event.hatAttack||(hats?.size===1?[...hats.values()][0]:event.attack);
+      }
+      const key=`${voice}:${anchor?.time??event.time}`;
+      const previous=measured.get(key);
+      if(!previous||(event.strength||0)>(previous.strength||0))measured.set(key,event);
+    }
+    events=[...measured.values()].sort((a,b)=>a.time-b.time);
     const charts={},low=percentile(events.map(e=>e.pitch||0),.05),high=percentile(events.map(e=>e.pitch||0),.95);
     const laneFor=pitch=>Math.round(clamp((pitch-low)/Math.max(4,high-low),0,1)*4);
-    for(const difficulty of ['easy','normal','expert']){
-      const gap=difficulty==='easy'?Math.max(.34,beat*.85):difficulty==='normal'?Math.max(.2,beat*.43):Math.max(.12,beat*.23);
-      const cutoff=difficulty==='expert'?0:percentile(events.map(e=>e.strength),difficulty==='easy'?.45:.25)*.75;
-      const notes=[];
-      if(instrument!=='drums'){
-        const selected=difficulty==='expert'?events:thin(events,gap,cutoff);
-        selected.forEach((event,i)=>{
-          const lane=laneFor(event.pitch),next=selected[i+1]?.time??duration;
-          let tail=event.duration||0;
-          if(instrument==='guitar'&&next-event.time>.65){
-            const start=Math.floor((event.time+.08)/dt),floor=(energy[start]||0)*.24;
-            for(let f=start;f<energy.length&&f*dt<Math.min(next-.1,event.time+1.8,duration-.05);f++){if(energy[f]<Math.max(.0001,floor))break;tail=f*dt-event.time;}
-          }
-          // One measured tonal attack becomes one note. Loudness does not invent chords.
-          tail=Math.min(tail,Math.max(0,next-event.time-.015),duration-event.time);
-          notes.push({time:event.time,lane,pitch:event.pitch,duration:tail>(instrument==='vocals'?.12:.5)?tail:0});
-        });
-      }else if(difficulty!=='easy'){
-        for(const hit of events)notes.push({lane:hit.lane,time:hit.time,duration:0});
-      }else{
-        const groups=[];
-        for(const event of events){let group=groups[groups.length-1];if(!group||event.time-group.time>.022){group={time:event.time,strength:0,hits:[]};groups.push(group);}group.strength=Math.max(group.strength,event.strength);group.hits.push(event);}
-        // Warmup alone simplifies density, keeping a hand hit plus a kick.
-        const drumGroups=thin(groups,gap,cutoff);
-        const lastHit=Array(6).fill(-Infinity);
-        for(const group of drumGroups){
-          const candidates=group.hits.slice().sort((a,b)=>b.strength-a.strength),lanes=new Set();let hands=0;
-          for(const hit of candidates){
-            const lane=hit.lane;
-            if(hit.time-lastHit[lane]<.1)continue;
-            if(lanes.has(lane)||(lane!==5&&hands>=1))continue;
-            if(lane!==5)hands++;lanes.add(lane);lastHit[lane]=hit.time;notes.push({lane,time:hit.time,duration:0});
-          }
+    // Build Expert first. The hidden normal key only supports older backups;
+    // all three playable lower difficulties are derived from Expert below.
+    for(const difficulty of ['expert','normal']){
+      const selected=difficulty==='expert'||instrument==='drums'?events:thin(events,Math.max(.2,beat*.43),percentile(events.map(e=>e.strength),.25)*.75);
+      const notes=selected.map((event,i)=>{
+        if(instrument==='drums')return {lane:event.lane,time:event.time,duration:0};
+        const lane=laneFor(event.pitch),next=selected[i+1]?.time??duration;
+        let tail=event.duration||0;
+        if(instrument==='guitar'&&next-event.time>.65){
+          const start=Math.floor((event.time+.08)/dt),floor=(energy[start]||0)*.24;
+          for(let f=start;f<energy.length&&f*dt<Math.min(next-.1,event.time+1.8,duration-.05);f++){if(energy[f]<Math.max(.0001,floor))break;tail=f*dt-event.time;}
         }
-      }
+        // One measured tonal attack becomes one note. Loudness does not invent chords.
+        tail=Math.min(tail,Math.max(0,next-event.time-.015),duration-event.time);
+        return {time:event.time,lane,pitch:event.pitch,duration:tail>(instrument==='vocals'?.12:.5)?tail:0};
+      });
       charts[difficulty]=notes.sort((a,b)=>a.time-b.time||a.lane-b.lane).map((note,id)=>({...note,id,bar:Math.floor(note.time/beat/4)}));
     }
     return {[instrument]:{...charts,...Difficulties.build(charts.expert,instrument,beat)}};
@@ -613,7 +620,7 @@
     const timing=tempo(flux,dt),charts=buildFocusedCharts(accepted,instrument,timing.beat,duration,energy,dt),expert=charts[instrument].expert;
     const waveform=Array.from({length:160},(_,i)=>{let value=0;for(let f=Math.floor(i*frames/160);f<Math.ceil((i+1)*frames/160)&&f<frames;f++)value=Math.max(value,energy[f]);return value;});
     const peak=Math.max(...waveform)||1;
-    return {...timing,instrument,duration,charts,chartVersion:1,waveform:waveform.map(v=>v/peak),quality:{counts:Array.from({length:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),method:bass?'Low fundamental and attack tracking':'Voiced pitch and phrase tracking'}};
+    return {...timing,instrument,duration,charts,chartVersion:2,waveform:waveform.map(v=>v/peak),quality:{counts:Array.from({length:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),method:bass?'Low fundamental and attack tracking':'Voiced pitch and phrase tracking'}};
   }
   function analyze({samples,sampleRate,instrument='guitar',audioId},progress=()=>{}){
     if(!['guitar','drums','bass','vocals'].includes(instrument))throw Error('Choose Guitar, Drums, Bass or Vocals before charting.');
@@ -626,7 +633,7 @@
       progress(85,'Loading the matched In Bloom drum chart…');
       const charts=buildFocusedCharts(reference.events,'drums',reference.beat,duration,new Float32Array(0),.01);
       const expert=charts.drums.expert;
-      return {instrument,duration,bpm:reference.bpm,beat:reference.beat,offset:reference.offset,confidence:.7028361194449136,charts,waveform:reference.waveform,chartVersion:11,
+      return {instrument,duration,bpm:reference.bpm,beat:reference.beat,offset:reference.offset,confidence:.7028361194449136,charts,waveform:reference.waveform,chartVersion:12,
         quality:{counts:Array.from({length:6},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:reference.label,sources:{drums:reference.label}}};
     }
     const n=2048,hop=256,dt=hop/sampleRate,frames=Math.ceil(samples.length/hop),bins=Math.min(n/2,Math.floor(10000*n/sampleRate));
@@ -749,7 +756,7 @@
     const peak=Math.max(...waveform)||1;
     const expert=charts[instrument].expert;
     const quality={counts:Array.from({length:instrument==='drums'?6:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:instrument==='drums'&&events.some(e=>e.part!==undefined)?'Adaptive kit separation':'Attack and tone analysis'};
-    return {...timing,instrument,duration,charts,quality,chartVersion:instrument==='drums'?11:3,waveform:waveform.map(v=>v/peak)};
+    return {...timing,instrument,duration,charts,quality,chartVersion:instrument==='drums'?12:4,waveform:waveform.map(v=>v/peak)};
   }
   const api={analyze,buildFocusedCharts,filterSeparated};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;

@@ -122,6 +122,7 @@
   function refreshChartPreview(){
     $('chartPreview').hidden=!song;if(!song)return;
     const notes=chartNotes();$('chartSummary').textContent=`${partName(instrument)} · ${D.NAMES[difficulty]} · ${notes.length} notes`;
+    $('chartDifficultySummary').textContent='Expert: all detected notes. '+['expert','hard','medium','easy'].map(level=>`${D.NAMES[level]}: ${song.charts[instrument][level].length}`).join(' · ');
     $('chartMapping').textContent=instrument==='drums'?'Red: snare · Yellow: closed/open hi-hat · Blue: tom · Orange: crash/ride cymbal · Green: floor tom · Purple: kick. Easy: fewer hits and kicks. Medium: core groove. Hard: denser fills. Expert: every distinct detected hit. Drum colors keep their instrument on every level.':'Colors follow pitch from low to high. Easy uses green/red/yellow; Medium adds blue; Hard and Expert add orange. Easier levels use fewer notes and simpler chords. Expert keeps all detected attacks.';
     if(instrument==='bass')$('chartMapping').textContent='Bass follows detected low pitches. Easy uses three frets, Medium four, and Hard/Expert all five. Easier levels have fewer notes. Repeated pitches keep their color within each difficulty. Use tap or hold + strum.';
     if(instrument==='vocals')$('chartMapping').textContent='Vocal melody: green, red, yellow, blue, orange from low to high. Tap the pitch pad and hold its tail. This is pad play, without microphone scoring or lyrics. Other melodic instruments can affect the estimate.';

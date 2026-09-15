@@ -45,7 +45,7 @@ test('the original uploaded WAV selects the matched chart and keeps all prior in
   const bytes=fs.readFileSync(process.env.RIFFBOUND_REFERENCE_WAV),pcm=fs.readFileSync(process.env.RIFFBOUND_REFERENCE_PCM);
   const audioId=crypto.createHash('sha256').update(bytes).digest('hex');assert.equal(audioId,id);
   const result=A.analyze({samples:new Float32Array(pcm.buffer,pcm.byteOffset,pcm.byteLength/4),sampleRate:22050,instrument:'drums',audioId});
-  assert.equal(result.quality.sources.drums,'In Bloom · Matched drum chart');assert.equal(result.chartVersion,11);
+  assert.equal(result.quality.sources.drums,'In Bloom · Matched drum chart');assert.equal(result.chartVersion,12);
   const notes=result.charts.drums.expert;
   for(const [lane,times] of [[5,[2.242,2.849,3.243,3.470,4.494,4.886,5.278,5.481,6.087,6.477,6.692,7.705,8.117,8.491,8.706,9.321,9.704]],[0,[3.052,4.088,4.285,6.265,7.294,9.504,10.562,10.784]],[1,[5.884,9.121]],[3,[2.242]]])for(const time of times)assert.ok(notes.some(n=>n.lane===lane&&Math.abs(n.time-time)<.035),`Missing ${lane} at ${time}`);
 });

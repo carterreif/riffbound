@@ -533,6 +533,7 @@ test('all four difficulties are ready after a whole-song upload, and switching n
       await difficulty.emit('change');assert.match(n.chartSummary.textContent,new RegExp(D.NAMES[difficulty.value]));
       assert.match(n.chartSummary.textContent,new RegExp(`${charts[difficulty.value].length} notes`));
       assert.equal(app.frets.filter(f=>!f.disabled).length,D.frets(radio.value,difficulty.value));
+      for(const level of D.LEVELS)assert.ok(n.chartDifficultySummary.textContent.includes(`${D.NAMES[level]}: ${charts[level].length}`));
       await n.previewButton.click();await until(()=>n.previewButton.textContent.includes('Stop'));assert.ok(app.sources.at(-1).buffer);
       await n.previewButton.click();
     }
@@ -565,4 +566,26 @@ test('opening an old three-level setlist song supplies Hard without a new upload
   await fresh.nodes.saveCurrentButton.click();const saved=[...fresh.savedSongs.values()][0];
   assert.equal(saved.charts.guitar.expert.length,40);for(const level of E.Difficulties.LEVELS)assert.ok(saved.charts.guitar[level]);
   assert.deepEqual(Buffer.from(await saved.audioBlob.arrayBuffer()),Buffer.from(await legacy.audioBlob.arrayBuffer()));
+});
+
+
+test('rebuilding a saved song retains the full new Expert master and saves all reduced levels',async()=>{
+  const A=require('../dist/autochart.js');
+  let rebuilt=false;
+  const events=Array.from({length:24},(_,i)=>({time:1+Math.floor(i/2)*.4+(i%2)*.006,lane:i%6,strength:i%2?.0001:1}));
+  const chartFixture=()=>rebuilt?A.buildFocusedCharts(events,'drums',.5,8,new Float32Array(800),.01).drums.expert:[{time:1,lane:0,duration:0}];
+  const app=setup({chartFixture}),n=app.nodes;
+  await app.radios.instrument[1].emit('change');await app.upload();await until(()=>app.savedSongs.size===1);
+  const before=[...app.savedSongs.values()][0],audio=Buffer.from(await before.audioBlob.arrayBuffer());
+  assert.equal(before.charts.drums.expert.length,1);
+  rebuilt=true;await n.rechartButton.click();await until(()=>[...app.savedSongs.values()][0].charts.drums.expert.length===24);
+  const saved=[...app.savedSongs.values()][0],charts=saved.charts.drums;
+  assert.deepEqual(charts.expert.map(n=>[n.time,n.lane]),events.map(e=>[e.time,e.lane]));
+  assert.ok(charts.expert.length>charts.hard.length);assert.ok(charts.hard.length>=charts.medium.length);assert.ok(charts.medium.length>=charts.easy.length);
+  assert.deepEqual(Buffer.from(await saved.audioBlob.arrayBuffer()),audio);
+  const fresh=setup({savedSongs:app.savedSongs});await until(()=>fresh.nodes.setlistEntries.children.length===2);
+  await fresh.nodes.setlistEntries.children[1].click();await fresh.radios.difficulty[3].emit('change');
+  assert.match(fresh.nodes.chartSummary.textContent,/Expert.*24 notes/);assert.equal(fresh.requests.length,0);
+  const restored=await require('../dist/song-library.js').unpack(require('../dist/song-library.js').pack(saved));
+  for(const level of E.Difficulties.LEVELS)assert.deepEqual(restored.charts.drums[level].map(n=>[n.time,n.lane]),charts[level].map(n=>[n.time,n.lane]));
 });
