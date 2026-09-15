@@ -35,7 +35,7 @@
   const trackDuration=()=>song?.duration??E.DURATION,trackBeat=()=>song?.beat??E.BEAT;
   const chartNotes=()=>song?song.charts[instrument][difficulty]:E.makeChart(difficulty,instrument);
   const effectiveMode=()=>['drums','vocals'].includes(instrument)?'tap':mode;
-  const bestKey=()=>song?.quality?.scoreReview&&instrument==='drums'&&['expert','hard'].includes(difficulty)?`riffbound-inbloom-score-v2-${song.id}-${difficulty}-${effectiveMode()}`:difficulty==='expert'?(song?`riffbound-upload-${instrument==='drums'?'v5':'v3'}-${song.id}-${instrument}-expert-${effectiveMode()}`:instrument==='guitar'?`riffbound-best-v1-expert-${mode}`:`riffbound-best-v2-${instrument}-expert-${effectiveMode()}`):`riffbound-difficulty-v1-${song?.id||'demo'}-${instrument}-${difficulty}-${effectiveMode()}`;
+  const bestKey=()=>song?.quality?.scoreReview&&instrument==='drums'&&['expert','hard'].includes(difficulty)?`riffbound-inbloom-score-v${song.quality.scoreRevision||2}-${song.id}-${difficulty}-${effectiveMode()}`:difficulty==='expert'?(song?`riffbound-upload-${instrument==='drums'?'v5':'v3'}-${song.id}-${instrument}-expert-${effectiveMode()}`:instrument==='guitar'?`riffbound-best-v1-expert-${mode}`:`riffbound-best-v2-${instrument}-expert-${effectiveMode()}`):`riffbound-difficulty-v1-${song?.id||'demo'}-${instrument}-${difficulty}-${effectiveMode()}`;
   function readBest(){try{return Number(localStorage.getItem(bestKey())||0);}catch{return 0;}}
   function refreshBest(){const n=readBest();$('localBest').textContent=n?n.toLocaleString():'—';}
   function setAnnouncement(small,big,visible=true,countdown=false){
@@ -189,7 +189,7 @@
     if(generation!==uploadGeneration)throw Error('Canceled');
     if(!results.length)throw Error(Object.entries(unavailable).map(([part,message])=>`${partName(part)}: ${message}`).join(' '));
     const base=results.find(r=>r.instrument===instrument)||results[0];
-    return {...base,charts:Object.assign({},...results.map(r=>r.charts)),quality:{...base.quality,...(results.some(r=>r.quality?.preserveEasyMedium)?{preserveEasyMedium:true,scoreReview:results.find(r=>r.quality?.scoreReview)?.quality.scoreReview}:{}),sources:Object.fromEntries(results.map(r=>[r.instrument,r.quality?.sources?.[r.instrument]||null])),unavailable,methods:Object.fromEntries(results.map(r=>[r.instrument,r.quality?.method||'Audio analysis']))}};
+    return {...base,charts:Object.assign({},...results.map(r=>r.charts)),quality:{...base.quality,...(results.some(r=>r.quality?.preserveEasyMedium)?{preserveEasyMedium:true,scoreReview:results.find(r=>r.quality?.scoreReview)?.quality.scoreReview,scoreRevision:results.find(r=>r.quality?.scoreReview)?.quality.scoreRevision||2}:{}),sources:Object.fromEntries(results.map(r=>[r.instrument,r.quality?.sources?.[r.instrument]||null])),unavailable,methods:Object.fromEntries(results.map(r=>[r.instrument,r.quality?.method||'Audio analysis']))}};
   }
   function mergeSongCharts(previous,result){
     const charts={...previous,...result.charts};

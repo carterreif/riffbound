@@ -631,3 +631,30 @@ Version 33 result: the bounded review adds 76 yellow notes (27 independently mea
 Verification: **162 passed, 0 failed, 0 skipped** in 116.2 seconds with the exact original WAV and pinned 22050 Hz mono PCM supplied to the full test suite. This includes all prior original-recording timing landmarks, actual WAV upload/save/reopen/rebuild, intact source bytes in backups, exact lower-level snapshot hashes, score-review onset landmarks with independent treble evidence, all-note scoring, and preservation through instrument, selected-part, whole-song and both in-memory/stored same-audio reuploads. Both reference authoring tools reproduce the runtime source byte-for-byte. JavaScript syntax and patch whitespace checks pass. Tests use deterministic DOM/audio/storage adapters, not a live browser or physical-device playthrough; the score's simultaneous-voice interpretation remains a stated limit.
 
 Player flow: refresh the game, open the saved In Bloom recording, choose **Drums → Rebuild this instrument’s chart**, then select **Expert** or **Hard** and preview the passage around **0:16–0:47**. New uploads of the exact supplied WAV also select the revision. The preview explains that only Expert and Hard were revised. Original audio and lower charts remain in the setlist, and no score image or song audio is published.
+
+
+## Version 34 — In Bloom close-up score corrections
+
+### Request and scope
+
+Use the user's clearer score crop to correct the matched original In Bloom drum recording on Expert and Hard. Retain Easy, Medium, hidden Normal, audio, other instruments and the setlist. Scope is this exact recording and the visible passage; do not change the generic upload detector or invent every printed articulation in indistinct audio.
+
+### Requirements and implementation
+
+- Resolve independently supported opening flams into separate notes of the same drum color on Expert. Eleven second attacks are measured from the WAV: six snare, four rack tom, one floor tom. Hard reduces these to the simpler leading strike.
+- Carry clearly indicated open hi-hats as yellow over four opening snare backbeats and the first verse-ending fill snare. Later roll strokes stay red alone.
+- Remove the two reviewed yellow kick-click artifacts, retaining the actual kicks and every other baseline event. Retain all 76 yellow additions from the preceding score review.
+- Keep the original baseline table and each player's stored Easy/Medium/Normal arrays. The new upper charts contain 1,365 Expert and 1,313 Hard notes; lower counts remain 522 Easy and 916 Medium for a fresh matching upload.
+- Persist the matched score revision so new Expert/Hard scores are separate from older upper charts. Retain previous score keys for charts not rebuilt, Easy/Medium and other parts.
+- Save all changes through the existing chunked audio/setlist path, and update the offline asset version so players can load the correction after refreshing and rebuilding.
+
+### Acceptance checks
+
+Check every corrected onset and lane, same-color flam separation and Hard reduction, the open-hat/snare chord and red-only ending, removal of yellow with kick retained, original lower-array hashes, all-note scoring, exact-WAV matching, and saved lower charts across all five update routes. Use actual pinned PCM to verify renewed broadband and treble power at all eleven added flam strokes. Reproduce the reference file with both authoring tools. Run the existing upload/preview/backup/reopen and storage regression suite against the original WAV.
+
+### Limits
+
+This is a bounded score-and-audio review. Five ambiguous printed grace-note articulations remain single strokes, and solo hats masked by cymbal wash are not completed from a grid. Open-hi-hat overlaps are score-informed interpretations. No perfect full-song transcription, live browser playthrough or physical-phone playthrough is claimed. See `docs/inbloom-chart-review.md` revision 3 for exact decisions and measurement windows.
+
+
+Final verification: **165 tests passed, none failed or skipped**, with the original WAV and pinned PCM (83.5 seconds). All corrected onsets/colors, close-stroke scoring, Hard reduction, original lower-array hashes, five saved-song update routes and persistence regressions pass. Both authoring tools reproduce the runtime reference byte-for-byte. JavaScript syntax, the entrypoint and local asset references also pass.

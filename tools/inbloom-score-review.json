@@ -1,5 +1,5 @@
 {
-  "revision": 2,
+  "revision": 3,
   "audioId": "551b1a24c46298a1467c11c1cceffa5e7fb7cc6be63c16a378a34b755b7960c3",
   "duration": 272.66185941043085,
   "scorePage": 1,
@@ -789,5 +789,209 @@
       "expectedSeconds": 40.2944,
       "reason": "Cymbal wash or insufficient independent treble attack"
     }
-  ]
+  ],
+  "closeUpReview": {
+    "scoreImageSha256": "295f2ae98d868251377530de0b918af7d4cc4d342d3ee746afc065ef614d6a10",
+    "reviewedBars": [
+      1,
+      12
+    ],
+    "barStartsSeconds": [
+      2.238,
+      5.482,
+      8.705,
+      11.955,
+      15.19,
+      18.384,
+      21.619,
+      24.823,
+      28.024,
+      31.251,
+      34.439,
+      37.631,
+      40.909
+    ],
+    "additions": [
+      {
+        "bar": 1,
+        "ms": 3051,
+        "lane": 1,
+        "kind": "open-hat-overlap",
+        "withLane": 0
+      },
+      {
+        "bar": 1,
+        "firstMs": 4087,
+        "ms": 4128,
+        "lane": 0,
+        "kind": "flam-second-stroke",
+        "bodyAttackRatio": 3.573,
+        "trebleAttackRatio": 4.129
+      },
+      {
+        "bar": 1,
+        "firstMs": 4284,
+        "ms": 4325,
+        "lane": 0,
+        "kind": "flam-second-stroke",
+        "bodyAttackRatio": 3.284,
+        "trebleAttackRatio": 8.653
+      },
+      {
+        "bar": 1,
+        "firstMs": 4671,
+        "ms": 4707,
+        "lane": 2,
+        "kind": "flam-second-stroke",
+        "bodyAttackRatio": 23.661,
+        "trebleAttackRatio": 13.324
+      },
+      {
+        "bar": 2,
+        "ms": 6265,
+        "lane": 1,
+        "kind": "open-hat-overlap",
+        "withLane": 0
+      },
+      {
+        "bar": 2,
+        "firstMs": 7293,
+        "ms": 7333,
+        "lane": 0,
+        "kind": "flam-second-stroke",
+        "bodyAttackRatio": 5.651,
+        "trebleAttackRatio": 7.931
+      },
+      {
+        "bar": 2,
+        "firstMs": 7494,
+        "ms": 7525,
+        "lane": 0,
+        "kind": "flam-second-stroke",
+        "bodyAttackRatio": 5.449,
+        "trebleAttackRatio": 10.084
+      },
+      {
+        "bar": 2,
+        "firstMs": 7902,
+        "ms": 7936,
+        "lane": 2,
+        "kind": "flam-second-stroke",
+        "bodyAttackRatio": 16.483,
+        "trebleAttackRatio": 25.565
+      },
+      {
+        "bar": 2,
+        "firstMs": 8288,
+        "ms": 8308,
+        "lane": 4,
+        "kind": "flam-second-stroke",
+        "bodyAttackRatio": 3.905,
+        "trebleAttackRatio": 4.541
+      },
+      {
+        "bar": 3,
+        "ms": 9504,
+        "lane": 1,
+        "kind": "open-hat-overlap",
+        "withLane": 0
+      },
+      {
+        "bar": 3,
+        "firstMs": 10562,
+        "ms": 10594,
+        "lane": 0,
+        "kind": "flam-second-stroke",
+        "bodyAttackRatio": 3.32,
+        "trebleAttackRatio": 5.257
+      },
+      {
+        "bar": 3,
+        "firstMs": 11151,
+        "ms": 11190,
+        "lane": 2,
+        "kind": "flam-second-stroke",
+        "bodyAttackRatio": 43.599,
+        "trebleAttackRatio": 25.078
+      },
+      {
+        "bar": 4,
+        "ms": 12754,
+        "lane": 1,
+        "kind": "open-hat-overlap",
+        "withLane": 0
+      },
+      {
+        "bar": 4,
+        "firstMs": 13988,
+        "ms": 14021,
+        "lane": 0,
+        "kind": "flam-second-stroke",
+        "bodyAttackRatio": 3.72,
+        "trebleAttackRatio": 5.712
+      },
+      {
+        "bar": 4,
+        "firstMs": 14386,
+        "ms": 14417,
+        "lane": 2,
+        "kind": "flam-second-stroke",
+        "bodyAttackRatio": 8.695,
+        "trebleAttackRatio": 18.71
+      },
+      {
+        "bar": 12,
+        "ms": 40488,
+        "lane": 1,
+        "kind": "open-hat-overlap",
+        "withLane": 0
+      }
+    ],
+    "removals": [
+      {
+        "bar": 1,
+        "ms": 3243,
+        "lane": 1,
+        "kind": "kick-click",
+        "trebleSustainRatio": 0.994,
+        "reason": "No hi-hat at this score position; short kick click with no sustained fresh treble energy. Keep the kick."
+      },
+      {
+        "bar": 3,
+        "ms": 9702,
+        "lane": 1,
+        "kind": "kick-click",
+        "trebleSustainRatio": 1.098,
+        "reason": "No hi-hat at this score position; short kick click with no sustained fresh treble energy. Keep the kick."
+      }
+    ],
+    "unresolved": [
+      {
+        "ms": 5080,
+        "lane": 4,
+        "reason": "Grace-note articulation is printed, but the measured second attack does not independently renew both body and treble power."
+      },
+      {
+        "ms": 10785,
+        "lane": 0,
+        "reason": "Grace-note articulation is printed, but the measured second attack does not independently renew both body and treble power."
+      },
+      {
+        "ms": 11581,
+        "lane": 4,
+        "reason": "Grace-note articulation is printed, but the measured second attack does not independently renew both body and treble power."
+      },
+      {
+        "ms": 13788,
+        "lane": 0,
+        "reason": "Grace-note articulation is printed, but the measured second attack does not independently renew both body and treble power."
+      },
+      {
+        "ms": 14772,
+        "lane": 4,
+        "reason": "Grace-note articulation is printed, but the measured second attack does not independently renew both body and treble power."
+      }
+    ],
+    "limits": "Open hi-hat overlaps are score-informed voice assignments at existing snare times, not independently isolated hats. Solo hats hidden in crash wash and indistinct grace notes are not filled from a timing grid."
+  }
 }

@@ -643,8 +643,8 @@
       progress(85,'Loading the matched In Bloom drum chart…');
       const charts=buildMatchedCharts(reference,duration);
       const expert=charts.drums.expert;
-      return {instrument,duration,bpm:reference.bpm,beat:reference.beat,offset:reference.offset,confidence:.7028361194449136,charts,waveform:reference.waveform,chartVersion:13,
-        quality:{preserveEasyMedium:true,scoreReview:'In Bloom score review: Expert and Hard updated; Easy and Medium retained.',counts:Array.from({length:6},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:reference.label,sources:{drums:reference.label}}};
+      return {instrument,duration,bpm:reference.bpm,beat:reference.beat,offset:reference.offset,confidence:.7028361194449136,charts,waveform:reference.waveform,chartVersion:14,
+        quality:{preserveEasyMedium:true,scoreRevision:reference.revision,scoreReview:'In Bloom close-up review: Expert and Hard updated; Easy and Medium retained.',counts:Array.from({length:6},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:reference.label,sources:{drums:reference.label}}};
     }
     const n=2048,hop=256,dt=hop/sampleRate,frames=Math.ceil(samples.length/hop),bins=Math.min(n/2,Math.floor(10000*n/sampleRate));
     const plan=fftPlan(n),re=new Float32Array(n),im=new Float32Array(n),rows=Array.from({length:17},()=>new Float32Array(bins));
