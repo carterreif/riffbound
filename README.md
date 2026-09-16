@@ -1,6 +1,6 @@
 # Riffbound
 
-Browser rhythm game, version 36. Play Guitar, Bass, Drums or pitch-pad Vocals with automatic charting and Easy, Medium, Hard and Expert arrangements.
+Browser rhythm game, version 37. Play Guitar, Bass, Drums or pitch-pad Vocals with automatic charting and Easy, Medium, Hard and Expert arrangements.
 
 [Play Riffbound](https://riffbound.aaronreifschneider.chatgpt.site)
 
@@ -8,7 +8,15 @@ Expert keeps every distinct note accepted by the audio analysis. Hard, Medium an
 
 The matched In Bloom drum chart includes score-and-audio reviews for Expert and Hard: separate same-color flam strokes, open hi-hat overlaps, removal of two yellow kick-click artifacts, and 36 additional hi-hats guided by supplied video screenshots. Easy and Medium retain their previous arrangements.
 
-For an existing setlist song, open it and choose **Rebuild this instrument’s chart** to apply updated charting to its original audio. The updated arrangements are saved with the original audio.
+## Automatic phone updates
+
+Open the game while online. It checks for updates at launch, when you return, when the connection comes back, and every five minutes while visible. New game files download automatically. The game refreshes between songs only after the current song is saved; it waits during play, pause, analysis, imports, saves and open panels. It reopens your selected saved song and difficulty without starting playback. Close other Riffbound tabs if an update is waiting.
+
+For phones still running version 36 or earlier, open **Install / offline → Use updated game** once after saving your song, or close all game tabs and reopen online. Version 37 handles subsequent updates automatically. A closed or offline app gets updates next time it is opened online; this is not a background push service.
+
+Opening the matching saved In Bloom recording automatically applies newer reviewed Expert/Hard charts and saves them with its existing audio. Easy, Medium, legacy Normal, other instruments and imported authored drum charts are preserved. No reupload, manual rebuild or desktop export is needed for this matched recording once its audio is saved on the phone. Other recordings retain their charts until you choose **Rebuild this instrument’s chart**.
+
+Songs do not sync between devices. Import the audio or a `.riffpack` backup on the phone once if it is not there yet. Automatic updates never clear song storage; retain backups because the browser or operating system can still remove local storage.
 
 ## Chart import and export
 

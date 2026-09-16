@@ -13,7 +13,16 @@ self.addEventListener('install',event=>event.waitUntil((async()=>{
   const cache=await caches.open(version),results=await Promise.allSettled(urls.map((url,i)=>cache.put(url,responses[i])));
   if(results.some(result=>result.status==='rejected')){await caches.delete(version);throw Error('Not enough storage to save the game.');}
 })()));
-self.addEventListener('message',event=>{if(event.data?.type==='ACTIVATE_UPDATE')event.waitUntil(self.skipWaiting());});
+self.addEventListener('message',event=>{
+  if(event.data?.type==='GET_VERSION')event.source?.postMessage({type:'GAME_VERSION',version});
+  if(event.data?.type==='ACTIVATE_UPDATE')event.waitUntil((async()=>{
+    if(event.data.automatic){
+      const tabs=(await self.clients.matchAll({type:'window',includeUncontrolled:true})).filter(client=>client.url.startsWith(base.href));
+      if(tabs.length>1){event.source?.postMessage({type:'UPDATE_DEFERRED'});return;}
+    }
+    await self.skipWaiting();
+  })());
+});
 self.addEventListener('activate',event=>event.waitUntil((async()=>{
   for(const key of await caches.keys())if(key.startsWith('riffbound-offline-')&&key!==version)await caches.delete(key);
   await self.clients.claim();

@@ -723,3 +723,31 @@ Allow a player to import an authored Guitar, Bass or Drums `.chart` arrangement 
 Automated format and UI-flow coverage verifies variable tempo/offset/holds, all drum lanes and kicks, Pro cymbal markers, no beat snapping, all-level export/import, refusal of unsupported/invalid notes, supplied lower-level preservation, authored five-fret Easy play, new-audio and current-audio imports without analysis, chunked setlist persistence, fresh reopening, portable backups and real downloaded chart/audio bytes. Static JS, local asset and offline-cache checks are required before publication. Live Moonscraper application and physical-phone tests are not performed in this environment.
 
 Verification results: the full suite passed 180/180 with the pinned original WAV/PCM (zero failures or skips). The additional save-completion/preview regression passed separately. All eight format tests were re-run after guarding empty editor sections and passed. HTML IDs, runtime asset references, offline inclusion and all JavaScript syntax checks passed.
+
+
+## Version 37 — automatic mobile updates
+
+### User outcome
+
+A phone with a saved In Bloom recording receives game improvements and reviewed drum-chart corrections without a desktop rebuild/export/import cycle. Code updates and device-local song storage remain separate.
+
+### Requirements
+
+- Register the offline worker automatically on supported HTTPS browsers. Check on startup, online recovery, foreground return and every five visible minutes. Failed downloads leave the current game usable.
+- Install a complete versioned public-asset cache before activation. No player audio is added to that cache, uploaded, deleted or made public.
+- Activate and refresh only when the page is visible, between songs, without unsaved audio/charts, active charting, loading, backup import, save, calibration or open tool/results panels. Paused play also blocks updates. The explicit update button follows the same data/play safety checks.
+- Do not automatically activate while another game tab is open. Do not reload a page during play even if another tab activates a worker. First installation of the same version must not cause a reload loop.
+- Preserve the selected saved track, instrument, difficulty and mode across the refresh using a one-use session marker. Never autoplay. If that marker cannot be written, defer refreshing an open song.
+- On opening an exact SHA/duration-matched In Bloom setlist record with an older score revision, update Expert and Hard to the same note arrays produced by current matched upload analysis. Save once after the correction; no signal reanalysis or resampling is needed.
+- Preserve audio bytes, song identity, Easy, Medium, hidden Normal, other instruments and imported authored drum charts. Unknown recordings and newer revisions must not be migrated.
+- If saving a correction fails, keep the open playable copy and the previous stored version; show the existing actionable save error and block automatic reload until saved.
+
+### Limits and rollout
+
+Version 36 and earlier need one final manual update or a close/reopen of all game tabs while online to receive this updater. Background installation while the app is closed is not promised. Browser storage is local and subject to browser/OS removal: this feature does not provide cross-device audio sync or replace backups. The automatic chart migration is deliberately restricted to the verified In Bloom recording; arbitrary saved charts are never silently reanalyzed.
+
+### Verification
+
+Deterministic service-worker, UI/audio and persistence adapters cover update deferral, same-version installation, reconnect/foreground retries, manual safety, multiple tabs, selected-track restoration without autoplay, save failure, revision idempotence and authored/lower-chart preservation. Matched migration is compared to the actual analyzer: Expert 1,401 notes and Hard 1,349. Full regression tests include the private original recording and reopened byte-preserving storage. This is automated verification, not a physical iPhone/Android browser test.
+
+Validation result: the full 194-test suite passed with both original-recording fixtures enabled and no skips. A subsequent selected-track restore race fix passed all four targeted UI tests, including the added save-completion/playback regression (195 total test cases now present). Syntax, HTML asset references, unique IDs and whitespace checks passed.
