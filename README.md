@@ -1,6 +1,6 @@
 # Riffbound
 
-Browser rhythm game, version 38. Play Guitar, Bass, Drums or pitch-pad Vocals with automatic charting and Easy, Medium, Hard and Expert arrangements.
+Browser rhythm game, version 39. Play Guitar, Bass, Drums or pitch-pad Vocals with automatic charting and Easy, Medium, Hard and Expert arrangements.
 
 [Play Riffbound](https://riffbound.aaronreifschneider.chatgpt.site)
 
@@ -12,7 +12,7 @@ The matched In Bloom drum chart includes score-and-audio reviews for Expert and 
 
 Open the game while online. It checks for updates at launch, when you return, when the connection comes back, and every five minutes while visible. New game files download automatically. The game refreshes between songs only after the current song is saved; it waits during play, pause, analysis, imports, saves and open panels. It reopens your selected saved song and difficulty without starting playback. Close other Riffbound tabs if an update is waiting.
 
-In **Install / offline**, the current game version and **Check for updates** button are always visible. The button changes to **Use updated game** when a downloaded update is ready. The status distinguishes checking, downloading, no new update, offline and failed downloads.
+In **Install / offline**, the current game version and **Check for updates** button are always visible. The button changes to **Use updated game** when a downloaded update is ready. The status distinguishes checking, downloading, no new update, offline and failed downloads. **Save game for offline play** waits for installation and verifies every cached game file before showing **Game saved for offline play**. It can also repair missing game files without changing your setlist.
 
 For phones still showing only **Save game for offline play** and **Install Riffbound**, tap **Save game for offline play** while online and wait for the download. If **Use updated game** appears, tap it after saving your song; otherwise close all game tabs and the installed app after saving, then reopen this same game link online. Version 37 and later handle subsequent updates automatically. A closed or offline app gets updates next time it is opened online; this is not a background push service.
 
@@ -52,3 +52,6 @@ See [the PRD](docs/PRD.md) for requirements, verification results and testing li
 Uploaded songs and setlists stay in each player's browser and are not part of this repository. Vocals use pitch pads and holds without microphone scoring. Automatic charting of full mixes remains approximate; Expert preserves detected notes, not a guaranteed exact transcription of every sound.
 
 Sites and GitHub retain separate commit histories. Publishing a Site does not automatically synchronize future edits to GitHub; both destinations must be updated.
+
+
+Version 39 fixes offline installation on hosts that redirect `index.html` to `/`. It caches the canonical homepage under the existing navigation key, retries failed first registrations, waits for installation before reporting a save, and gives update/download failures a visible reason and retry action. An older controlling worker no longer reloads a newer page in a loop.

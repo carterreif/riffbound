@@ -65,25 +65,25 @@ test('a missing audio chunk fails explicitly instead of opening a truncated song
   await assert.rejects(s.fresh().get(r.id),/incomplete/);
 });
 
-function worker({badAsset=false,tabs=[]}={}){
-  const listeners={},banks=new Map();let online=true,skipped=0;
-  const caches={open:async key=>{if(!banks.has(key))banks.set(key,new Map());const bank=banks.get(key);return {put:async(k,v)=>bank.set(k,v),match:async k=>bank.get(typeof k==='string'?k:k.url)};},keys:async()=>[...banks.keys()],delete:async key=>banks.delete(key)};
+function worker({badAsset=false,tabs=[],failWrite=false}={}){
+  const listeners={},banks=new Map(),requests=[];let online=true,skipped=0;
+  const caches={open:async key=>{if(!banks.has(key))banks.set(key,new Map());const bank=banks.get(key);return {put:async(k,v)=>{if(failWrite)throw Error('Quota');bank.set(k,v);},match:async k=>bank.get(typeof k==='string'?k:k.url)};},keys:async()=>[...banks.keys()],delete:async key=>banks.delete(key)};
   const self={location:{href:'https://game.example/sw.js'},clients:{claim:async()=>{},matchAll:async()=>tabs},skipWaiting:async()=>{skipped++;},addEventListener:(type,fn)=>listeners[type]=fn};
-  const sandbox={self,caches,URL,Request,Promise,fetch:async request=>{if(!online)throw Error('Offline');const url=request.url||request;return {ok:true,redirected:badAsset&&url.endsWith('game.js'),headers:{get:()=>url.endsWith('.png')?'image/png':url.endsWith('.js')?'text/javascript':url.endsWith('.css')?'text/css':'text/html'},url};}};
+  const sandbox={self,caches,URL,Request,Promise,fetch:async request=>{if(!online)throw Error('Offline');const url=request.url||request;requests.push(url);return {ok:true,status:200,redirected:url.endsWith('/index.html')||badAsset&&url.endsWith('game.js'),headers:{get:()=>url.endsWith('.png')?'image/png':url.endsWith('.js')?'text/javascript':url.endsWith('.css')?'text/css':'text/html'},url};}};
   vm.createContext(sandbox);sandbox.importScripts=name=>vm.runInContext(code(name),sandbox);vm.runInContext(code('sw.js'),sandbox);
   const emit=async(type,data={})=>{let result;listeners[type]({waitUntil:p=>{result=p;},respondWith:p=>{result=p;},...data});return result?await result:null;};
-  return {self,banks,emit,offline:()=>{online=false;},get skipped(){return skipped;}};
+  return {self,banks,requests,emit,offline:()=>{online=false;},get skipped(){return skipped;}};
 }
 test('offline package includes every runtime asset and serves the game without network access',async()=>{
   const w=worker();for(const file of w.self.RiffOfflineAssets.files)assert.ok(fs.existsSync(path.join(root,file)),file);
   await w.emit('install');assert.equal(w.skipped,0,'Do not replace a running game without player action');await w.emit('activate');w.offline();
-  const home=await w.emit('fetch',{request:new Request('https://game.example/')});assert.equal(home.url,'https://game.example/index.html');
+  const home=await w.emit('fetch',{request:new Request('https://game.example/')});assert.equal(home.url,'https://game.example/');
   for(const file of w.self.RiffOfflineAssets.files){const response=await w.emit('fetch',{request:new Request('https://game.example/'+file)});assert.ok(response?.ok,file);}
   assert.equal(await w.emit('fetch',{request:new Request('https://other.example/private')}),null,'Unknown and external requests are not cached');
   await w.emit('message',{data:{type:'ACTIVATE_UPDATE'}});assert.equal(w.skipped,1);
 });
 test('a redirected game file prevents an incomplete offline install',async()=>{
-  const w=worker({badAsset:true});await assert.rejects(w.emit('install'),/could not be saved/);assert.equal(w.banks.size,0);
+  const w=worker({badAsset:true});await assert.rejects(w.emit('install'),/Could not download/);assert.equal(w.banks.size,0);
 });
 
 
@@ -92,4 +92,28 @@ test('automatic worker activation waits for other game tabs and identifies the n
   await w.emit('message',{source,data:{type:'GET_VERSION'}});assert.equal(messages[0].version,w.self.RiffOfflineAssets.version);
   await w.emit('message',{source,data:{type:'ACTIVATE_UPDATE',automatic:true}});assert.equal(w.skipped,0);assert.equal(messages.at(-1).type,'UPDATE_DEFERRED');
   tabs.pop();await w.emit('message',{source,data:{type:'ACTIVATE_UPDATE',automatic:true}});assert.equal(w.skipped,1);
+});
+
+test('offline install fetches the canonical homepage instead of the hosting index.html redirect',async()=>{
+  const w=worker();await w.emit('install');
+  assert.ok(w.requests.includes('https://game.example/'));
+  assert.ok(!w.requests.includes('https://game.example/index.html'));
+  w.offline();for(const url of ['https://game.example/','https://game.example/index.html'])assert.ok((await w.emit('fetch',{request:new Request(url)})).ok);
+});
+
+test('Save offline repairs missing cached files and reports progress/completion after writes',async()=>{
+  const w=worker();await w.emit('install');const version=w.self.RiffOfflineAssets.version;
+  w.banks.get(version).delete('https://game.example/game.js');const messages=[];
+  await w.emit('message',{data:{type:'SAVE_OFFLINE',version},ports:[{postMessage:m=>messages.push(m),close(){}}]});
+  assert.equal(messages.at(-1).type,'SAVED');assert.equal(messages.at(-1).version,version);
+  assert.equal(messages.filter(m=>m.type==='PROGRESS').length,w.self.RiffOfflineAssets.files.length);
+  w.offline();assert.ok((await w.emit('fetch',{request:new Request('https://game.example/game.js')})).ok);
+});
+
+test('offline save reports a failed write or version mismatch without falsely claiming success',async()=>{
+  const w=worker({failWrite:true}),messages=[],port={postMessage:m=>messages.push(m),close(){}};
+  await w.emit('message',{data:{type:'SAVE_OFFLINE',version:w.self.RiffOfflineAssets.version},ports:[port]});
+  assert.equal(messages.at(-1).type,'ERROR');assert.match(messages.at(-1).message,/space/);assert.equal(w.banks.size,0);
+  messages.length=0;await w.emit('message',{data:{type:'SAVE_OFFLINE',version:'old'},ports:[port]});
+  assert.equal(messages.at(-1).type,'ERROR');assert.match(messages.at(-1).message,/different game version/);
 });

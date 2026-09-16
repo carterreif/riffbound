@@ -763,3 +763,23 @@ Problem: players following the phone update instructions cannot find the conditi
 - Explain the one-time older-version bootstrap using controls those versions actually have: Save game for offline play, then use the ready update action or close/reopen saved game sessions.
 
 Validation: 20 targeted updater/offline/storage tests passed; the unchanged original-WAV storage fixture was not enabled in this targeted run (one skip). Three new UI regressions cover the persistent button/version, explicit recheck, download-to-ready transition, offline feedback and failed-download retry. JavaScript syntax, HTML local assets/IDs and whitespace checks passed. No physical phone testing was performed.
+
+
+## Version 39 — repair mobile offline installation
+
+Reported failure: the phone's version 38 panel says the update check failed, and both Save game for offline play and Check for updates appear ineffective.
+
+Production evidence: a read-only HEAD request to the published `/index.html` returned HTTP 307 with `Location: /`. The service worker fetched `/index.html` and rejected every redirected response, so this ordinary hosting redirect prevented its cache from installing. Additional server logs contained no worker errors. GET probes from this environment returned HTTP 403 and did not verify device-specific access; no attempt was made to bypass that restriction.
+
+Requirements and implementation:
+
+- Fetch the canonical game homepage `/` and retain the existing `index.html` offline cache key. Continue to reject unexpected redirects, bad HTTP responses and HTML masquerading as script/style/image assets.
+- Let a newly registered or installing worker finish instead of immediately issuing a redundant update request. Re-register after a failed first install leaves no worker. Bound registration/update checks so the controls become retryable if the browser stops responding.
+- Save game for offline play must await worker activation, repair missing cache files when needed and verify every public asset before displaying success. Show saving/progress, explicit success or a useful failure; never equate a registration/update request with a completed offline download.
+- Cache repair uses a version-checked worker request over a message port. Completion is sent only after all writes finish. Failed repairs must not clear player audio or setlist storage. The downloader and updater do not call IndexedDB deletion, unregister the app or clear the user's browser data.
+- Include the browser's error detail in update/save failures. Preserve the existing game while updates fail and retain retry controls. Refuse repair against another game version and let the existing safe-update flow complete first.
+- Preserve active play, pause, unsaved-song, save and multi-tab update protections. A controlling worker older than the current page must never trigger a reload loop. Defer refreshing while an offline save is in progress.
+
+Verification uses deterministic page and worker adapters with the production redirect reproduced. Tests cover canonical-home caching and network-free navigation, failed first-install recovery, activation waiting, actual missing-file repair, progress/verified completion, write failures, mismatched versions, unresponsive workers/update checks, and existing reload safety. Physical iPhone/Android verification is not claimed.
+
+Validation result: 29 targeted updater, worker and storage tests passed, zero failures; the unchanged optional original-WAV storage fixture was not enabled (one skip). HTML assets/IDs, JavaScript syntax and whitespace checks passed. No changes were made to saved-song persistence or chart data.
