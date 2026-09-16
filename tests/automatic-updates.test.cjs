@@ -3,7 +3,8 @@ const source=fs.readFileSync(require.resolve('../dist/offline.js'),'utf8');
 const flush=async()=>{for(let i=0;i<8;i++)await new Promise(resolve=>setImmediate(resolve));};
 function setup({waiting=true,online=true,registerError=false}={}){
   const events=()=>({listeners:{},addEventListener(type,fn){(this.listeners[type]??=[]).push(fn);},emit(type,data={}){for(const fn of this.listeners[type]||[])fn(data);}});
-  const nodes={};for(const id of ['reloadGameButton','offlineStatus','downloadGameButton','offlineButton','installAppButton','installInstructions','offlineDialog'])nodes[id]={...events(),hidden:true,disabled:false,close(){this.open=false;}};
+  const nodes={};for(const id of ['gameVersion','offlineVersion','reloadGameButton','offlineStatus','downloadGameButton','offlineButton','installAppButton','installInstructions','offlineDialog'])nodes[id]={...events(),hidden:true,disabled:false,close(){this.open=false;}};
+  nodes.gameVersion.textContent='Game version 38';
   let now=100000,allowed=true,prepare=true,reloads=0,registers=0,updates=0,prepared=0;
   const messages=[],timers=new Map(),intervals=[];
   const worker={...events(),state:'installed',postMessage:message=>messages.push(message)};
@@ -49,4 +50,29 @@ test('manual update obeys unsaved/play safety and closes only the offline panel 
 });
 test('an unrelated message cannot force a reload',async()=>{
   const s=setup({waiting:false});await flush();s.sw.emit('message',{source:{},data:{type:'GAME_VERSION',version:'anything'}});assert.equal(s.reloads,0);
+});
+
+test('update button stays visible, reports the installed version, and checks again on demand',async()=>{
+  const s=setup({waiting:false});await flush();
+  assert.equal(s.nodes.reloadGameButton.hidden,false);assert.equal(s.nodes.reloadGameButton.textContent,'Check for updates');
+  assert.equal(s.nodes.offlineVersion.textContent,'Game version 38');assert.match(s.nodes.offlineStatus.textContent,/No new update found.*Game version 38/);
+  const before=s.updates;s.nodes.reloadGameButton.emit('click');await flush();assert.equal(s.updates,before+1);assert.equal(s.reloads,0);
+  s.allow(false);s.reg.waiting=s.worker;s.nodes.reloadGameButton.emit('click');await flush();
+  assert.equal(s.nodes.reloadGameButton.textContent,'Use updated game');assert.equal(s.reloads,0);
+});
+
+test('checking during a download shows progress, then offers the ready update without claiming current',async()=>{
+  const s=setup({waiting:false});await flush();s.allow(false);s.worker.state='installing';s.reg.installing=s.worker;s.reg.emit('updatefound');
+  s.nodes.reloadGameButton.emit('click');await flush();assert.match(s.nodes.offlineStatus.textContent,/Downloading game files/);assert.doesNotMatch(s.nodes.offlineStatus.textContent,/No new update found/);
+  s.worker.state='installed';s.reg.waiting=s.worker;s.worker.emit('statechange');
+  assert.equal(s.nodes.reloadGameButton.textContent,'Use updated game');assert.equal(s.nodes.reloadGameButton.hidden,false);assert.equal(s.reloads,0);
+});
+
+test('offline checks and failed downloads explain the next action without losing the retry button',async()=>{
+  const s=setup({waiting:false,online:false});await flush();s.nodes.reloadGameButton.emit('click');await flush();
+  assert.match(s.nodes.offlineStatus.textContent,/You are offline/);assert.equal(s.nodes.reloadGameButton.hidden,false);assert.equal(s.registers,0);
+  s.navigator.onLine=true;s.window.emit('online');await flush();
+  s.worker.state='installing';s.reg.installing=s.worker;s.reg.emit('updatefound');s.worker.state='redundant';s.worker.emit('statechange');
+  assert.match(s.nodes.offlineStatus.textContent,/download did not finish/);assert.equal(s.nodes.reloadGameButton.disabled,false);
+  s.reg.installing=null;s.nodes.reloadGameButton.emit('click');await flush();assert.match(s.nodes.offlineStatus.textContent,/No new update found/);
 });

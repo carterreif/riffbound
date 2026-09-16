@@ -751,3 +751,15 @@ Version 36 and earlier need one final manual update or a close/reopen of all gam
 Deterministic service-worker, UI/audio and persistence adapters cover update deferral, same-version installation, reconnect/foreground retries, manual safety, multiple tabs, selected-track restoration without autoplay, save failure, revision idempotence and authored/lower-chart preservation. Matched migration is compared to the actual analyzer: Expert 1,401 notes and Hard 1,349. Full regression tests include the private original recording and reopened byte-preserving storage. This is automated verification, not a physical iPhone/Android browser test.
 
 Validation result: the full 194-test suite passed with both original-recording fixtures enabled and no skips. A subsequent selected-track restore race fix passed all four targeted UI tests, including the added save-completion/playback regression (195 total test cases now present). Syntax, HTML asset references, unique IDs and whitespace checks passed.
+
+
+## Version 38 — make update status discoverable
+
+Problem: players following the phone update instructions cannot find the conditional Use updated game button and cannot tell whether their copy is current.
+
+- Keep Check for updates visible in Install / offline, show the installed game version there, and change the action to Use updated game only when a downloaded update is ready.
+- Explicit checks bypass the normal time throttle. Distinguish checking, an in-progress download, no new update found, offline, and failed download states. Do not claim that the game is current before installation finishes. Stale async status reads must not overwrite a newer update-ready state.
+- Retain all version 37 playback, unsaved-song, other-tab and selected-song restoration protections. Keep a retry action after a failed download. No song or chart storage format changes.
+- Explain the one-time older-version bootstrap using controls those versions actually have: Save game for offline play, then use the ready update action or close/reopen saved game sessions.
+
+Validation: 20 targeted updater/offline/storage tests passed; the unchanged original-WAV storage fixture was not enabled in this targeted run (one skip). Three new UI regressions cover the persistent button/version, explicit recheck, download-to-ready transition, offline feedback and failed-download retry. JavaScript syntax, HTML local assets/IDs and whitespace checks passed. No physical phone testing was performed.

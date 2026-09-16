@@ -1,6 +1,6 @@
 # Riffbound
 
-Browser rhythm game, version 37. Play Guitar, Bass, Drums or pitch-pad Vocals with automatic charting and Easy, Medium, Hard and Expert arrangements.
+Browser rhythm game, version 38. Play Guitar, Bass, Drums or pitch-pad Vocals with automatic charting and Easy, Medium, Hard and Expert arrangements.
 
 [Play Riffbound](https://riffbound.aaronreifschneider.chatgpt.site)
 
@@ -12,7 +12,9 @@ The matched In Bloom drum chart includes score-and-audio reviews for Expert and 
 
 Open the game while online. It checks for updates at launch, when you return, when the connection comes back, and every five minutes while visible. New game files download automatically. The game refreshes between songs only after the current song is saved; it waits during play, pause, analysis, imports, saves and open panels. It reopens your selected saved song and difficulty without starting playback. Close other Riffbound tabs if an update is waiting.
 
-For phones still running version 36 or earlier, open **Install / offline → Use updated game** once after saving your song, or close all game tabs and reopen online. Version 37 handles subsequent updates automatically. A closed or offline app gets updates next time it is opened online; this is not a background push service.
+In **Install / offline**, the current game version and **Check for updates** button are always visible. The button changes to **Use updated game** when a downloaded update is ready. The status distinguishes checking, downloading, no new update, offline and failed downloads.
+
+For phones still showing only **Save game for offline play** and **Install Riffbound**, tap **Save game for offline play** while online and wait for the download. If **Use updated game** appears, tap it after saving your song; otherwise close all game tabs and the installed app after saving, then reopen this same game link online. Version 37 and later handle subsequent updates automatically. A closed or offline app gets updates next time it is opened online; this is not a background push service.
 
 Opening the matching saved In Bloom recording automatically applies newer reviewed Expert/Hard charts and saves them with its existing audio. Easy, Medium, legacy Normal, other instruments and imported authored drum charts are preserved. No reupload, manual rebuild or desktop export is needed for this matched recording once its audio is saved on the phone. Other recordings retain their charts until you choose **Rebuild this instrument’s chart**.
 
