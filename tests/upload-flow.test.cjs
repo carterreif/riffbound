@@ -39,10 +39,10 @@ function setup({mobile=false,chartFixture=null,chartResultExtras={},chartFailure
     postMessage(data){requests.push(data.instrument);requestIds.push(data.audioId);setImmediate(()=>{if(this.dead)return;if(chartFailures[data.instrument]){this.onmessage({data:{type:'error',message:chartFailures[data.instrument]}});return;}const fixture=typeof chartFixture==='function'?chartFixture(data.instrument):chartFixture;if(chartFixture)this.onmessage({data:{type:'complete',result:{...(typeof chartResultExtras==='function'?chartResultExtras(data.instrument):chartResultExtras),charts:{[data.instrument]:Array.isArray(fixture)?{easy:fixture,normal:fixture,expert:fixture}:fixture},waveform:[0,.5,1,.5],bpm:120,beat:.5}}});else this.sandbox.onmessage({data});});}terminate(){this.dead=true;}
   }
   const libraryCode=require('../dist/song-library.js'),library={...libraryCode,list:async()=>[...savedSongs.values()],get:async id=>savedSongs.get(id),save:async song=>{if(storageFailure)throw Error('Quota exceeded');savedSongs.set(song.id,{...libraryCode.metadata(song),audioBlob:song.audioBlob});},remove:async id=>savedSongs.delete(id),...libraryOverrides};
-  const window={RiffEngine:E,RiffPlayback:require('../dist/playback-tools.js'),RiffLibrary:library,RiffMotion:require('../dist/performance-motion.js'),RiffAudioClock:require('../dist/audio-clock.js'),RiffStage:{create:()=>({resize:noop,draw:noop})},AudioContext,OfflineAudioContext,Worker,matchMedia:q=>({matches:mobile&&!q.includes('reduced-motion')}),devicePixelRatio:1,addEventListener:noop};
+  const window={RiffEngine:E,RiffChartExchange:require('../dist/chart-exchange.js'),RiffPlayback:require('../dist/playback-tools.js'),RiffLibrary:library,RiffMotion:require('../dist/performance-motion.js'),RiffAudioClock:require('../dist/audio-clock.js'),RiffStage:{create:()=>({resize:noop,draw:noop})},AudioContext,OfflineAudioContext,Worker,matchMedia:q=>({matches:mobile&&!q.includes('reduced-motion')}),devicePixelRatio:1,addEventListener:noop};
   let resize=()=>{};
   let calibrationTimer=null;
-  const sandbox={window,document,Worker,Blob,URL,performance:{now:()=>(audio?.currentTime||0)*1000},crypto:webcrypto,Float32Array,Uint8Array,HTMLInputElement:Input,HTMLButtonElement:Button,ResizeObserver:class{constructor(fn){resize=fn;}observe(){}},getComputedStyle:()=>({height:'58px',columnGap:'4px'}),localStorage:{getItem:key=>key==='riffbound-preferences-v1'?JSON.stringify(preferences):null,setItem:(...args)=>writes.push(args)},requestAnimationFrame:fn=>{raf=fn;},setTimeout:(fn,delay)=>{if(delay===6750){calibrationTimer=fn;return -1;}return setTimeout(fn,delay);},clearTimeout};
+  const sandbox={window,document,Worker,Blob,URL,TextEncoder,performance:{now:()=>(audio?.currentTime||0)*1000},crypto:webcrypto,Float32Array,Uint8Array,HTMLInputElement:Input,HTMLButtonElement:Button,ResizeObserver:class{constructor(fn){resize=fn;}observe(){}},getComputedStyle:()=>({height:'58px',columnGap:'4px'}),localStorage:{getItem:key=>key==='riffbound-preferences-v1'?JSON.stringify(preferences):null,setItem:(...args)=>writes.push(args)},requestAnimationFrame:fn=>{raf=fn;},setTimeout:(fn,delay)=>{if(delay===6750){calibrationTimer=fn;return -1;}return setTimeout(fn,delay);},clearTimeout};
   vm.createContext(sandbox);vm.runInContext(game,sandbox);
   const upload=async(name='My original.wav',flag=1)=>{nodes.songFile.files=[{name,size:uploadBytes?.length||100,arrayBuffer:async()=>new Uint8Array(uploadBytes||[flag,1,2,3]).buffer}];await nodes.songFile.emit('change');};
   const tick=t=>{audio.currentTime=t;raf(t*1000);};
@@ -613,4 +613,52 @@ for(const action of ['rebuild','parts','whole','reupload','reupload-after-demo']
   assert.deepEqual(plain(saved.charts.guitar),fresh('guitar'));assert.deepEqual(Buffer.from(await saved.audioBlob.arrayBuffer()),bytes);
   const reopened=setup({savedSongs:app.savedSongs,chartFixture:[]});await until(()=>reopened.nodes.setlistEntries.children.length===2);await reopened.nodes.setlistEntries.children[1].click();await reopened.radios.instrument[1].emit('change');
   await reopened.radios.difficulty[0].emit('change');assert.match(reopened.nodes.chartSummary.textContent,/Easy.*1 notes/);assert.equal(reopened.requests.length,0);
+});
+
+const authoredText=(notes='192 = N 1 0\n204 = N 1 0\n216 = N 2 0\n240 = N 3 0\n288 = N 4 0\n336 = N 5 0\n384 = N 0 0',section='ExpertDrums')=>`[Song]\n{\nName = "Authored track"\nResolution = 192\n}\n[SyncTrack]\n{\n0 = B 120000\n}\n[${section}]\n{\n${notes}\n}\n`;
+async function reviewAuthored(app,text=authoredText()){
+  const n=app.nodes;await n.chartFilesButton.click();n.authoredChartFile.files=[{name:'notes.chart',size:text.length,text:async()=>text}];await n.authoredChartFile.emit('change');await n.reviewChartButton.click();
+}
+const chartAudio=()=>({name:'matching.wav',size:4,type:'audio/wav',arrayBuffer:async()=>new Uint8Array([7,1,2,3]).buffer});
+
+test('authored chart + new audio → preview → setlist → fresh reopen without audio analysis',async()=>{
+  const s=require('./helpers/song-storage.cjs').storage({rejectBlobs:true});
+  const app=setup({libraryOverrides:s.library}),n=app.nodes;
+  await reviewAuthored(app);assert.equal(n.loadChartButton.disabled,false);assert.match(n.chartFileStatus.textContent,/drums expert: 7/);
+  n.chartAudioFile.files=[chartAudio()];await n.loadChartButton.click();
+  assert.deepEqual(app.requests,[]);assert.equal(n.chartFilesDialog.open,false);assert.match(n.chartDetails.textContent,/Imported from notes.chart/);assert.match(n.chartDifficultySummary.textContent,/Expert: 7 \(imported\)/);assert.match(n.chartDifficultySummary.textContent,/Easy: .*derived/);
+  assert.equal(n.setlistEntries.children.length,2);assert.match(n.saveStatus.textContent,/Added to your setlist/);
+  await app.radios.difficulty[3].emit('change');await n.previewButton.click();await until(()=>n.previewButton.textContent.includes('Stop'));
+  assert.equal(app.sources.at(-1).offset,0);await n.mobileBackButton.click();
+  const reopened=setup({libraryOverrides:s.fresh()});await until(()=>reopened.nodes.setlistEntries.children.length===2);await reopened.nodes.setlistEntries.children[1].click();
+  assert.match(reopened.nodes.chartDetails.textContent,/Imported from notes.chart/);assert.deepEqual(reopened.requests,[]);assert.equal(reopened.nodes.trackKind.textContent,'IMPORTED CHART');
+});
+
+test('import Expert into current song preserves its audio and existing lower charts',async()=>{
+  const app=setup({chartFixture:[{time:1,lane:1,duration:0},{time:2,lane:5,duration:0}]});await app.radios.instrument[1].emit('change');await app.upload();await until(()=>app.savedSongs.size===1);
+  const previous=[...app.savedSongs.values()][0],lower=JSON.stringify([previous.charts.drums.easy,previous.charts.drums.medium,previous.charts.drums.hard]);
+  await reviewAuthored(app);assert.equal(app.nodes.chartAudioMode.value,'current');await app.nodes.loadChartButton.click();
+  const record=[...app.savedSongs.values()][0];assert.equal(app.decodes,1);assert.deepEqual(app.requests,['drums']);assert.deepEqual(JSON.parse(JSON.stringify([record.charts.drums.easy,record.charts.drums.medium,record.charts.drums.hard])),JSON.parse(lower));assert.equal(record.charts.drums.expert.length,7);
+  assert.equal(record.id,previous.id);assert.equal(record.audioBlob,previous.audioBlob);assert.equal(app.nodes.setlistEntries.children.length,2);assert.match(app.nodes.chartDifficultySummary.textContent,/Medium: .*retained/);
+});
+
+test('invalid audio pairing and changed review settings never overwrite the current song',async()=>{
+  const app=setup({chartFixture:[{time:1,lane:1,duration:0}]});await app.upload('Keep me.wav');await until(()=>app.savedSongs.size===1);const before=JSON.stringify([...app.savedSongs.values()][0].charts);
+  await reviewAuthored(app,authoredText('20000 = N 5 0'));await app.nodes.loadChartButton.click();assert.match(app.nodes.chartFileStatus.textContent,/extends beyond/);assert.equal(app.nodes.trackTitle.textContent,'Keep me');assert.equal(JSON.stringify([...app.savedSongs.values()][0].charts),before);
+  app.nodes.chartShift.value='20';await app.nodes.chartShift.emit('input');assert.equal(app.nodes.loadChartButton.disabled,true);
+});
+
+test('authored five-fret Easy remains playable and export files contain real chart/audio data',async()=>{
+  const app=setup(),n=app.nodes;await reviewAuthored(app,authoredText('192 = N 4 0','EasySingle'));n.chartAudioFile.files=[chartAudio()];await n.loadChartButton.click();await app.radios.difficulty[0].emit('change');
+  assert.equal(app.frets[4].disabled,false);await n.playButton.click();await until(()=>n.playText.textContent==='RESTART TRACK');const start=app.sources.at(-1).when;app.tick(start+.5);await app.key('keydown','KeyL');app.tick(start+.6);assert.equal(n.streak.textContent,1);await n.mobileBackButton.click();
+  await n.chartFilesButton.click();await n.exportChartButton.click();const link=app.body.children.at(-1);assert.equal(link.download,'notes.chart');const chart=await (await fetch(link.href)).text();assert.match(chart,/\[EasySingle\]/);assert.equal(require('../dist/chart-exchange.js').parse(chart).charts.guitar.easy[0].lane,4);
+  await n.exportChartIniButton.click();assert.match(await (await fetch(app.body.children.at(-1).href)).text(),/five_lane_drums = True/);
+  await n.exportChartAudioButton.click();assert.deepEqual(new Uint8Array(await (await fetch(app.body.children.at(-1).href)).arrayBuffer()),new Uint8Array([7,1,2,3]));
+});
+
+test('finishing an imported-chart save does not interrupt playback started while saving',async()=>{
+  let releaseSave;const app=setup({libraryOverrides:{save:async()=>new Promise(resolve=>{releaseSave=resolve;})}}),n=app.nodes;
+  await reviewAuthored(app);n.chartAudioFile.files=[chartAudio()];const loading=n.loadChartButton.click();await until(()=>releaseSave);
+  await n.previewButton.click();await until(()=>n.previewButton.textContent.includes('Stop'));releaseSave();await loading;
+  assert.match(n.previewButton.textContent,/Stop preview/);assert.equal(n.pauseButton.disabled,false);app.tick(app.sources.at(-1).when+1);assert.match(n.stageStatus.textContent,/PREVIEW/);
 });

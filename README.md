@@ -1,6 +1,6 @@
 # Riffbound
 
-Browser rhythm game, version 35. Play Guitar, Bass, Drums or pitch-pad Vocals with automatic charting and Easy, Medium, Hard and Expert arrangements.
+Browser rhythm game, version 36. Play Guitar, Bass, Drums or pitch-pad Vocals with automatic charting and Easy, Medium, Hard and Expert arrangements.
 
 [Play Riffbound](https://riffbound.aaronreifschneider.chatgpt.site)
 
@@ -9,6 +9,18 @@ Expert keeps every distinct note accepted by the audio analysis. Hard, Medium an
 The matched In Bloom drum chart includes score-and-audio reviews for Expert and Hard: separate same-color flam strokes, open hi-hat overlaps, removal of two yellow kick-click artifacts, and 36 additional hi-hats guided by supplied video screenshots. Easy and Medium retain their previous arrangements.
 
 For an existing setlist song, open it and choose **Rebuild this instrument’s chart** to apply updated charting to its original audio. The updated arrangements are saved with the original audio.
+
+## Chart import and export
+
+Open **Chart files** beside Manage songs. Choose a `.chart` file, then choose its matching audio or use the open song. Review the detected instruments and note counts, choose a drum layout if the file is ambiguous, and click **Load chart**. The song saves to the setlist; select a difficulty and use **Preview chart** to check sync. Timing shift moves notes in milliseconds; positive values move notes later.
+
+Supplied Guitar, Bass and Drums difficulties keep their authored note times, lanes, chords and holds. An import updates only supplied non-empty levels for the same audio; existing other levels and instruments remain. Missing levels for a new instrument are derived and labeled. To replace both Expert and Hard, include both sections in the file.
+
+Export **notes.chart**, **song.ini**, and the original audio from the same panel. Keep all three in one folder when opening the chart in Moonscraper. Exports include all available Guitar, Bass and Drums difficulties, retain imported tempo changes, and use five-lane drums. The complete audio/chart backup remains **Manage songs → Export current song** (`.riffpack`).
+
+This release supports `.chart`, not MIDI. Open guitar/bass notes, sustained drum rolls, six-fret tracks and vocals are not imported. HOPO/tap, accent, ghost and phrase mechanics use Riffbound's existing gameplay. Standard four-lane drums cannot identify every drum voice; prefer five-lane or Pro charts. Pro tom/cymbal combinations that collide on one Riffbound pad are rejected rather than silently dropped. Matching song length does not prove that an audio recording matches a chart: preview it.
+
+Format implementation is original code based on the CC0 [GuitarGame_ChartFormats documentation](https://github.com/TheNathannator/GuitarGame_ChartFormats). No Moonscraper or YARG code/assets, neural models or external processing services are bundled.
 
 ## Run locally
 

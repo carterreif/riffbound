@@ -685,3 +685,41 @@ The screenshot overlap assignments are score-informed estimates, and the cover c
 
 
 Final verification: **168 tests passed, none failed or skipped**, using the original uploaded WAV and pinned PCM (83.3 seconds). All 36 additions, the fifteen independent quiet-onset checks, the complete preceding-reference hash, lower-chart snapshots, all-note scoring, five update routes and setlist/backup/reopen regressions pass. Both authoring tools reproduce the runtime reference byte-for-byte. JavaScript syntax, the entrypoint and local asset references pass.
+
+
+## Version 36 — Authored chart interchange
+
+### Goal and scope
+
+Allow a player to import an authored Guitar, Bass or Drums `.chart` arrangement with its matching audio, play/preview it and keep it in the existing device-local setlist. Export editable charts so individual mistakes can be corrected in an external editor such as Moonscraper. This implements the chart interchange recommendation; automatic drum model evaluation remains separate future work.
+
+### Requirements and acceptance
+
+- Add Chart files alongside existing game tools, matching the current dark interface and touch-friendly controls.
+- Review a selected file before loading. Show instruments, difficulties, counts, drum-layout ambiguity and mapping limitations. No mutation during review.
+- Support Song metadata, Resolution, Offset, tempo changes, time signatures, Single (Guitar), DoubleBass (Bass), and Drums sections on Easy/Medium/Hard/Expert. Ignore editor-only tempo anchors as specified by the format.
+- Keep authored onsets, chords, fretted holds and independent drum hits. Never pass imports through audio detection or beat snapping.
+- Map five-lane drums to red snare, yellow hi-hat, blue tom, orange cymbal, green floor tom and purple kick. Include Expert+ kicks. Pro cymbal markers distinguish cymbals from toms; refuse an ambiguous auto layout until the player chooses. Standard four-lane mapping is explicitly approximate.
+- Reject collisions that map two simultaneous source notes to one pad, unsupported open frets/sustained drum rolls, malformed timing and oversized files. Reject mismatched chart length before replacing the current song.
+- Use the open song audio or decode a selected audio file (5–480 seconds, at most 80 MB). Identify it by the existing SHA-256 audio ID. Do not request microphone or network access.
+- Replace only explicitly supplied non-empty difficulties for matching audio; empty editor sections are treated as unavailable, never as an erase command; preserve other stored levels and instruments. Derive only missing levels for a new part. Label supplied/derived/retained levels in the preview.
+- Preserve all authored fret positions, even when an authored Easy/Medium track uses more frets than generated arrangements. Keep generated chart fret limits unchanged.
+- Save imported charts and original audio using existing chunked storage; survive a fresh reopen and `.riffpack` backup round trip. Keep actionable save failures and the playable open copy.
+- Use content-specific personal-best keys for imported charts. Explicit audio rebuild replaces imported provenance only for rebuilt parts.
+- Export `notes.chart`, `song.ini` with five-lane drum settings, and the original audio. Preserve all available Guitar/Bass/Drums levels and imported tempo/time signatures. Use at least 10,000 ticks per beat to retain off-grid measured timing (within 0.1 ms across supported tempos). Match the referenced and downloaded audio filename.
+- Keep private uploads and reference inputs out of Site/GitHub assets. Include the interchange module in offline caching.
+
+### Limits
+
+- `.chart` only: MIDI, six-fret parts and vocal transcription interchange are not implemented. Existing vocal pitch-pad play and `.riffpack` backup remain available.
+- HOPO/tap, authored power phrases, accents and ghost dynamics do not change the existing game mechanics. Drum rolls must contain discrete hits.
+- Four-lane chart colors are not a complete physical-kit transcription. Pro mappings can collapse multiple tom/cymbal voices; collisions are rejected. Five-lane charts best match the game.
+- The player must pair the exact recording and preview synchronization. File-length validation cannot verify a musical match.
+- Chart exports contain playable arrangements, not a lossless archive of every unsupported event. Keep the original editor file and use `.riffpack` for a full Riffbound backup.
+- AI transcription models were not added. Automatic chart quality and the reviewed In Bloom reference remain unchanged.
+
+### Verification
+
+Automated format and UI-flow coverage verifies variable tempo/offset/holds, all drum lanes and kicks, Pro cymbal markers, no beat snapping, all-level export/import, refusal of unsupported/invalid notes, supplied lower-level preservation, authored five-fret Easy play, new-audio and current-audio imports without analysis, chunked setlist persistence, fresh reopening, portable backups and real downloaded chart/audio bytes. Static JS, local asset and offline-cache checks are required before publication. Live Moonscraper application and physical-phone tests are not performed in this environment.
+
+Verification results: the full suite passed 180/180 with the pinned original WAV/PCM (zero failures or skips). The additional save-completion/preview regression passed separately. All eight format tests were re-run after guarding empty editor sections and passed. HTML IDs, runtime asset references, offline inclusion and all JavaScript syntax checks passed.

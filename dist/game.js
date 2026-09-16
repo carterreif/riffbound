@@ -3,6 +3,7 @@
   'use strict';
   const E=window.RiffEngine,T=window.RiffPlayback,Library=window.RiffLibrary, $=id=>document.getElementById(id);
   const D=E.Difficulties;
+  const Exchange=window.RiffChartExchange;
   const PARTS=['guitar','drums','bass','vocals'],partName=part=>({guitar:'Guitar',drums:'Drums',bass:'Bass',vocals:'Vocals'}[part]||part);
   const canvas=$('highway'), ctx=canvas.getContext('2d');
   const band=window.RiffStage.create($('performance'));
@@ -14,6 +15,7 @@
   let calibrationTest=null,calibrationTimer=null;
   let setlistSongs=[],setlistGeneration=0,setlistError='';
   let pendingSaves=0,reconnectingAudio=false;
+  let chartDraft=null,chartReviewGeneration=0;
   let timingOffset=0,highwaySpeed=1;
   try{const saved=JSON.parse(localStorage.getItem('riffbound-preferences-v1')||'{}');timingOffset=Math.max(-250,Math.min(250,Number(saved.timingOffset)||0));highwaySpeed=Math.max(.7,Math.min(1.6,Number(saved.highwaySpeed)||1));}catch{}
   const countNodes=[];
@@ -34,8 +36,13 @@
   const inputTime=()=>running()?gameTransport().time:state==='paused'?frozenInputTime:0;
   const trackDuration=()=>song?.duration??E.DURATION,trackBeat=()=>song?.beat??E.BEAT;
   const chartNotes=()=>song?song.charts[instrument][difficulty]:E.makeChart(difficulty,instrument);
+  let fretCacheNotes=null,fretCacheCount=0;
+  const playableFrets=()=>{
+    const base=D.frets(instrument,difficulty);if(!song?.quality?.imports?.[instrument]?.levels?.includes(difficulty))return base;
+    const notes=chartNotes();if(notes!==fretCacheNotes){fretCacheNotes=notes;fretCacheCount=notes.reduce((max,n)=>Math.max(max,n.lane+1),0);}return Math.max(base,fretCacheCount);
+  };
   const effectiveMode=()=>['drums','vocals'].includes(instrument)?'tap':mode;
-  const bestKey=()=>song?.quality?.scoreReview&&instrument==='drums'&&['expert','hard'].includes(difficulty)?`riffbound-inbloom-score-v${song.quality.scoreRevision||2}-${song.id}-${difficulty}-${effectiveMode()}`:difficulty==='expert'?(song?`riffbound-upload-${instrument==='drums'?'v5':'v3'}-${song.id}-${instrument}-expert-${effectiveMode()}`:instrument==='guitar'?`riffbound-best-v1-expert-${mode}`:`riffbound-best-v2-${instrument}-expert-${effectiveMode()}`):`riffbound-difficulty-v1-${song?.id||'demo'}-${instrument}-${difficulty}-${effectiveMode()}`;
+  const bestKey=()=>song?.quality?.imports?.[instrument]?`riffbound-import-${song.id}-${song.quality.imports[instrument].id}-${instrument}-${difficulty}-${effectiveMode()}`:song?.quality?.scoreReview&&instrument==='drums'&&['expert','hard'].includes(difficulty)?`riffbound-inbloom-score-v${song.quality.scoreRevision||2}-${song.id}-${difficulty}-${effectiveMode()}`:difficulty==='expert'?(song?`riffbound-upload-${instrument==='drums'?'v5':'v3'}-${song.id}-${instrument}-expert-${effectiveMode()}`:instrument==='guitar'?`riffbound-best-v1-expert-${mode}`:`riffbound-best-v2-${instrument}-expert-${effectiveMode()}`):`riffbound-difficulty-v1-${song?.id||'demo'}-${instrument}-${difficulty}-${effectiveMode()}`;
   function readBest(){try{return Number(localStorage.getItem(bestKey())||0);}catch{return 0;}}
   function refreshBest(){const n=readBest();$('localBest').textContent=n?n.toLocaleString():'—';}
   function setAnnouncement(small,big,visible=true,countdown=false){
@@ -49,6 +56,12 @@
     $('rechartButton').disabled=active();$('practiceButton').disabled=busy();$('timingButton').disabled=busy();$('libraryButton').disabled=busy();
     $('saveCurrentButton').disabled=!song||busy()||pendingSaves>0;$('exportCurrentButton').disabled=!song||busy()||!Library.audioStatus(song?.audioBlob).ok;
     $('reconnectAudioButton').disabled=!song||busy()||pendingSaves>0;$('importBackupButton').disabled=busy();
+    $('chartFilesButton').disabled=busy();
+    for(const id of ['authoredChartFile','chartAudioMode','chartAudioFile','chartDrumLayout','chartShift','reviewChartButton'])$(id).disabled=busy();
+    $('loadChartButton').disabled=busy()||pendingSaves>0||!chartDraft;
+    const exportable=!!song&&['guitar','bass','drums'].some(part=>song.charts[part]);
+    $('exportChartButton').disabled=busy()||!exportable;$('exportChartIniButton').disabled=busy()||!exportable;
+    $('exportChartAudioButton').disabled=busy()||!song||!Library.audioStatus(song?.audioBlob).ok;
     for(const part of PARTS)$('libraryUpload'+partName(part)).disabled=active();
     $('saveCurrentButton').textContent=pendingSaves?'Saving…':'Save current song';
     updateSetlistSelection();
@@ -81,10 +94,11 @@
     const difficultyLabels=document.querySelectorAll('.difficulty-row small');
     const limitedFrets=['guitar','bass'].includes(instrument);
     (limitedFrets?['3 FRETS','4 FRETS','5 FRETS','ALL NOTES']:drums?['FEWER HITS','CORE GROOVE','MORE FILLS','ALL HITS']:['FEWER NOTES','MELODY','MORE NOTES','ALL NOTES']).forEach((text,i)=>difficultyLabels[i].textContent=text);
+    if(song?.quality?.imports?.[instrument])D.LEVELS.forEach((level,i)=>difficultyLabels[i].textContent=song.quality.imports[instrument].levels.includes(level)?'IMPORTED':song.quality.imports[instrument].derived.includes(level)?'DERIVED':'RETAINED');
     if(vocals)$('modeHint').textContent='Play the vocal melody with D F J K L or the colored pads. Low to high pitch; hold long notes. Pad play, without a microphone.';
     const guitarNames=['Green fret','Red fret','Yellow fret','Blue fret','Orange fret'];
-    fretButtons.forEach((b,i)=>{b.disabled=i>=D.frets(instrument,difficulty);b.setAttribute('aria-disabled',String(b.disabled));b.style.setProperty('--fret',laneColor(i));b.setAttribute('data-touch-label',drums?['Snare','Hi-hat','Tom','Cymbal','Floor'][i]:String(i+1));b.setAttribute('aria-label',`${drums?(i===4?'Floor tom or orange cymbal':E.DRUM_NAMES[i]):vocals?`Vocal pitch ${i+1} of 5`:guitarNames[i]}, ${E.KEYS[i].slice(3)}`);b.classList.toggle('disabled-lane',i>=D.frets(instrument,difficulty));});
-    $('drumLabels').querySelectorAll('span').forEach((b,i)=>{b.style.color=E.DRUM_COLORS[i];b.classList.toggle('disabled-lane',i>=D.frets(instrument,difficulty));});
+    fretButtons.forEach((b,i)=>{b.disabled=i>=playableFrets();b.setAttribute('aria-disabled',String(b.disabled));b.style.setProperty('--fret',laneColor(i));b.setAttribute('data-touch-label',drums?['Snare','Hi-hat','Tom','Cymbal','Floor'][i]:String(i+1));b.setAttribute('aria-label',`${drums?(i===4?'Floor tom or orange cymbal':E.DRUM_NAMES[i]):vocals?`Vocal pitch ${i+1} of 5`:guitarNames[i]}, ${E.KEYS[i].slice(3)}`);b.classList.toggle('disabled-lane',i>=playableFrets());});
+    $('drumLabels').querySelectorAll('span').forEach((b,i)=>{b.style.color=E.DRUM_COLORS[i];b.classList.toggle('disabled-lane',i>=playableFrets());});
     if(!song&&vocals){$('uploadHint').textContent='Iron Voltage is instrumental. Upload a song with vocals to chart its melody.';setAnnouncement('VOCAL MELODY','UPLOAD A VOCAL TRACK');}else if(!song)setAnnouncement('YOUR STAGE IS WAITING','LET IT RIP.');
     idleNotes=chartNotes();refreshBest();updateButtons();refreshChartPreview();
   }
@@ -130,6 +144,12 @@
     const source=song.quality?.sources?.[instrument];
     $('chartDetails').textContent=(source?source+'. ':'')+names.map((name,lane)=>`${name}: ${notes.filter(n=>n.lane===lane).length}`).join(' · ')+(source?'. Matched to this recording; preview the groove and fills.':'. Parts are estimated; use preview to check the result.');
     if(instrument==='drums'&&song.quality?.scoreReview)$('chartDetails').textContent+=' '+song.quality.scoreReview;
+    const authored=song.quality?.imports?.[instrument];
+    if(authored){
+      $('chartDifficultySummary').textContent=['expert','hard','medium','easy'].map(level=>`${D.NAMES[level]}: ${song.charts[instrument][level].length} (${authored.levels.includes(level)?'imported':authored.derived.includes(level)?'derived':'retained'})`).join(' · ');
+      $('chartDetails').textContent=`Imported from ${authored.filename}. Authored timing and supplied difficulties retained. `+names.map((name,lane)=>`${name}: ${notes.filter(n=>n.lane===lane).length}`).join(' · ');
+      $('chartMapping').textContent=instrument==='drums'?'Imported drum mapping: Red snare · Yellow hi-hat · Blue tom · Orange cymbal · Green floor tom · Purple kick. '+(authored.layout==='four'?'Standard four-lane charts cannot identify every drum voice.':authored.layout==='pro'?'Pro charts map yellow cymbals to hi-hat, other cymbals to orange, and toms to blue/green.':'Five-lane colors follow the authored chart.'):'Fret colors and holds follow the imported chart. Supplied difficulty arrangements are preserved, including any extra frets they use.';
+    }
     const canvas=$('chartOverview'),c=canvas.getContext('2d'),w=canvas.width,h=canvas.height;
     c.clearRect(0,0,w,h);c.fillStyle='#727f8b55';
     song.waveform.forEach((v,i)=>c.fillRect(i*w/song.waveform.length,h/2-v*h*.42,w/song.waveform.length-1,v*h*.84));
@@ -140,7 +160,7 @@
     $('trackTitle').classList.toggle('custom-title',!!song);
     if(song)$('trackTitle').textContent=song.title;else $('trackTitle').innerHTML='IRON<br><span>VOLTAGE</span>';
     $('trackArtist').textContent=song?'Your uploaded song':'The Riffbound Sessions';$('trackSource').textContent=song?'/ YOUR SONG':'/ ORIGINAL SESSION';
-    $('trackKind').textContent=song?song.quality?.sources?.[instrument]?'MATCHED CHART':'AUTO CHART':'HEAVY ROCK';$('trackBpm').textContent=song?`≈ ${song.bpm} BPM`:'112 BPM';
+    $('trackKind').textContent=song?song.quality?.imports?.[instrument]?'IMPORTED CHART':song.quality?.sources?.[instrument]?'MATCHED CHART':'AUTO CHART':'HEAVY ROCK';$('trackBpm').textContent=song?`≈ ${song.bpm} BPM`:'112 BPM';
     $('trackLength').textContent=formatTime(song?.musicEnd??E.DURATION);$('remaining').textContent=formatTime(trackDuration());
     $('uploadHint').textContent=song?`${Object.keys(song.charts).map(partName).join(' + ')} ready. Choose a part to preview or play it. Full recordings are supported; isolated tracks give clearer estimates.`:'Upload a full song or isolated audio, then preview the detected notes. Choose one instrument, all four, or selected parts.';
     $('demoButton').hidden=!song;$('previewPosition').max=String(Math.max(0,(song?.musicEnd??0)-.2));$('previewPosition').value='0';$('previewTime').textContent='0:00';
@@ -201,6 +221,10 @@
     }
     return charts;
   }
+  function clearImportedParts(parts){
+    if(!song?.quality?.imports)return;
+    song.quality.imports={...song.quality.imports};for(const part of parts)delete song.quality.imports[part];
+  }
   function readyMessage(result){
     const unavailable=Object.keys(result.quality?.unavailable||{});
     return `${Object.keys(result.charts).map(partName).join(' + ')} chart${Object.keys(result.charts).length>1?'s':''} ready. Preview before playing.`+(unavailable.length?` Could not chart ${unavailable.map(partName).join(', ')}: ${unavailable.map(p=>result.quality.unavailable[p]).join(' ')}`:'');
@@ -215,7 +239,7 @@
       const samples=song.analysisSamples||await prepareSamples(song.buffer);if(generation!==uploadGeneration)return;
       const result=await analyzeParts(samples,targets,generation,song.id);if(generation!==uploadGeneration)return;
       song={...song,analysisSamples:samples,charts:mergeSongCharts(song.charts,result),quality:{...song.quality,...result.quality,sources:{...song.quality?.sources,...result.quality.sources},methods:{...song.quality?.methods,...result.quality.methods}}};
-      instrument=result.instrument;song.instrument=instrument;setSongPercussion();state='idle';newSession();refreshSong();updateUi(0);saveSong();uploadProgress(100,readyMessage(result));setAnnouncement('CHARTS READY','CHOOSE YOUR PART');
+      clearImportedParts(Object.keys(result.charts));instrument=result.instrument;song.instrument=instrument;setSongPercussion();state='idle';newSession();refreshSong();updateUi(0);saveSong();uploadProgress(100,readyMessage(result));setAnnouncement('CHARTS READY','CHOOSE YOUR PART');
     }catch(error){if(generation!==uploadGeneration)return;state='idle';reset();refreshSong();$('chartStatus').textContent=error.message;$('chartStatus').classList.add('error');}
     finally{if(generation===uploadGeneration){$('uploadProgress').hidden=true;updateButtons();}}
   }
@@ -235,7 +259,7 @@
       const samples=song.analysisSamples||await prepareSamples(song.buffer);if(generation!==uploadGeneration)return;
       const result=await runAnalysis(samples,target,generation,song.id);if(generation!==uploadGeneration)return;
       // Analysis may replace chart data, never the original audio or identity.
-      song={...song,...result,id:song.id,title:song.title,filename:song.filename,audioBlob:song.audioBlob,buffer:song.buffer,musicEnd:song.musicEnd,analysisSamples:samples,charts:mergeSongCharts(song.charts,result),quality:{...song.quality,...result.quality,sources:{...song.quality?.sources,[target]:result.quality?.sources?.[target]||null},methods:{...song.quality?.methods,[target]:result.quality?.method||'Audio analysis'}},duration:song.musicEnd+.8};instrument=target;setSongPercussion();state='idle';newSession();refreshSong();updateUi(0);saveSong();
+      song={...song,...result,id:song.id,title:song.title,filename:song.filename,audioBlob:song.audioBlob,buffer:song.buffer,musicEnd:song.musicEnd,analysisSamples:samples,charts:mergeSongCharts(song.charts,result),quality:{...song.quality,...result.quality,sources:{...song.quality?.sources,[target]:result.quality?.sources?.[target]||null},methods:{...song.quality?.methods,[target]:result.quality?.method||'Audio analysis'}},duration:song.musicEnd+.8};instrument=target;clearImportedParts([target]);setSongPercussion();state='idle';newSession();refreshSong();updateUi(0);saveSong();
       uploadProgress(100,`${partName(target)} chart ready. Preview it before playing.`);setAnnouncement('FOCUSED CHART READY','LET IT RIP.');
     }catch(error){if(generation!==uploadGeneration)return;state='idle';reset();refreshSong();$('chartStatus').textContent=error.message;$('chartStatus').classList.add('error');}
     finally{if(generation===uploadGeneration){$('uploadProgress').hidden=true;updateButtons();}}
@@ -265,7 +289,7 @@
       let previous=song?.id===id?song:null;if(!previous)try{previous=await Library.get(id);}catch{}
       if(generation!==uploadGeneration)return;
       song={...result,charts:mergeSongCharts(previous?.charts,result),quality:{...previous?.quality,...result.quality,sources:{...previous?.quality?.sources,...result.quality.sources},methods:{...previous?.quality?.methods,...result.quality.methods}},id,buffer,audioBlob,filename:file.name,analysisSamples:samples,title:file.name.replace(/\.[^.]+$/,'')||'Your song',musicEnd:buffer.duration,duration:buffer.duration+.8};
-      instrument=result.instrument;
+      clearImportedParts(Object.keys(result.charts));instrument=result.instrument;
       setSongPercussion();
       state='idle';newSession();refreshSong();updateUi(0);uploadProgress(100,readyMessage(result));setAnnouncement('CHARTS READY','LET IT RIP.');saveSong();
     }catch(error){if(generation!==uploadGeneration)return;state='idle';newSession();refreshSong();updateUi(0);$('chartStatus').textContent=error.message||'Charting failed. Try another audio file.';$('chartStatus').classList.add('error');setAnnouncement('CHARTING COULD NOT FINISH','TRY ANOTHER SONG');}
@@ -364,6 +388,65 @@
     const url=URL.createObjectURL(Library.pack({...record,instrument:record===song?instrument:record.instrument})),link=document.createElement('a');link.href=url;link.download=(record.title.replace(/[^a-z0-9 _-]/gi,'').slice(0,80)||'Riffbound song')+'.riffpack';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
     $('libraryStatus').textContent='Backup exported with its audio and charts.';
   }
+  function downloadChartFile(blob,name){
+    const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=name;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+  }
+  function refreshChartFiles(){
+    const current=$('chartAudioMode').value==='current';$('chartAudioLabel').hidden=current;
+    $('chartAudioHint').textContent=current?(song?`Use the exact recording: ${song.title}`:'Open a saved song first, or choose an audio file.'):'Select the full matching recording, including the same lead-in. Audio stays on this device.';
+    $('chartExportHint').textContent=song?`Export ${song.title}: all Guitar, Bass and Drums difficulties. Put notes.chart, song.ini and the audio in one folder for your editor. Vocal pitch pads stay in .riffpack backups.`:'Open an uploaded or saved song to export its charts and audio.';
+    updateButtons();
+  }
+  function invalidateChartDraft(){chartDraft=null;chartReviewGeneration++;$('chartFileStatus').textContent='Choose Review chart to check these settings.';refreshChartFiles();}
+  async function reviewChartFile(){
+    if(busy())return;chartDraft=null;const generation=++chartReviewGeneration;updateButtons();
+    try{
+      const file=$('authoredChartFile').files?.[0];
+      if(!file||!/\.chart$/i.test(file.name)||file.size<=0||file.size>Exchange.MAX_BYTES)throw Error('Choose a non-empty .chart file smaller than 4 MB.');
+      const text=await file.text();if(generation!==chartReviewGeneration)return;
+      const parsed=Exchange.parse(text,{drumLayout:$('chartDrumLayout').value||'auto',shiftMs:$('chartShift').value});
+      chartDraft={parsed,text,filename:file.name};
+      $('chartFileStatus').textContent=parsed.summary+'\n'+parsed.warnings.join('\n')+'\nReady to load with matching audio. No notes have been changed yet.';
+    }catch(error){if(generation===chartReviewGeneration)$('chartFileStatus').textContent=error.message;}
+    finally{if(generation===chartReviewGeneration)updateButtons();}
+  }
+  async function loadAuthoredChart(){
+    if(busy()||pendingSaves||!chartDraft)return;
+    const draft=chartDraft,current=$('chartAudioMode').value==='current',audioFile=$('chartAudioFile').files?.[0],oldSong=song,oldInstrument=instrument;
+    if(current&&!song){$('chartFileStatus').textContent='Open a saved song or choose an audio file first.';return;}
+    if(!current&&!audioFile){$('chartFileStatus').textContent='Choose the audio file that matches this chart.';return;}
+    stopCalibration();stopAudio();previewing=false;practiceLoop=null;playRate=1;clearHeld();state='loading';updateButtons();
+    $('chartFileStatus').textContent='Checking the chart against your audio…';
+    try{
+      let buffer,id,audioBlob,filename,previous;
+      if(current){({buffer,id,audioBlob,filename}=song);if(!Library.audioStatus(audioBlob).ok)throw Error(Library.audioStatus(audioBlob).message);previous=song;}
+      else{
+        const status=Library.audioStatus(audioFile);if(!status.ok)throw Error(status.message);
+        const bytes=await audioFile.arrayBuffer();audioBlob=new Blob([bytes],{type:audioFile.type||'audio/wav'});filename=audioFile.name;
+        id=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),b=>b.toString(16).padStart(2,'0')).join('');
+        try{buffer=await ensureAudio().decodeAudioData(bytes);}catch{throw Error('This audio could not be opened. Try its WAV or MP3 version.');}
+        previous=song?.id===id?song:null;if(!previous)try{previous=await Library.get(id);}catch{}
+      }
+      const arranged=Exchange.arrange(draft.parsed,buffer.duration,previous?.charts);
+      const affected=Object.keys(draft.parsed.charts).filter(part=>Object.values(draft.parsed.charts[part]).some(notes=>notes.length));
+      const selected=affected.includes(instrument)?instrument:affected[0],imports={...previous?.quality?.imports};
+      for(const part of affected){
+        const chartId=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(arranged.charts[part])))),b=>b.toString(16).padStart(2,'0')).join('');
+        const supplied=Object.keys(draft.parsed.charts[part]),prior=previous?.quality?.imports?.[part];
+        imports[part]={id:chartId,filename:draft.filename,layout:draft.parsed.drumLayout,levels:[...new Set([...(prior?.levels||[]),...supplied])],derived:[...new Set([...(prior?.derived||[]),...arranged.derived[part]])].filter(level=>!supplied.includes(level))};
+      }
+      const samples=buffer.getChannelData(0),waveform=Array.from({length:240},(_,i)=>{let peak=0;const end=Math.floor((i+1)*samples.length/240);for(let j=Math.floor(i*samples.length/240);j<end;j+=32)peak=Math.max(peak,Math.abs(samples[j]));return peak;});
+      const quality={...previous?.quality,imports,chartTiming:draft.parsed.timing,chartArtist:draft.parsed.artist,sources:{...previous?.quality?.sources}};
+      for(const part of affected)quality.sources[part]=null;
+      if(affected.includes('drums')){delete quality.scoreReview;delete quality.scoreRevision;delete quality.preserveEasyMedium;}
+      const record={...previous,id,title:previous?.title||draft.parsed.title||filename.replace(/\.[^.]+$/,''),filename,instrument:selected,musicEnd:buffer.duration,bpm:draft.parsed.bpm,beat:draft.parsed.beat,offset:draft.parsed.timing.offset,charts:arranged.charts,waveform,quality,chartVersion:previous?.chartVersion||1};
+      const validated=Library.validate(record);
+      song={...validated,buffer,audioBlob,analysisSamples:null};instrument=selected;state='idle';setSongPercussion();newSession();refreshSong();updateUi(0);
+      $('chartFilesDialog').close();$('chartStatus').classList.remove('error');$('chartStatus').textContent='Authored chart loaded. Choose a difficulty and Preview chart to check the timing.';setAnnouncement('IMPORTED CHART READY','PREVIEW YOUR NOTES');
+      await saveSong();
+    }catch(error){song=oldSong;instrument=oldInstrument;state='idle';newSession();refreshSong();updateUi(0);$('chartFileStatus').textContent=error.message;}
+    finally{updateButtons();}
+  }
   async function openSong(record){
     if(busy())return;
     stopCalibration();stopAudio();const generation=playbackGeneration;previewing=false;practiceLoop=null;playRate=1;state='loading';clearHeld();updateButtons();showMessage('');
@@ -425,6 +508,20 @@
   $('exportCurrentButton').addEventListener('click',()=>{try{exportSong();}catch(error){$('libraryStatus').textContent=error.message;}});
   $('importBackupButton').addEventListener('click',()=>{$('backupFile').click();});
   $('backupFile').addEventListener('change',()=>importBackup($('backupFile').files[0]));
+  $('chartFilesButton').addEventListener('click',()=>{$('chartAudioMode').value=song?'current':'file';openTool('chartFilesDialog');refreshChartFiles();});
+  for(const id of ['authoredChartFile','chartDrumLayout','chartShift'])$(id).addEventListener('change',invalidateChartDraft);
+  $('chartShift').addEventListener('input',invalidateChartDraft);
+  $('chartAudioMode').addEventListener('change',refreshChartFiles);
+  $('reviewChartButton').addEventListener('click',reviewChartFile);
+  $('loadChartButton').addEventListener('click',loadAuthoredChart);
+  for(const [id,kind] of [['exportChartButton','chart'],['exportChartIniButton','ini'],['exportChartAudioButton','audio']])$(id).addEventListener('click',()=>{
+    if(!song||busy())return;
+    try{
+      if(kind==='audio'){if(!Library.audioStatus(song.audioBlob).ok)throw Error('The original audio is unavailable.');downloadChartFile(song.audioBlob,Exchange.audioFilename(song));}
+      else downloadChartFile(new Blob([kind==='chart'?Exchange.exportChart(song):Exchange.exportIni(song)],{type:'text/plain;charset=utf-8'}),kind==='chart'?'notes.chart':'song.ini');
+      $('chartFileStatus').textContent=kind==='audio'?'Original audio downloaded.':kind==='chart'?'notes.chart downloaded. Also download song.ini and audio into the same folder.':'song.ini downloaded with five-lane drum settings.';
+    }catch(error){$('chartFileStatus').textContent=error.message;}
+  });
   $('practiceButton').addEventListener('click',()=>openTool('practiceDialog'));
   $('practiceLaunch').addEventListener('click',()=>{const start=Number($('loopStart').value),end=Number($('loopEnd').value);if(!Number.isFinite(start)||!Number.isFinite(end)||start<0||end-start<1||end>(song?.musicEnd??E.MUSIC_END)){$('practiceStatus').textContent='Choose at least one second inside this song.';return;}const loop=T.practice(start,end,$('practiceRate').value,song?.musicEnd??E.MUSIC_END);if(!T.segment(chartNotes(),loop).length){$('practiceStatus').textContent='There are no charted notes here. Choose another section.';return;}$('practiceDialog').close();play({practice:true});});
   $('timingButton').addEventListener('click',()=>{$('timingOffset').value=String(timingOffset);$('timingOffsetValue').textContent=`${timingOffset} ms`;openTool('timingDialog');});
@@ -560,7 +657,7 @@
   }
   function laneDown(lane){
     if(previewing)return;
-    if(lane>=D.frets(instrument,difficulty))return;if(held.has(lane))return;
+    if(lane>=playableFrets())return;if(held.has(lane))return;
     held.add(lane);fretButtons[lane].classList.add('active');flashes[lane]=Math.max(flashes[lane],.2);
     if(running()&&session.mode==='tap')session.tap(lane,inputTime());
   }
@@ -576,7 +673,7 @@
   }}
   document.addEventListener('keydown',event=>{
     if($('timingDialog').open){if(event.code==='Space'){event.preventDefault();if(!event.repeat)calibrationTap();}return;}
-    if($('helpDialog').open||$('resultDialog').open||$('libraryDialog').open||$('practiceDialog').open||$('offlineDialog').open)return;
+    if($('helpDialog').open||$('resultDialog').open||$('libraryDialog').open||$('practiceDialog').open||$('offlineDialog').open||$('chartFilesDialog').open)return;
     if(event.target?.tagName==='SELECT')return;
     const lane=E.KEYS.indexOf(event.code);
     if(lane>=0){event.preventDefault();if(!event.repeat)pressInput(`key:${event.code}`,lane);return;}
@@ -702,7 +799,7 @@
     for(let lane=0;lane<5;lane++){
       if(!drums&&lane%2===0)quad(lane,0,1.18,'#ffffff03');
       if(held.has(lane)||flashes[lane]>.01){const g=ctx.createLinearGradient(0,geo.top,0,geo.target);g.addColorStop(0,laneColor(lane)+'00');g.addColorStop(1,laneColor(lane)+(held.has(lane)?'38':'25'));quad(lane,0,1.1,g);}
-      if(lane>=D.frets(instrument,difficulty))quad(lane,0,1.18,'#0009');
+      if(lane>=playableFrets())quad(lane,0,1.18,'#0009');
     }
     // Perspective strings and outer rails are part of the playable highway.
     for(let i=0;i<=5;i++){

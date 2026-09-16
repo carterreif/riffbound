@@ -27,7 +27,12 @@
     if(!data||typeof data.id!=='string'||!/^[a-f0-9]{64}$/.test(data.id)||typeof data.title!=='string'||data.title.length>500)throw Error('This is not a valid Riffbound song backup.');
     if(!Number.isFinite(data.musicEnd)||data.musicEnd<5||data.musicEnd>480||!Number.isFinite(data.beat)||data.beat<=0||data.beat>4||!Number.isFinite(data.bpm)||data.bpm<15||data.bpm>1000)throw Error('The song timing in this backup is invalid.');
     if(!['guitar','drums','bass','vocals'].includes(data.instrument)||!data.charts?.[data.instrument])throw Error('The backup has no playable chart.');
-    const charts={};
+    const charts={},imports={};
+    for(const instrument of ['guitar','drums','bass']){
+      const imported=data.quality?.imports?.[instrument];
+      if(imported&&typeof imported.id==='string'&&/^[a-f0-9]{64}$/.test(imported.id)&&typeof imported.filename==='string'&&Array.isArray(imported.levels)&&Array.isArray(imported.derived))imports[instrument]={id:imported.id,filename:imported.filename.slice(0,500),layout:['five','pro','four'].includes(imported.layout)?imported.layout:'five',levels:imported.levels.filter(l=>Difficulties.LEVELS.includes(l)),derived:imported.derived.filter(l=>Difficulties.LEVELS.includes(l))};
+    }
+    data={...data,quality:data.quality?{...data.quality,imports}:null};
     for(const instrument of ['guitar','drums','bass','vocals'])if(data.charts[instrument]){
       charts[instrument]={};
       const levels=data.charts[instrument];
@@ -36,7 +41,7 @@
       for(const level of ['easy','medium','hard','expert','normal'].filter(level=>level in levels)){
         const notes=data.charts[instrument][level];if(!Array.isArray(notes)||notes.length>25000)throw Error('The backup chart is invalid or too large.');
         charts[instrument][level]=notes.map((n,id)=>{
-          if(!Number.isInteger(n.lane)||n.lane<0||n.lane>(instrument==='drums'?5:canonical&&level!=='normal'?Difficulties.frets(instrument,level)-1:4)||!Number.isFinite(n.time)||n.time<0||n.time>data.musicEnd||!Number.isFinite(n.duration)||n.duration<0||n.time+n.duration>data.musicEnd+1)throw Error('The backup contains an invalid note.');
+          if(!Number.isInteger(n.lane)||n.lane<0||n.lane>(instrument==='drums'?5:canonical&&level!=='normal'&&!data.quality?.imports?.[instrument]?.levels?.includes(level)?Difficulties.frets(instrument,level)-1:4)||!Number.isFinite(n.time)||n.time<0||n.time>data.musicEnd||!Number.isFinite(n.duration)||n.duration<0||n.time+n.duration>data.musicEnd+1)throw Error('The backup contains an invalid note.');
           return {id,lane:n.lane,time:n.time,duration:n.duration,...(Number.isFinite(n.pitch)?{pitch:n.pitch}:{})};
         }).sort((a,b)=>a.time-b.time||a.lane-b.lane);
       }
