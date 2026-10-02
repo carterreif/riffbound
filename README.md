@@ -1,6 +1,6 @@
 # Riffbound
 
-Browser rhythm game, version 41. Play Guitar, Bass, Drums or pitch-pad Vocals with automatic charting and Easy, Medium, Hard and Expert arrangements.
+Browser rhythm game, version 42. Play Guitar, Bass, Drums or pitch-pad Vocals with automatic charting and Easy, Medium, Hard and Expert arrangements.
 
 [Play Riffbound](https://riffbound.aaronreifschneider.chatgpt.site)
 
@@ -71,3 +71,9 @@ Sites and GitHub retain separate commit histories. Publishing a Site does not au
 
 
 Version 39 fixes offline installation on hosts that redirect `index.html` to `/`. It caches the canonical homepage under the existing navigation key, retries failed first registrations, waits for installation before reporting a save, and gives update/download failures a visible reason and retry action. An older controlling worker no longer reloads a newer page in a loop.
+
+## Roam recording update (version 42)
+
+Uploading the exact supplied WhereverImayroamdrumsonly.wav in Drums mode selects the corrected Roam chart: Expert 2051, Hard 1687, Medium 1117, Easy 681. Opening a saved automatic chart or the fingerprinted older Roam backup updates and saves those four arrangements. Independently authored drum charts and other instruments are retained. The current backup already contains the same corrections. Only chart data is shipped; audio remains device-local and must be uploaded/imported once per device.
+
+Revision 3 removes 193 likely snare-noise cymbal duplicates and changes four rack/floor tom colors. Timing and the original WAV are preserved. The shared video covers only an opening passage; later sections remain audio estimates and need preview. Existing In Bloom Expert/Hard updates still preserve its lower difficulties. Offline version 42 caches the Roam reference module.

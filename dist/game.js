@@ -42,7 +42,7 @@
     const notes=chartNotes();if(notes!==fretCacheNotes){fretCacheNotes=notes;fretCacheCount=notes.reduce((max,n)=>Math.max(max,n.lane+1),0);}return Math.max(base,fretCacheCount);
   };
   const effectiveMode=()=>['drums','vocals'].includes(instrument)?'tap':mode;
-  const bestKey=()=>song?.quality?.imports?.[instrument]?`riffbound-import-${song.id}-${song.quality.imports[instrument].id}-${instrument}-${difficulty}-${effectiveMode()}`:song?.quality?.scoreReview&&instrument==='drums'&&['expert','hard'].includes(difficulty)?`riffbound-inbloom-score-v${song.quality.scoreRevision||2}-${song.id}-${difficulty}-${effectiveMode()}`:difficulty==='expert'?(song?`riffbound-upload-${instrument==='drums'?'v5':'v3'}-${song.id}-${instrument}-expert-${effectiveMode()}`:instrument==='guitar'?`riffbound-best-v1-expert-${mode}`:`riffbound-best-v2-${instrument}-expert-${effectiveMode()}`):`riffbound-difficulty-v1-${song?.id||'demo'}-${instrument}-${difficulty}-${effectiveMode()}`;
+  const bestKey=()=>song?.quality?.imports?.[instrument]?`riffbound-import-${song.id}-${song.quality.imports[instrument].id}-${instrument}-${difficulty}-${effectiveMode()}`:song?.quality?.scoreReview&&instrument==='drums'&&(song.quality.preserveEasyMedium===false||['expert','hard'].includes(difficulty))?`riffbound-${song.quality.scoreReference||'inbloom'}-score-v${song.quality.scoreRevision||2}-${song.id}-${difficulty}-${effectiveMode()}`:difficulty==='expert'?(song?`riffbound-upload-${instrument==='drums'?'v5':'v3'}-${song.id}-${instrument}-expert-${effectiveMode()}`:instrument==='guitar'?`riffbound-best-v1-expert-${mode}`:`riffbound-best-v2-${instrument}-expert-${effectiveMode()}`):`riffbound-difficulty-v1-${song?.id||'demo'}-${instrument}-${difficulty}-${effectiveMode()}`;
   function readBest(){try{return Number(localStorage.getItem(bestKey())||0);}catch{return 0;}}
   function refreshBest(){const n=readBest();$('localBest').textContent=n?n.toLocaleString():'—';}
   function setAnnouncement(small,big,visible=true,countdown=false){
@@ -215,7 +215,7 @@
     if(generation!==uploadGeneration)throw Error('Canceled');
     if(!results.length)throw Error(Object.entries(unavailable).map(([part,message])=>`${partName(part)}: ${message}`).join(' '));
     const base=results.find(r=>r.instrument===instrument)||results[0];
-    return {...base,charts:Object.assign({},...results.map(r=>r.charts)),quality:{...base.quality,...(results.some(r=>r.quality?.preserveEasyMedium)?{preserveEasyMedium:true,scoreReview:results.find(r=>r.quality?.scoreReview)?.quality.scoreReview,scoreRevision:results.find(r=>r.quality?.scoreReview)?.quality.scoreRevision||2}:{}),sources:Object.fromEntries(results.map(r=>[r.instrument,r.quality?.sources?.[r.instrument]||null])),unavailable,methods:Object.fromEntries(results.map(r=>[r.instrument,r.quality?.method||'Audio analysis']))}};
+    return {...base,charts:Object.assign({},...results.map(r=>r.charts)),quality:{...base.quality,...(results.some(r=>r.quality?.scoreReview)?Object.fromEntries(['preserveEasyMedium','scoreReview','scoreRevision','scoreReference'].filter(key=>results.find(r=>r.quality?.scoreReview).quality[key]!==undefined).map(key=>[key,results.find(r=>r.quality?.scoreReview).quality[key]])): {}),sources:Object.fromEntries(results.map(r=>[r.instrument,r.quality?.sources?.[r.instrument]||null])),unavailable,methods:Object.fromEntries(results.map(r=>[r.instrument,r.quality?.method||'Audio analysis']))}};
   }
   function mergeSongCharts(previous,result){
     const charts={...previous,...result.charts};
@@ -464,7 +464,7 @@
       if(Math.abs(buffer.duration-safe.musicEnd)>.2)throw Error('The backup audio does not match its chart length.');
       song={...safe,audioBlob:record.audioBlob,buffer,analysisSamples:null};savedSong=persisted?song:null;
       const upgraded=window.RiffReferenceUpdates.upgrade(song),corrected=upgraded!==song;song=upgraded;instrument=song.charts[preferredInstrument]?preferredInstrument:safe.instrument;state='idle';setSongPercussion();newSession();refreshSong();updateUi(0);$('libraryDialog').close();setAnnouncement('SAVED SONG READY','LET IT RIP.');setSaveStatus('Song ready · Choose your settings, then Play track.');
-      if(corrected){showMessage('In Bloom Expert and Hard updated automatically. Your other charts are unchanged.');if(persisted)await saveSong();}
+      if(corrected){showMessage(window.RiffReferenceUpdates.message(song));if(persisted)await saveSong();}
     }catch(error){if(generation!==playbackGeneration)return;state='idle';newSession();refreshSong();updateUi(0);$('libraryStatus').textContent='Could not open this song. '+error.message;showMessage(error.message);}
     finally{if(generation===playbackGeneration)updateButtons();}
   }

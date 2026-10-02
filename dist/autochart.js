@@ -572,6 +572,10 @@
     return {[instrument]:{...charts,...Difficulties.build(charts.expert,instrument,beat)}};
   }
   function buildMatchedCharts(reference,duration){
+    if(reference.exactTiming){
+      const notes=reference.events.map((hit,id)=>({lane:hit.lane,time:hit.time,duration:0,id,bar:Math.floor(hit.time/reference.beat/4)}));
+      return {drums:Difficulties.build(notes,'drums',reference.beat)};
+    }
     const updated=buildFocusedCharts(reference.events,'drums',reference.beat,duration,new Float32Array(0),.01);
     if(reference.baselineEvents){
       const baseline=buildFocusedCharts(reference.baselineEvents,'drums',reference.beat,duration,new Float32Array(0),.01).drums;
@@ -672,11 +676,11 @@
     if(instrument==='bass'||instrument==='vocals')return analyzeMelody(samples,sampleRate,instrument,progress);
     const reference=instrument==='drums'?References?.match(audioId,duration):null;
     if(reference){
-      progress(85,'Loading the matched In Bloom drum chart…');
+      progress(85,`Loading the matched ${reference.title||'In Bloom'} drum chart…`);
       const charts=buildMatchedCharts(reference,duration);
       const expert=charts.drums.expert;
-      return {instrument,duration,bpm:reference.bpm,beat:reference.beat,offset:reference.offset,confidence:.7028361194449136,charts,waveform:reference.waveform,chartVersion:15,
-        quality:{preserveEasyMedium:true,scoreRevision:reference.revision,scoreReview:'In Bloom notation review: Expert and Hard updated; Easy and Medium retained.',counts:Array.from({length:6},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:reference.label,sources:{drums:reference.label}}};
+      return {instrument,duration,bpm:reference.bpm,beat:reference.beat,offset:reference.offset,...(reference.exactTiming?{}:{confidence:.7028361194449136}),charts,waveform:reference.waveform,chartVersion:reference.chartVersion||15,
+        quality:{preserveEasyMedium:reference.preserveEasyMedium!==false,scoreRevision:reference.revision,...(reference.scoreReference?{scoreReference:reference.scoreReference}:{}),scoreReview:reference.review||'In Bloom notation review: Expert and Hard updated; Easy and Medium retained.',counts:Array.from({length:6},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:reference.label,sources:{drums:reference.label}}};
     }
     const n=2048,hop=256,dt=hop/sampleRate,frames=Math.ceil(samples.length/hop),bins=Math.min(n/2,Math.floor(10000*n/sampleRate));
     const plan=fftPlan(n),re=new Float32Array(n),im=new Float32Array(n),rows=Array.from({length:17},()=>new Float32Array(bins));

@@ -830,3 +830,17 @@ An optional private-recording regression checks seven visually reviewed yellow e
 These are selected corrections, not a fully reviewed ground truth for the entire video. Broader comparison still finds missed quiet hats and false cymbal candidates in this dense mix. Do not claim perfect charting, full note recall, or reproduction of Guitar Hero's proprietary authoring method. Exact authored arrangements remain available through chart import. Lowering the spectral-template learning threshold was experimentally rejected because it introduced incorrect tom colors; the shipped threshold and separation model are unchanged.
 
 Validation: the full 217-test run, with both supplied recording fixtures enabled, initially passed 216 tests and exposed one cymbal-wash false positive. A stricter fresh-onset requirement after a recent crash fixed that regression. All 14 affected fill, cymbal-overlap and new bass-masking/recording tests then passed on the final code, with no skips. An existing yellow/orange pair is left intact when both voices already have independent evidence. Original In Bloom, drum-roll/color, onset timing, difficulty, upload, storage and offline/update checks passed in the full run. Runtime syntax, HTML asset/ID and whitespace checks passed. Physical-phone testing was not performed.
+
+## Version 42 — ship the corrected Roam chart
+
+Goal: make the current corrected Roam arrangement available through the live desktop/mobile game, with local save migration and offline support.
+
+- Match only SHA-256 53dd7e8d5503db94988872300a29932c41e7174560d49d72fa6f7068af6b7e88 and duration 433.626031746 seconds (20 ms tolerance), never filename alone.
+- Use the authored revision 3 chart with exact timestamps: 2051 Expert, 1687 Hard, 1117 Medium, 681 Easy. Preserve red/yellow/purple notes and the video-guided opening; remove the 193 likely duplicate orange notes and correct the four inspected rack/floor tom colors.
+- Update automatic saved copies and only the fingerprinted older Roam backup on open, saving once. Protect independently imported charts, already current backups, future revisions, and every other instrument. No song/audio removal or clearing device storage.
+- New uploads, explicit rebuilds, and migration select the same chart. All four levels remain nested subsets. General song transcription behavior and the existing In Bloom lower-difficulty preservation remain intact.
+- Bundle only reference note/waveform data, no WAV, video, or private backup. Songs remain device-local; game updates do not synchronize setlists across devices.
+- Ship game version 42 and offline cache v42-1 including the new reference module. Updates apply using the existing safe-between-songs flow.
+- Require recording identity/length guards, exact backup equivalence, corrected color landmarks, scoreability, protected imports, automatic migration idempotency, desktop/mobile upload-save-reopen and offline asset checks before publishing.
+
+Accuracy limit: only the short shared opening was video-guided. The rest uses recording-specific audio estimation and bounded spectral inspection. This release does not promise every drum hit is manually verified or apply this recording-specific chart to different files.
