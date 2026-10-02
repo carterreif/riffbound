@@ -30,10 +30,14 @@
         <div class="game-tools" aria-label="Game tools"><button id="libraryButton" class="quiet">Manage songs</button><button id="chartFilesButton" class="quiet">Chart files</button><button id="practiceButton" class="quiet">Practice</button><button id="timingButton" class="quiet">Timing</button><button id="offlineButton" class="quiet">Install / offline</button></div>
         <section class="song-setlist" aria-labelledby="setlistHeading">
           <div class="song-setlist-heading"><h2 id="setlistHeading">YOUR SETLIST</h2><span id="setlistCount">1 track</span></div>
+          <button id="addSongButton" class="upload-button setlist-add" aria-haspopup="dialog">+ Add song</button>
+          <p id="setlistAddStatus" role="status" aria-live="polite"></p>
+          <div id="setlistUploadProgress" hidden><progress id="setlistChartProgress" max="100" value="0" aria-label="Charting your song"></progress><button id="setlistCancelUpload" class="text-button">Cancel charting</button></div>
+          <div id="setlistSaveActions" class="tool-actions" hidden><button id="setlistRetrySave" class="upload-button">Retry save</button><button id="setlistExportBackup" class="quiet">Export backup</button></div>
           <input id="setlistSearch" class="setlist-search" type="search" placeholder="Find a song…" aria-label="Search your setlist" autocomplete="off">
           <div id="setlistEntries" class="setlist-entries" aria-label="Choose a song"></div>
           <p id="setlistStatus" role="status" aria-live="polite">Loading saved songs…</p>
-          <p class="setlist-hint">Uploads appear here automatically. Saved in this browser. Select a song, then Play track.</p>
+          <p class="setlist-hint">Add an audio file to chart and save it here. Songs stay in this browser on this device. Select a song, then Play track.</p>
         </section>
         <section class="auto-chart" aria-label="Automatic song charting">
           <div class="auto-chart-heading">AUTO CHART</div>
@@ -119,7 +123,20 @@
     <div id="saveStatus" class="save-status" role="status"></div>
   </div>
 
-  <dialog id="libraryDialog" class="game-dialog tools-dialog"><button class="close-dialog" data-close="libraryDialog" aria-label="Close songs">×</button><div class="eyebrow">ON THIS DEVICE</div><h2>Manage songs</h2><p>Your audio and charts stay in this browser. Export a backup to move a song to another device or protect it from cleared browser storage.</p><div class="tool-actions"><button id="saveCurrentButton" class="upload-button">Save current song</button><button id="exportCurrentButton" class="quiet">Export current song</button><button id="importBackupButton" class="quiet">Import backup</button></div><div id="libraryEmptyActions" class="tool-actions" hidden><button id="libraryUploadDrums" class="upload-button">Upload drums</button><button id="libraryUploadGuitar" class="quiet">Upload guitar</button><button id="libraryUploadBass" class="quiet">Upload bass</button><button id="libraryUploadVocals" class="quiet">Upload vocals</button></div><input id="backupFile" type="file" accept=".riffpack,application/octet-stream" hidden><p id="librarySaveStatus" role="status" aria-live="polite" hidden></p><p id="audioAttachmentStatus" class="secondary" hidden></p><div id="audioRecovery" class="tool-actions" hidden><button id="reconnectAudioButton" class="upload-button">Reconnect original audio</button></div><input id="reconnectAudioFile" type="file" accept="audio/*,.wav,.mp3,.ogg,.m4a,.flac" hidden><p id="libraryStatus" role="status"></p><div id="songList" class="song-list"></div><p class="secondary" id="gameVersion">Game version 39</p></dialog>
+  <dialog id="addSongDialog" class="game-dialog tools-dialog" aria-labelledby="addSongHeading">
+    <button class="close-dialog" data-close="addSongDialog" aria-label="Close add song">×</button>
+    <div class="eyebrow">GROW YOUR SETLIST</div><h2 id="addSongHeading">Add a song</h2>
+    <p>Choose any supported audio file from your phone or computer. Full songs and isolated instruments both work.</p>
+    <label for="addSongFile">1. Choose your audio<input id="addSongFile" type="file" accept="audio/*,.mp3,.wav,.m4a,.ogg,.flac,.aac,.aiff" aria-describedby="addSongLimits"></label>
+    <label class="select-label" for="addSongPart">2. What would you like to play?<select id="addSongPart"><option value="guitar">Guitar</option><option value="drums">Drums</option><option value="bass">Bass</option><option value="vocals">Vocals</option><option value="whole">Whole song — all four charts</option></select></label>
+    <p>We’ll create Easy, Medium, Hard and Expert charts, then save the audio and charts to your setlist automatically.</p>
+    <p id="addSongLimits" class="secondary">MP3, WAV, M4A, OGG, FLAC and other audio your browser can open. 5 seconds–8 minutes, up to 80 MB per song. Saved on this device; no song links needed.</p>
+    <p class="secondary">Automatic charts are estimates. Preview the notes before playing; isolated instruments give clearer results.</p>
+    <p id="addSongError" class="form-error" role="alert"></p>
+    <div class="tool-actions"><button id="confirmAddSong" class="upload-button" disabled>Chart &amp; add to setlist</button><button class="quiet" data-close="addSongDialog">Cancel</button></div>
+  </dialog>
+
+  <dialog id="libraryDialog" class="game-dialog tools-dialog"><button class="close-dialog" data-close="libraryDialog" aria-label="Close songs">×</button><div class="eyebrow">ON THIS DEVICE</div><h2>Manage songs</h2><p>Your audio and charts stay in this browser. Export a backup to move a song to another device or protect it from cleared browser storage.</p><div class="tool-actions"><button id="libraryAddSong" class="upload-button" aria-haspopup="dialog">+ Add song</button><button id="saveCurrentButton" class="upload-button">Save current song</button><button id="exportCurrentButton" class="quiet">Export current song</button><button id="importBackupButton" class="quiet">Import backup</button></div><div id="libraryEmptyActions" class="tool-actions" hidden><button id="libraryUploadDrums" class="upload-button">Upload drums</button><button id="libraryUploadGuitar" class="quiet">Upload guitar</button><button id="libraryUploadBass" class="quiet">Upload bass</button><button id="libraryUploadVocals" class="quiet">Upload vocals</button></div><input id="backupFile" type="file" accept=".riffpack,application/octet-stream" hidden><p id="librarySaveStatus" role="status" aria-live="polite" hidden></p><p id="audioAttachmentStatus" class="secondary" hidden></p><div id="audioRecovery" class="tool-actions" hidden><button id="reconnectAudioButton" class="upload-button">Reconnect original audio</button></div><input id="reconnectAudioFile" type="file" accept="audio/*,.wav,.mp3,.ogg,.m4a,.flac" hidden><p id="libraryStatus" role="status"></p><div id="songList" class="song-list"></div><p class="secondary" id="gameVersion">Game version 40</p></dialog>
 
   <dialog id="chartFilesDialog" class="game-dialog tools-dialog">
     <button class="close-dialog" data-close="chartFilesDialog" aria-label="Close chart files">×</button>

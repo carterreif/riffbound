@@ -783,3 +783,24 @@ Requirements and implementation:
 Verification uses deterministic page and worker adapters with the production redirect reproduced. Tests cover canonical-home caching and network-free navigation, failed first-install recovery, activation waiting, actual missing-file repair, progress/verified completion, write failures, mismatched versions, unresponsive workers/update checks, and existing reload safety. Physical iPhone/Android verification is not claimed.
 
 Validation result: 29 targeted updater, worker and storage tests passed, zero failures; the unchanged optional original-WAV storage fixture was not enabled (one skip). HTML assets/IDs, JavaScript syntax and whitespace checks passed. No changes were made to saved-song persistence or chart data.
+
+
+## Version 40 — add any supported song directly to the setlist
+
+### Outcome and requirements
+
+Players can add their own audio on mobile or desktop without finding the lower Auto chart section or replacing the demo files.
+
+- Place an obvious **+ Add song** action in Your setlist and Manage songs, available with an existing song open.
+- Provide a labeled audio picker and explicit Guitar, Drums, Bass, Vocals or Whole song choice. Generate Easy, Medium, Hard and Expert using the existing analysis pipeline. Do not mutate or rechart the previous song when changing the new upload's choice.
+- Accept full recordings and isolated audio supported by browser decoding. Show the existing 5–480 second and 80 MiB limits. Reject empty, oversized, unsupported and invalid recordings with visible feedback. No streaming URL import or cross-device sync is implied.
+- Show charting progress, cancellation, saving, confirmed persistence and actionable failure beside the setlist. Offer Retry save and Export backup after a failed write; retry must not rechart. Preserve the existing playable copy and saved songs when decoding, charting or storage fails.
+- Save every accepted recording using the existing chunked IndexedDB audio/chart transaction. Clear a filtering query after adding a new entry. Reopen saved songs after a fresh startup without reanalysis. Identical audio shares one entry and retains other instruments.
+- Disable adding while playing, paused, loading, charting, importing or saving. Block automatic game refresh and gameplay shortcuts while the Add song dialog is open. A canceled upload must ignore late decoding/worker results.
+- Retain reviewed In Bloom data, authored imports, drum colors and offline update behavior. Bump the game and cache version so existing phones can receive the feature.
+
+### Verification
+
+Five new automated UI/storage scenarios cover two distinct recordings with fresh mobile reopening, all four instrument charts and difficulty arrays, duplicate identity, invalid files, previous-song preservation, cancellation with late decoding, update/keyboard safety, and failed-save recovery without reanalysis. Deterministic DOM/audio adapters and real chunked storage code are used; this is not physical-phone testing.
+
+Validation result: 102 upload/UI, storage, connection and offline/updater tests passed, zero failures. Two unchanged optional reference-WAV tests were skipped in this targeted run. The upload suite also exercised the real analyzers on synthetic single-part and full-band audio. All runtime JavaScript syntax, HTML local asset references, unique IDs and whitespace checks passed.

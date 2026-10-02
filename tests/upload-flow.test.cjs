@@ -711,3 +711,90 @@ test('restoring a corrected song after update does not interrupt play started du
   release();await until(()=>app.nodes.saveStatus.textContent.includes('Added to your setlist'));await settle();
   assert.equal(playing.stopped,undefined);assert.equal(app.nodes.pauseButton.disabled,false);assert.equal(app.updateSafety.canReload(),false);
 });
+
+const addedAudio=(name,flag=1,size=4)=>({name,type:'audio/wav',size,arrayBuffer:async()=>new Uint8Array([flag,1,2,3]).buffer});
+async function pickAddedSong(app,name,part='drums',flag=1){
+  app.nodes.addSongFile.files=[addedAudio(name,flag)];app.nodes.addSongPart.value=part;
+  await app.nodes.addSongFile.emit('change');
+}
+const addedLevels=Object.fromEntries(['easy','medium','hard','expert'].map(level=>[level,[{lane:0,time:1,duration:0}]]));
+
+test('mobile Add song saves arbitrary recordings with every difficulty and reopens both from fresh storage',async()=>{
+  const storage=require('./helpers/song-storage.cjs').storage({rejectBlobs:true});
+  const app=setup({mobile:true,chartFixture:addedLevels,libraryOverrides:storage.library}),n=app.nodes;
+  await until(()=>n.setlistEntries.children.length===1);
+  await n.addSongButton.click();assert.equal(n.addSongDialog.open,true);assert.equal(n.confirmAddSong.disabled,true);
+  assert.equal(app.updateSafety.canReload(),false,'Do not update while picking a song');
+  await app.key('keydown','Enter');assert.equal(app.sources.length,0,'Dialog keys must not start the game');
+  await pickAddedSong(app,'First original.wav','drums');assert.equal(n.confirmAddSong.disabled,false);
+  n.setlistSearch.value='unrelated search';await n.setlistSearch.emit('input');
+  await n.confirmAddSong.click();await until(()=>n.setlistEntries.children.length===2&&!n.addSongButton.disabled);
+  assert.equal(n.addSongDialog.open,false);assert.equal(n.setlistSearch.value,'');
+  assert.match(n.setlistAddStatus.textContent,/Added to your setlist/);assert.equal(n.setlistUploadProgress.hidden,true);
+  const firstId=n.setlistEntries.children[1].dataset.songId,first=await storage.library.get(firstId);
+  for(const level of ['easy','medium','hard','expert'])assert.equal(first.charts.drums[level].length,1);
+  await n.libraryButton.click();await n.libraryAddSong.click();assert.equal(n.libraryDialog.open,false);assert.equal(n.addSongDialog.open,true);
+  await pickAddedSong(app,'Second original.mp3','bass',2);
+  assert.deepEqual(app.requests,['drums'],'Choosing a new instrument must not rechart the open track');
+  await n.confirmAddSong.click();await until(()=>n.setlistEntries.children.length===3&&!n.addSongButton.disabled);
+  assert.deepEqual(app.requests,['drums','bass']);
+  const fresh=setup({mobile:true,chartFixture:addedLevels,libraryOverrides:storage.fresh()});
+  await until(()=>fresh.nodes.setlistEntries.children.length===3);
+  for(const title of ['First original','Second original']){
+    const button=fresh.nodes.setlistEntries.children.find(b=>b.children[0].textContent===title);await button.click();
+    assert.equal(fresh.nodes.trackTitle.textContent,title);assert.equal(fresh.nodes.playButton.disabled,false);
+  }
+  assert.deepEqual(fresh.requests,[],'Saved songs reopen without charting again');
+  const preserved=await storage.library.get(firstId);assert.deepEqual(preserved.charts,first.charts);
+  assert.deepEqual(new Uint8Array(await preserved.audioBlob.arrayBuffer()),new Uint8Array([1,1,2,3]));
+});
+
+test('Add song whole-song mode builds four independent parts; readding identical audio keeps one entry',async()=>{
+  const app=setup({chartFixture:addedLevels}),n=app.nodes;
+  await n.addSongButton.click();await pickAddedSong(app,'Full song.flac','whole');await n.confirmAddSong.click();
+  await until(()=>app.savedSongs.size===1&&!n.addSongButton.disabled);
+  assert.deepEqual(app.requests,['guitar','drums','bass','vocals']);
+  assert.deepEqual(Object.keys([...app.savedSongs.values()][0].charts).sort(),['bass','drums','guitar','vocals']);
+  await n.addSongButton.click();await pickAddedSong(app,'Full song.flac','drums');await n.confirmAddSong.click();
+  await until(()=>!n.addSongButton.disabled);assert.equal(app.savedSongs.size,1);assert.equal(n.setlistEntries.children.length,2);
+  assert.equal(Object.keys([...app.savedSongs.values()][0].charts).length,4,'Keep other saved parts for matching audio');
+});
+
+test('Add song rejects empty, oversized and undecodable files without replacing the current song',async()=>{
+  const app=setup({chartFixture:addedLevels}),n=app.nodes;
+  await app.upload('Keep my song.wav');await until(()=>!n.addSongButton.disabled);
+  await n.addSongButton.click();n.addSongFile.files=[];await n.confirmAddSong.click();assert.match(n.addSongError.textContent,/Choose an audio/);
+  for(const size of [0,80*1024*1024+1]){
+    n.addSongFile.files=[addedAudio('Bad.wav',2,size)];await n.addSongFile.emit('change');await n.confirmAddSong.click();
+    assert.match(n.addSongError.textContent,/80 MB/);assert.equal(n.addSongDialog.open,true);
+  }
+  await pickAddedSong(app,'Bad codec.mp3','drums',0);await n.confirmAddSong.click();
+  assert.match(n.setlistAddStatus.textContent,/could not be opened/);assert.equal(n.trackTitle.textContent,'Keep my song');
+  assert.equal(app.savedSongs.size,1);assert.deepEqual(app.requests,['guitar']);
+  await n.addSongButton.click();n.addSongFile.files=[];await n.addSongFile.emit('change');
+  assert.equal(n.confirmAddSong.disabled,true);n.addSongDialog.close();assert.equal(n.trackTitle.textContent,'Keep my song');
+});
+
+test('setlist cancel stops new-song decoding and ignores its late result',async()=>{
+  const app=setup({mobile:true,chartFixture:addedLevels}),n=app.nodes;
+  await app.upload('Keep this.wav');await until(()=>!n.addSongButton.disabled);
+  await n.addSongButton.click();await pickAddedSong(app,'Cancel this.wav','drums',2);
+  const deferred=app.defer(),task=n.confirmAddSong.click();await until(()=>deferred.resolve);
+  assert.equal(n.setlistUploadProgress.hidden,false);assert.equal(n.addSongButton.disabled,true);
+  await n.setlistCancelUpload.click();deferred.resolve();await task;app.clearDefer();
+  assert.match(n.setlistAddStatus.textContent,/canceled/);assert.equal(n.setlistUploadProgress.hidden,true);
+  assert.equal(n.trackTitle.textContent,'Keep this');assert.equal(app.savedSongs.size,1);
+});
+
+test('setlist shows failed persistence and Retry save commits audio without recharting',async()=>{
+  const storage=require('./helpers/song-storage.cjs').storage({rejectBlobs:true});let fail=true;
+  const app=setup({chartFixture:addedLevels,libraryOverrides:{...storage.library,save:async song=>{if(fail)throw new DOMException('Quota exceeded','QuotaExceededError');return storage.library.save(song);}}}),n=app.nodes;
+  await n.addSongButton.click();await pickAddedSong(app,'Retry my song.wav');await n.confirmAddSong.click();
+  await until(()=>n.setlistAddStatus.textContent.includes('Could not save')&&!n.setlistRetrySave.disabled);
+  assert.equal(n.setlistEntries.children.length,1);assert.equal(n.setlistSaveActions.hidden,false);assert.equal(n.setlistExportBackup.disabled,false);
+  assert.equal(app.updateSafety.canReload(),false);fail=false;await n.setlistRetrySave.click();
+  assert.match(n.setlistAddStatus.textContent,/Added to your setlist/);assert.equal(n.setlistSaveActions.hidden,true);
+  assert.equal(n.setlistEntries.children.length,2);assert.deepEqual(app.requests,['drums']);
+  const fresh=setup({libraryOverrides:storage.fresh(),chartFixture:addedLevels});await until(()=>fresh.nodes.setlistEntries.children.length===2);
+  await fresh.nodes.setlistEntries.children[1].click();assert.equal(fresh.nodes.trackTitle.textContent,'Retry my song');
+});

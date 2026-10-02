@@ -1,12 +1,20 @@
 # Riffbound
 
-Browser rhythm game, version 39. Play Guitar, Bass, Drums or pitch-pad Vocals with automatic charting and Easy, Medium, Hard and Expert arrangements.
+Browser rhythm game, version 40. Play Guitar, Bass, Drums or pitch-pad Vocals with automatic charting and Easy, Medium, Hard and Expert arrangements.
 
 [Play Riffbound](https://riffbound.aaronreifschneider.chatgpt.site)
 
 Expert keeps every distinct note accepted by the audio analysis. Hard, Medium and Easy progressively reduce that chart while preserving retained timing and drum colors. The preview shows the note totals for all four difficulties. Exact duplicate detections of one physical hit are merged; quiet or closely spaced independent hits remain in Expert.
 
 The matched In Bloom drum chart includes score-and-audio reviews for Expert and Hard: separate same-color flam strokes, open hi-hat overlaps, removal of two yellow kick-click artifacts, and 36 additional hi-hats guided by supplied video screenshots. Easy and Medium retain their previous arrangements.
+
+## Add any supported song to your setlist
+
+Choose **Your setlist → + Add song** (also in **Manage songs**). Pick an audio file from your phone or computer, choose **Drums**, **Guitar**, **Bass**, **Vocals**, or **Whole song — all four charts**, then tap **Chart & add to setlist**. Full recordings and isolated instruments work. All four difficulty arrangements are generated for each detected part.
+
+Charting progress appears beside the setlist. Wait for **Added to your setlist · Saved on this device** before closing the game. If saving fails, **Retry save** saves the existing chart without analyzing again; **Export backup** protects the open audio and chart. Readding the same audio updates its existing entry and preserves the other parts.
+
+Supported files include MP3, WAV, M4A, OGG and FLAC when your browser can decode them; each must be 5 seconds–8 minutes and at most 80 MB. Automatic charts are estimates, so preview them. This imports local audio files, not streaming-service links. Saved songs are available in the same browser on this device; use a `.riffpack` backup to transfer them elsewhere.
 
 ## Automatic phone updates
 

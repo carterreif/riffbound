@@ -56,6 +56,11 @@
     $('rechartButton').disabled=active();$('practiceButton').disabled=busy();$('timingButton').disabled=busy();$('libraryButton').disabled=busy();
     $('saveCurrentButton').disabled=!song||busy()||pendingSaves>0;$('exportCurrentButton').disabled=!song||busy()||!Library.audioStatus(song?.audioBlob).ok;
     $('reconnectAudioButton').disabled=!song||busy()||pendingSaves>0;$('importBackupButton').disabled=busy();
+    for(const id of ['addSongButton','libraryAddSong'])$(id).disabled=active()||pendingSaves>0||importingBackup;
+    $('confirmAddSong').disabled=active()||pendingSaves>0||!$('addSongFile').files?.length;
+    $('setlistRetrySave').disabled=!song||busy()||pendingSaves>0;
+    $('setlistExportBackup').disabled=!song||busy()||!Library.audioStatus(song?.audioBlob).ok;
+    $('setlistUploadProgress').hidden=state!=='analyzing';
     $('chartFilesButton').disabled=busy();
     for(const id of ['authoredChartFile','chartAudioMode','chartAudioFile','chartDrumLayout','chartShift','reviewChartButton'])$(id).disabled=busy();
     $('loadChartButton').disabled=busy()||pendingSaves>0||!chartDraft;
@@ -179,10 +184,11 @@
     $('buildPartsButton').textContent=scope==='whole'?'Build all four charts for this song':'Build selected parts for this song';
     if(scope==='separate'&&!parts.length)$('scopeHint').textContent='Check at least one part to chart.';
   }
-  function uploadProgress(value,label){$('chartProgress').value=value;$('chartStatus').textContent=label;}
+  function setSetlistMessage(message,error=false){$('setlistAddStatus').textContent=message;$('setlistAddStatus').classList.toggle('error',error);}
+  function uploadProgress(value,label){$('chartProgress').value=value;$('setlistChartProgress').value=value;$('chartStatus').textContent=label;setSetlistMessage(label);}
   function cancelUpload(){
     uploadGeneration++;cancelAnalysis?.();cancelAnalysis=null;$('uploadProgress').hidden=true;$('songFile').value='';
-    $('chartStatus').textContent='Charting canceled. Your previous track is ready.';$('chartStatus').classList.remove('error');reset();refreshInstrument();
+    $('chartStatus').textContent='Charting canceled. Your previous track is ready.';setSetlistMessage($('chartStatus').textContent);$('chartStatus').classList.remove('error');reset();refreshInstrument();
   }
   function runAnalysis(samples,target,generation,audioId,onProgress=uploadProgress){
     return new Promise((resolve,reject)=>{
@@ -264,11 +270,12 @@
     }catch(error){if(generation!==uploadGeneration)return;state='idle';reset();refreshSong();$('chartStatus').textContent=error.message;$('chartStatus').classList.add('error');}
     finally{if(generation===uploadGeneration){$('uploadProgress').hidden=true;updateButtons();}}
   }
-  async function uploadSong(file){
+  async function uploadSong(file,targets=requestedParts()){
     if(!file)return;
-    const targets=requestedParts();if(!targets.length){$('chartStatus').textContent='Choose at least one part to chart.';$('chartStatus').classList.add('error');return;}
-    if(file.size>80*1024*1024||file.size===0){$('chartStatus').textContent='Choose a non-empty audio file smaller than 80 MB.';$('chartStatus').classList.add('error');return;}
+    const validation=!targets.length?'Choose at least one part to chart.':audioFileError(file);
+    if(validation){$('chartStatus').textContent=validation;$('chartStatus').classList.add('error');setSetlistMessage(validation,true);return;}
     const generation=++uploadGeneration;cancelAnalysis?.();cancelAnalysis=null;
+    $('setlistSaveActions').hidden=true;
     stopAudio();previewing=false;practiceLoop=null;playRate=1;clearHeld();state='analyzing';$('resultDialog').close();updateButtons();showMessage('');
     $('chartStatus').classList.remove('error');$('uploadProgress').hidden=false;$('chartPreview').hidden=true;uploadProgress(2,'Reading your song…');setAnnouncement('YOUR SONG','BUILDING CHARTS…');
     try{
@@ -292,7 +299,7 @@
       clearImportedParts(Object.keys(result.charts));instrument=result.instrument;
       setSongPercussion();
       state='idle';newSession();refreshSong();updateUi(0);uploadProgress(100,readyMessage(result));setAnnouncement('CHARTS READY','LET IT RIP.');saveSong();
-    }catch(error){if(generation!==uploadGeneration)return;state='idle';newSession();refreshSong();updateUi(0);$('chartStatus').textContent=error.message||'Charting failed. Try another audio file.';$('chartStatus').classList.add('error');setAnnouncement('CHARTING COULD NOT FINISH','TRY ANOTHER SONG');}
+    }catch(error){if(generation!==uploadGeneration)return;state='idle';newSession();refreshSong();updateUi(0);$('chartStatus').textContent=error.message||'Charting failed. Try another audio file.';$('chartStatus').classList.add('error');setSetlistMessage($('chartStatus').textContent,true);setAnnouncement('CHARTING COULD NOT FINISH','TRY ANOTHER SONG');}
     finally{if(generation===uploadGeneration){$('uploadProgress').hidden=true;$('songFile').value='';updateButtons();}}
   }
   async function prepareSamples(buffer){
@@ -317,16 +324,16 @@
     $('audioAttachmentStatus').hidden=!song;$('audioAttachmentStatus').textContent=song?status.message:'';
     $('audioRecovery').hidden=!song||status.ok||status.code==='AUDIO_TOO_LARGE';
   }
-  function setSaveStatus(message){$('saveStatus').textContent=message;refreshLibrarySaveStatus();}
+  function setSaveStatus(message){const failed=message.startsWith('Could not save');$('saveStatus').textContent=message;$('setlistSaveActions').hidden=!failed;setSetlistMessage(message,failed);refreshLibrarySaveStatus();}
   function storageErrorMessage(error){
     const message=error?.message||'Song storage is unavailable. Try again.';
     if(/Failed to write blobs|IOError|I\/O error/i.test(message))return 'The browser could not write the song to this device. Keep your backup, free some device space, close other game tabs, then try saving again. If this continues, import the backup in another browser.';
     return error?.name==='QuotaExceededError'||/quota|full disk|disk full|no space|not enough space/i.test(message)?'Browser storage is full or there is not enough free space on this device. Free some space, then choose Save current song again. Keep the song open and do not clear this game’s site data.':message;
   }
   async function saveSong(){
-    if(!song)return;const owner=song,serial=++saveSerial,saved={...song,instrument};savedSong=null;pendingSaves++;setSaveStatus('Saving audio and charts to your setlist…');updateButtons();
+    if(!song)return;const owner=song,serial=++saveSerial,saved={...song,instrument};savedSong=null;pendingSaves++;$('setlistSaveActions').hidden=true;setSaveStatus('Saving audio and charts to your setlist…');updateButtons();
     try{await Library.save(saved);if(song===owner&&serial===saveSerial)savedSong=owner;if(song?.id===saved.id){setSaveStatus('Added to your setlist · Saved on this device.');if(!setlistSongs.some(track=>track.id===saved.id))$('setlistSearch').value='';}await refreshSetlist();if($('libraryDialog').open)await refreshLibrary();}
-    catch(error){if(song?.id===saved.id){const audio=Library.audioStatus(saved.audioBlob);setSaveStatus(audio.ok?'Could not save on this device. You can still play; export a backup with Export current song. '+storageErrorMessage(error):'Could not save. '+audio.message);}}
+    catch(error){if(song?.id===saved.id){const audio=Library.audioStatus(saved.audioBlob);$('setlistSaveActions').hidden=false;setSaveStatus(audio.ok?'Could not save on this device. You can still play; export a backup with Export current song. '+storageErrorMessage(error):'Could not save. '+audio.message);}}
     finally{pendingSaves--;updateButtons();}
   }
   async function reconnectOriginalAudio(file){
@@ -341,7 +348,7 @@
     if(repaired)await saveSong();
   }
   function useDemo(){
-    if(busy())return;song=null;if(instrument==='vocals')instrument='guitar';reset();refreshSong();$('chartStatus').textContent='';setSaveStatus('');
+    if(busy())return;song=null;$('setlistSaveActions').hidden=true;if(instrument==='vocals')instrument='guitar';reset();refreshSong();$('chartStatus').textContent='';setSaveStatus('');
   }
   function updateSetlistSelection(){
     for(const button of $('setlistEntries').children){
@@ -361,7 +368,7 @@
       title.textContent=track.title;info.className='setlist-track-info';info.textContent=`${formatTime(track.musicEnd)} · ${Object.keys(track.charts).map(partName).join(' + ')}${track.id==='demo'?' · Demo':''}`;badge.className='setlist-track-badge';
       button.append(title,info,badge);button.addEventListener('click',async()=>{if(active())return;if(track.id==='demo')useDemo();else await openSong(track.id);});$('setlistEntries').append(button);
     }
-    $('setlistStatus').textContent=setlistError||(query?matches.length?`${matches.length} matching track${matches.length===1?'':'s'}`:'No matching songs. Try another title.':setlistSongs.length?'':'Start with the demo or upload your first song below.');
+    $('setlistStatus').textContent=setlistError||(query?matches.length?`${matches.length} matching track${matches.length===1?'':'s'}`:'No matching songs. Try another title.':setlistSongs.length?'':'Start with the demo or choose Add song to grow your setlist.');
     updateSetlistSelection();
   }
   async function refreshSetlist(){
@@ -500,6 +507,30 @@
     $('calibrationStatus').textContent=`${test.errors.size} taps recorded. Keep following the clicks…`;
   }
   function openTool(id){if(busy())return;if(running())pause();$(id).showModal();}
+  function audioFileError(file){return !file?'Choose an audio file first.':file.size>80*1024*1024||file.size===0?'Choose a non-empty audio file up to 80 MB.':'';}
+  function openAddSong(){
+    if(active()||pendingSaves||importingBackup)return;
+    $('libraryDialog').close();$('addSongFile').value='';$('addSongPart').value=instrument;$('addSongError').textContent='';
+    $('confirmAddSong').disabled=true;$('addSongDialog').showModal();
+  }
+  async function addSongFromDialog(){
+    if(active()||pendingSaves||importingBackup)return;
+    const file=$('addSongFile').files?.[0],part=$('addSongPart').value;
+    const error=audioFileError(file)||(![...PARTS,'whole'].includes(part)?'Choose a part to chart.':'');
+    if(error){$('addSongError').textContent=error;return;}
+    // Pass the new song's choices directly. Changing the current instrument
+    // here would rebuild or save the previously open song before picking audio.
+    $('addSongDialog').close();$('addSongFile').value='';
+    $('addSongButton').scrollIntoView?.({block:'start'});
+    await uploadSong(file,part==='whole'?PARTS.slice():[part]);
+  }
+  $('addSongButton').addEventListener('click',openAddSong);
+  $('libraryAddSong').addEventListener('click',openAddSong);
+  $('addSongFile').addEventListener('change',()=>{$('addSongError').textContent='';updateButtons();});
+  $('confirmAddSong').addEventListener('click',addSongFromDialog);
+  $('setlistCancelUpload').addEventListener('click',cancelUpload);
+  $('setlistRetrySave').addEventListener('click',()=>{if(!busy()&&!pendingSaves)return saveSong();});
+  $('setlistExportBackup').addEventListener('click',()=>{try{exportSong();}catch(error){setSetlistMessage(error.message,true);}});
   $('libraryButton').addEventListener('click',()=>{openTool('libraryDialog');refreshLibrary();refreshSetlist();});
   $('setlistSearch').addEventListener('input',renderSetlist);
   window.addEventListener('focus',()=>{if(!active())refreshSetlist();});
@@ -675,7 +706,7 @@
   }}
   document.addEventListener('keydown',event=>{
     if($('timingDialog').open){if(event.code==='Space'){event.preventDefault();if(!event.repeat)calibrationTap();}return;}
-    if($('helpDialog').open||$('resultDialog').open||$('libraryDialog').open||$('practiceDialog').open||$('offlineDialog').open||$('chartFilesDialog').open)return;
+    if($('helpDialog').open||$('resultDialog').open||$('libraryDialog').open||$('practiceDialog').open||$('offlineDialog').open||$('chartFilesDialog').open||$('addSongDialog').open)return;
     if(event.target?.tagName==='SELECT')return;
     const lane=E.KEYS.indexOf(event.code);
     if(lane>=0){event.preventDefault();if(!event.repeat)pressInput(`key:${event.code}`,lane);return;}
@@ -851,7 +882,7 @@
   const resumeKey='riffbound-update-resume-v1';
   window.RiffUpdateSafety={
     canReload(manual=false){
-      const dialogs=['libraryDialog','chartFilesDialog','practiceDialog','timingDialog','helpDialog','resultDialog',...(manual?[]:['offlineDialog'])];
+      const dialogs=['libraryDialog','addSongDialog','chartFilesDialog','practiceDialog','timingDialog','helpDialog','resultDialog',...(manual?[]:['offlineDialog'])];
       return !active()&&!previewing&&!calibrationTest&&!pendingSaves&&!importingBackup&&(!song||song===savedSong)&&!dialogs.some(id=>$(id).open);
     },
     prepareReload(manual=false){
