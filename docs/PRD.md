@@ -804,3 +804,29 @@ Players can add their own audio on mobile or desktop without finding the lower A
 Five new automated UI/storage scenarios cover two distinct recordings with fresh mobile reopening, all four instrument charts and difficulty arrays, duplicate identity, invalid files, previous-song preservation, cancellation with late decoding, update/keyboard safety, and failed-save recovery without reanalysis. Deterministic DOM/audio adapters and real chunked storage code are used; this is not physical-phone testing.
 
 Validation result: 102 upload/UI, storage, connection and offline/updater tests passed, zero failures. Two unchanged optional reference-WAV tests were skipped in this targeted run. The upload suite also exercised the real analyzers on synthetic single-part and full-band audio. All runtime JavaScript syntax, HTML local asset references, unique IDs and whitespace checks passed.
+
+## Version 41 — independently verify metal hits masked by bass
+
+### Reference and problem
+
+The user supplied a 31.866-second Guitar Hero Metallica gameplay excerpt as a drum-color guide. Inspecting its highway shows red snare repeats, yellow hats, orange cymbals and purple kick bars; simultaneous hand/pedal notes remain simultaneous. The broad automatic classifier was using a loud low pitched accompaniment as part of a snare's body, turning some hats/cymbals red. Some short bright hats also became orange when their tail passed a generic ringing threshold.
+
+### Requirements and implementation
+
+- Apply the correction to any newly analyzed drum recording. No filename, song hash, tempo template, copied chart or Roam-specific runtime rule may select the fix.
+- Keep Red = snare, Yellow = closed/open hi-hat, Blue = rack tom, Orange = crash/ride, Green = floor tom and Purple = kick. Difficulty reduction preserves the master hit's timing/color; do not alternate colors merely to decorate a fill.
+- Verify a fresh measured high-frequency onset independently of the loud low body. Require low-body dominance, limited snare-range body energy, measurable treble energy and an independently rising noise envelope before reconsidering a suspected metal strike.
+- Distinguish a short bright transient from sustained cymbal energy using early/tail contrast and decay. A qualifying hat remains yellow even if a modest ringing tail passes the old cymbal threshold.
+- Retain the accepted event time and provenance when correcting a color. Retain simultaneous kicks and independently supported toms. Never synthesize hits on a beat grid or treat a ring as a new strike.
+- Leave imported charts and the existing matched In Bloom review intact. Existing arbitrary saved charts are not silently replaced; the player can use Rebuild this instrument’s chart. New drum analyses identify version 16; game/offline package becomes version 41.
+- Keep the user's video, extracted audio, screenshots and analysis intermediates out of public assets and GitHub.
+
+### Verification and limits
+
+The independent synthetic fixture mixes labeled hats/cymbals with kicks and low pitched accompaniment. It exposed wrong red notes in the preceding version. Test two random-noise seeds and two hi-hat decay rates; measure missed hits and extras separately on every lane, and preserve all retained times/colors through Easy, Medium and Hard.
+
+An optional private-recording regression checks seven visually reviewed yellow events near 6.233, 10.600, 17.967, 25.533, 27.333, 28.233 and 31.000 seconds, plus three orange events near 12.100, 20.900 and 21.833 seconds. Allow 60 ms for video frame timing. The old analyzer gave these masked events wrong or missing hand colors; the new one produces their requested colors without extra red hits in those windows. Also retain a red-only opening snare phrase and avoid inventing toms in this excerpt. Supply `RIFFBOUND_ROAM_PCM` as a local 22,050 Hz mono float32 extraction to run that regression; the audio is not committed.
+
+These are selected corrections, not a fully reviewed ground truth for the entire video. Broader comparison still finds missed quiet hats and false cymbal candidates in this dense mix. Do not claim perfect charting, full note recall, or reproduction of Guitar Hero's proprietary authoring method. Exact authored arrangements remain available through chart import. Lowering the spectral-template learning threshold was experimentally rejected because it introduced incorrect tom colors; the shipped threshold and separation model are unchanged.
+
+Validation: the full 217-test run, with both supplied recording fixtures enabled, initially passed 216 tests and exposed one cymbal-wash false positive. A stricter fresh-onset requirement after a recent crash fixed that regression. All 14 affected fill, cymbal-overlap and new bass-masking/recording tests then passed on the final code, with no skips. An existing yellow/orange pair is left intact when both voices already have independent evidence. Original In Bloom, drum-roll/color, onset timing, difficulty, upload, storage and offline/update checks passed in the full run. Runtime syntax, HTML asset/ID and whitespace checks passed. Physical-phone testing was not performed.

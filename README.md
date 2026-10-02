@@ -1,12 +1,20 @@
 # Riffbound
 
-Browser rhythm game, version 40. Play Guitar, Bass, Drums or pitch-pad Vocals with automatic charting and Easy, Medium, Hard and Expert arrangements.
+Browser rhythm game, version 41. Play Guitar, Bass, Drums or pitch-pad Vocals with automatic charting and Easy, Medium, Hard and Expert arrangements.
 
 [Play Riffbound](https://riffbound.aaronreifschneider.chatgpt.site)
 
 Expert keeps every distinct note accepted by the audio analysis. Hard, Medium and Easy progressively reduce that chart while preserving retained timing and drum colors. The preview shows the note totals for all four difficulties. Exact duplicate detections of one physical hit are merged; quiet or closely spaced independent hits remain in Expert.
 
 The matched In Bloom drum chart includes score-and-audio reviews for Expert and Hard: separate same-color flam strokes, open hi-hat overlaps, removal of two yellow kick-click artifacts, and 36 additional hi-hats guided by supplied video screenshots. Easy and Medium retain their previous arrangements.
+
+## Drum colors on new uploads
+
+The detector checks for independent treble attacks when a loud kick or low pitched accompaniment could otherwise supply a false snare body. Short hi-hat attacks stay yellow; sustained cymbal attacks stay orange. Both may coincide with a purple kick. Snare rolls, rack toms and floor toms retain their separate color checks. The change applies to every newly analyzed drum recording, without a Roam-specific lookup or canned rhythm.
+
+For an existing automatic chart, select **Drums → Rebuild this instrument’s chart** to apply the new analysis. This replaces that part's generated chart; export a backup first if you want to retain the previous arrangement. Authored chart imports and the matched In Bloom reference retain their existing handling.
+
+Automatic transcription remains an estimate, especially with loud guitars and overlapping cymbals. The supplied 32-second gameplay excerpt helped verify selected color corrections; this is not a claim of complete or exact Guitar Hero chart reproduction. Use **Chart files** with an authored chart and matching audio when exact note arrangements matter.
 
 ## Add any supported song to your setlist
 

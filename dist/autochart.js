@@ -214,6 +214,9 @@
     for(const event of events){
       if(![1,3].includes(event.lane)||snares.some(n=>Math.abs(n.time-event.time)<.03)){result.push(event);continue;}
       const noise=noiseEnvelope(samples,event.time,sampleRate);
+      // A short bright component over a slower low body remains a hi-hat,
+      // even when its open/room tail passes the general cymbal threshold.
+      if(event.lane===1&&noise.decay<.3&&noise.sustain<.2&&snareNoiseProfile(samples,event.time,sampleRate).contrast>1.6){result.push(event);continue;}
       const clearTail=!events.some(e=>e.time-event.time>.06&&e.time-event.time<.12);
       const ringing=clearTail?noise.sustain>.14&&(noise.decay>.15||noise.slope>-25):noise.decay>.55;
       if(noise.novel>.85&&ringing){
@@ -223,6 +226,35 @@
       }else result.push(event);
     }
     return result;
+  }
+  function verifyBassMaskedNoise(events,attacks,samples,sampleRate,plan,re,im){
+    // In a full mix, the loudest low peak can belong to bass/guitar or kick.
+    // It must not supply the snare body for an independent metal attack.
+    const decisions=[];
+    for(const attack of attacks){
+      const nearby=events.filter(e=>[0,1,3].includes(e.lane)&&Math.abs(e.time-attack.time)<.025);
+      // Existing independent hi-hat/cymbal evidence is a real two-hand chord.
+      if(nearby.some(e=>e.lane===1)&&nearby.some(e=>e.lane===3))continue;
+      if(decisions.some(d=>Math.abs(d.time-attack.time)<.025))continue;
+      const {early}=drumFeatures(samples,attack.time,sampleRate,plan,re,im);
+      const low=early.bands[0]+early.bands[1];
+      if(early.frequency>=110||low<early.total*.5||early.bands[2]>early.total*.18||early.bands[4]<early.total*.02)continue;
+      if(![-.008,0,.008].some(offset=>freshNoiseAttack(samples,attack.time+offset,sampleRate)))continue;
+      const noise=noiseEnvelope(samples,attack.time,sampleRate),profile=snareNoiseProfile(samples,attack.time,sampleRate);
+      if(noise.novel<.55||noise.early<1e-9)continue;
+      const hat=noise.decay<.3&&noise.sustain<.2&&profile.contrast>1.6;
+      const cymbal=noise.decay>.35&&noise.sustain>.12&&profile.decay>.35&&early.bands[3]<early.bands[4]*.6;
+      if(!hat&&!cymbal)continue;
+      // A recent crash may still be fluttering underneath this low body.
+      // Its tail needs stronger new-onset evidence to become another crash.
+      if(cymbal&&noise.novel<.85&&events.some(e=>e.lane===3&&attack.time>e.time&&attack.time-e.time<.2))continue;
+      // Keep the accepted onset/provenance when relabeling, and never move a
+      // kick, add a metronomic note, or delete an independently supported tom.
+      const anchor=nearby.find(e=>e.lane===(hat?1:3))||nearby.find(e=>e.lane===0)||attack;
+      decisions.push({...anchor,lane:hat?1:3,time:anchor.time});
+    }
+    if(!decisions.length)return events;
+    return events.filter(e=>![0,1,3].includes(e.lane)||!decisions.some(d=>Math.abs(d.time-e.time)<.025)).concat(decisions);
   }
   function verifyKickRepeats(events,samples,sampleRate,plan,re,im){
     const kicks=events.filter(e=>e.lane===5);
@@ -755,7 +787,9 @@
       const reviewed=verifyHatAttacks(aligned,trebleAttacks,samples,sampleRate,plan,re,im);
       const cymbals=verifyCymbalAttacks(reviewed,trebleAttacks,samples,sampleRate,plan,re,im);
       const masked=verifyMaskedHats(cymbals,samples,sampleRate,plan,re,im);
-      const verified=verifyNoiseColors(verifySnareRolls(masked,hatAttacks,samples,sampleRate,plan,re,im,noiseAttacks),samples,sampleRate,plan,re,im);
+      const rolls=verifySnareRolls(masked,hatAttacks,samples,sampleRate,plan,re,im,noiseAttacks);
+      const colors=verifyBassMaskedNoise(rolls,trebleAttacks,samples,sampleRate,plan,re,im);
+      const verified=verifyNoiseColors(colors,samples,sampleRate,plan,re,im);
       const withKicks=verifyKickRepeats(verified,samples,sampleRate,plan,re,im);events.length=0;events.push(...withKicks);
     }
     events.sort((a,b)=>a.time-b.time);
@@ -766,7 +800,7 @@
     const peak=Math.max(...waveform)||1;
     const expert=charts[instrument].expert;
     const quality={counts:Array.from({length:instrument==='drums'?6:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:instrument==='drums'&&events.some(e=>e.part!==undefined)?'Adaptive kit separation':'Attack and tone analysis'};
-    return {...timing,instrument,duration,charts,quality,chartVersion:instrument==='drums'?12:4,waveform:waveform.map(v=>v/peak)};
+    return {...timing,instrument,duration,charts,quality,chartVersion:instrument==='drums'?16:4,waveform:waveform.map(v=>v/peak)};
   }
   const api={analyze,buildFocusedCharts,buildMatchedCharts,filterSeparated};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
