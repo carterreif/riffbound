@@ -1079,3 +1079,25 @@ Exercise the real UI handlers with deterministic browser/DOM adapters: a blocked
 Actual device/browser download permission behavior cannot be verified with these adapters. A fallback download request is explicitly unconfirmed. Native Save as requires browser support and permission; an embedding sandbox may block downloads or the picker, so the standalone-tab recovery remains visible. No physical phone or live browser download was tested in this environment.
 
 Validation: all seven export scenarios passed, including the supplied Frantic WAV byte-for-byte check. The combined upload, storage and automatic-update run completed 111 cases: 109 passed, 0 failed, and 2 optional In Bloom-media cases skipped because their private paths were not provided for this export-focused run. Syntax and whitespace checks passed. Browser permissions and physical-device delivery retain the limits above.
+
+
+## Version 52 — Save as works from an explicit click and has a standalone fallback
+
+### Problem and goal
+
+The player reported that Save backup as did nothing. Version 51 started the native picker while opening the export panel; a pending picker then prevented the visible button from doing anything. Checking only whether the method exists also treated a cross-origin embedded game as eligible, although the File System Access specification disallows that context (https://wicg.github.io/file-system-access/#api-showsavefilepicker). Make the button own its request, provide immediate status, and deliver the already-prepared backup outside the embedded context without requiring another audio upload.
+
+### Requirements
+
+- Preparing the export panel must not call the native picker. Native Save as starts only from its visible button's current click, requests the Downloads folder as a starting location, and immediately displays Opening the save dialog. Keep the existing write/close success confirmation, error/cancel recovery and update-interruption guard.
+- Check same-origin access to the top-level context, rather than method existence alone. A blocked embedded Save as opens the standalone save page on the user's click. A separate Save in new window action stays available when a native request is pending or denied. Handle blocked pop-ups explicitly and retain the download link.
+- Transfer the prepared Blob to that same-origin window through postMessage. Validate the exact child/opener window, exact origin, unique per-attempt UUID token and message type in both directions. The child checks payload size against the 80 MB audio plus 8 MB metadata envelope and safe .riffpack filename length. It acknowledges receipt; remove the parent listener and timer after receipt, supersession, page exit or a 20-second handshake timeout. Ignore unsolicited windows, other origins, stale tokens and duplicate replacement payloads.
+- The receiving page must not start a picker automatically. Its own Save as button has fresh activation in the standalone context. Provide a permanent download anchor for browsers without the native picker or denied saves. Preserve the original audio and all chart fields; transfer locally without server storage or clearing the original setlist. Keep game/chart versions unchanged except the game/offline release number 52. Include both standalone save assets in the offline cache.
+
+### Acceptance and limits
+
+Require the export panel to prepare without a native call or locked button; the visible native Save as must call the picker synchronously, then wait for close before success. Require embedded Save as to skip the forbidden picker, open the local save page and transfer only after its matching handshake. Check denied pop-up recovery, wrong-window/origin/token rejection, no-opener and malformed-payload recovery, transfer timeout, and duplicate payload rejection. Verify standalone native save, cancellation and disk-write failure, with an available fallback. Verify the actual 55,247,388-byte Frantic WAV SHA-256 after the game export and after a structured-clone Blob transfer and backup unpacking. Recheck saved-row exports, setlist, update guards and offline asset serving.
+
+The game cannot override browser pop-up or download policies. Hosting headers or browser isolation can sever an opener; this is reported through the timeout recovery instead of claimed success. The fallback depends on permitting the save window. Actual desktop/phone permissions and real browser file delivery were not exercised here; verification uses the real scripts with deterministic browser/DOM adapters. A native picker that remains pending does not lock the download link or new-window fallback.
+
+Validation: the combined upload, standalone-save, storage and update run completed 118 cases: 116 passed, 0 failed, and 2 optional In Bloom-media cases skipped. Both original Frantic backup byte checks passed. After the final Downloads starting-folder hint and filename validation, all 14 focused export/transfer/save cases passed again. Syntax and whitespace checks passed. Browser/device delivery remains subject to the verification limits above.

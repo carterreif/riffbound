@@ -16,7 +16,7 @@
   let setlistSongs=[],setlistGeneration=0,setlistError='';
   let pendingSaves=0,reconnectingAudio=false,savedSong=null,saveSerial=0,importingBackup=false;
   let chartDraft=null,chartReviewGeneration=0;
-  let backupExport=null,backupSaving=false;
+  let backupExport=null,backupSaving=false,backupTransfer=null;
   let timingOffset=0,highwaySpeed=1;
   try{const saved=JSON.parse(localStorage.getItem('riffbound-preferences-v1')||'{}');timingOffset=Math.max(-250,Math.min(250,Number(saved.timingOffset)||0));highwaySpeed=Math.max(.7,Math.min(1.6,Number(saved.highwaySpeed)||1));}catch{}
   const countNodes=[];
@@ -409,24 +409,48 @@
     $('backupStatus').textContent='Backup ready. Choose where to save it below.';
     $('libraryStatus').textContent='Backup ready. Save it in the Export backup panel.';
     openTool('backupDialog');
-    // Invoke the picker in the original click turn. A saved-row export may
-    // have awaited storage; the visible buttons provide a fresh user gesture.
-    if(typeof window.showSaveFilePicker==='function')return saveBackupAs();
-    link.click();
+    // Never start a hidden picker request while preparing the panel. The
+    // visible Save as button must own its fresh click and its pending state.
+    if(typeof window.showSaveFilePicker!=='function')link.click();
+  }
+  function nativeBackupPickerAllowed(){
+    if(typeof window.showSaveFilePicker!=='function')return false;
+    try{return !window.top||window.top===window||window.top.location.origin===window.location.origin;}catch{return false;}
+  }
+  function openBackupWindow(){
+    if(!backupExport)return;
+    const prepared=backupExport,token=crypto.randomUUID(),origin=window.location.origin;
+    let child;try{child=window.open('backup-save.html#'+token,'_blank');}catch{}
+    if(!child){$('backupStatus').textContent='The browser blocked the save window. Allow pop-ups for Riffbound, then choose Save in new window again. Your backup is still ready.';return;}
+    if(backupTransfer)backupTransfer();
+    const receive=event=>{
+      if(event.source!==child||event.origin!==origin||event.data?.token!==token)return;
+      if(event.data.type==='RIFF_BACKUP_READY'){
+        try{child.postMessage({type:'RIFF_BACKUP_FILE',token,blob:prepared.blob,name:prepared.name},origin);}catch{$('backupStatus').textContent='Could not send the backup to the save window. Keep this game open and try Save in new window again.';}
+      }else if(event.data.type==='RIFF_BACKUP_RECEIVED'){
+        $('backupStatus').textContent='Your backup is ready in the new window. Choose Save backup as… there, or Download backup.';cleanup();
+      }
+    };
+    const cleanup=()=>{window.removeEventListener('message',receive);clearTimeout(timer);if(backupTransfer===cleanup)backupTransfer=null;};
+    const timer=setTimeout(()=>{cleanup();$('backupStatus').textContent='The backup could not reach the save window. Keep this game open, allow pop-ups, and choose Save in new window again. You can still use Download backup here.';},20000);
+    backupTransfer=cleanup;window.addEventListener('message',receive);
+    $('backupStatus').textContent='Opening a separate save window with your prepared backup. Keep this game open until the backup arrives.';
   }
   async function saveBackupAs(){
     if(!backupExport||backupSaving)return;
+    if(!nativeBackupPickerAllowed())return openBackupWindow();
     const prepared=backupExport;let writable=null;
     backupSaving=true;$('backupSaveAs').disabled=true;
+    $('backupStatus').textContent='Opening the save dialog… If it does not appear, choose Save in new window or Download backup below.';
     try{
-      const handle=await window.showSaveFilePicker({suggestedName:prepared.name,types:[{description:'Riffbound song backup',accept:{'application/octet-stream':['.riffpack']}}]});
+      const handle=await window.showSaveFilePicker({suggestedName:prepared.name,startIn:'downloads',types:[{description:'Riffbound song backup',accept:{'application/octet-stream':['.riffpack']}}]});
       $('backupStatus').textContent='Saving your audio and charts…';
       writable=await handle.createWritable();await writable.write(prepared.blob);await writable.close();writable=null;
       const message=`Backup saved: ${handle.name||prepared.name}. Keep this .riffpack file to restore your song or move it to another device.`;
       $('backupStatus').textContent=message;$('libraryStatus').textContent=message;
     }catch(error){
       if(writable)try{await writable.abort();}catch{}
-      const message=error.name==='AbortError'?'Save canceled. Your backup is still ready; choose Download backup or Save backup as… to try again.':'The browser could not save the backup. Try Download backup below. If nothing downloads, open the game in a new tab and export again.';
+      const message=error.name==='AbortError'?'Save canceled. Your backup is still ready; choose Download backup or Save backup as… to try again.':'The browser could not open or complete the save dialog. Choose Save in new window to save outside this game panel, or try Download backup.';
       $('backupStatus').textContent=message;$('libraryStatus').textContent=message;
     }finally{backupSaving=false;$('backupSaveAs').disabled=false;}
   }
@@ -576,11 +600,12 @@
   $('reconnectAudioFile').addEventListener('change',()=>reconnectOriginalAudio($('reconnectAudioFile').files[0]));
   $('exportCurrentButton').addEventListener('click',()=>{try{return exportSong();}catch(error){$('libraryStatus').textContent=error.message;}});
   $('backupSaveAs').addEventListener('click',saveBackupAs);
+  $('backupNewWindow').addEventListener('click',openBackupWindow);
   $('backupDownload').addEventListener('click',()=>{
     const message='Download requested. Check your browser’s Downloads list. If no file appears, use Save backup as… or open the game in a new tab and export again.';
     $('backupStatus').textContent=message;$('libraryStatus').textContent=message;
   });
-  window.addEventListener('pagehide',event=>{if(!event.persisted&&backupExport)URL.revokeObjectURL(backupExport.url);});
+  window.addEventListener('pagehide',event=>{if(!event.persisted){if(backupExport)URL.revokeObjectURL(backupExport.url);if(backupTransfer)backupTransfer();}});
   $('importBackupButton').addEventListener('click',()=>{$('backupFile').click();});
   $('backupFile').addEventListener('change',()=>importBackup($('backupFile').files[0]));
   $('chartFilesButton').addEventListener('click',()=>{$('chartAudioMode').value=song?'current':'file';openTool('chartFilesDialog');refreshChartFiles();});

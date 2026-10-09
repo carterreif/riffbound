@@ -158,3 +158,5 @@
 .difficulty-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.difficulty-row label>span{min-height:48px;font-size:14px}.difficulty-row small{font-size:12px;letter-spacing:0}
 
 .backup-download{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:12px 18px;border:1px solid var(--acid);border-radius:4px;background:#263019;color:var(--acid);font-weight:700;text-decoration:none}#backupDialog a:focus-visible{outline:3px solid var(--acid);outline-offset:3px}#backupFileInfo,#backupStatus{overflow-wrap:anywhere}#backupStatus{color:#d5e6b5}
+
+.backup-save-page{max-width:680px;margin:clamp(24px,8vh,80px) auto;padding:24px;color:var(--ink)}.backup-save-page h1{font-size:clamp(28px,6vw,48px);line-height:1.1}.backup-save-page p{line-height:1.6;overflow-wrap:anywhere}.backup-save-page .secondary{color:#a8b49d}.backup-save-page a:focus-visible{outline:3px solid var(--acid);outline-offset:3px}
