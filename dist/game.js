@@ -155,6 +155,8 @@
       $('chartDetails').textContent=`Imported from ${authored.filename}. Authored timing and supplied difficulties retained. `+names.map((name,lane)=>`${name}: ${notes.filter(n=>n.lane===lane).length}`).join(' · ');
       $('chartMapping').textContent=instrument==='drums'?'Imported drum mapping: Red snare · Yellow hi-hat · Blue tom · Orange cymbal · Green floor tom · Purple kick. '+(authored.layout==='four'?'Standard four-lane charts cannot identify every drum voice.':authored.layout==='pro'?'Pro charts map yellow cymbals to hi-hat, other cymbals to orange, and toms to blue/green.':'Five-lane colors follow the authored chart.'):'Fret colors and holds follow the imported chart. Supplied difficulty arrangements are preserved, including any extra frets they use.';
     }
+    const recovered=authored?0:song.quality?.audioReviews?.[instrument]?.recovered||0;
+    if(recovered)$('chartDetails').textContent+=` ${recovered} overlapping hits recovered. Preview the quiet passages to check them.`;
     const ghosts=notes.filter(n=>n.ghost).length;
     if(ghosts)$('chartDetails').textContent+=` ${ghosts} quiet notes. Hollow centers mark soft hits; play the same color.`;
     const canvas=$('chartOverview'),c=canvas.getContext('2d'),w=canvas.width,h=canvas.height;
@@ -217,7 +219,7 @@
     if(generation!==uploadGeneration)throw Error('Canceled');
     if(!results.length)throw Error(Object.entries(unavailable).map(([part,message])=>`${partName(part)}: ${message}`).join(' '));
     const base=results.find(r=>r.instrument===instrument)||results[0];
-    return {...base,charts:Object.assign({},...results.map(r=>r.charts)),quality:{...base.quality,...(results.some(r=>r.quality?.scoreReview)?Object.fromEntries(['preserveEasyMedium','scoreReview','scoreRevision','scoreReference'].filter(key=>results.find(r=>r.quality?.scoreReview).quality[key]!==undefined).map(key=>[key,results.find(r=>r.quality?.scoreReview).quality[key]])): {}),sources:Object.fromEntries(results.map(r=>[r.instrument,r.quality?.sources?.[r.instrument]||null])),unavailable,methods:Object.fromEntries(results.map(r=>[r.instrument,r.quality?.method||'Audio analysis']))}};
+    return {...base,charts:Object.assign({},...results.map(r=>r.charts)),quality:{...base.quality,...(results.some(r=>r.quality?.scoreReview)?Object.fromEntries(['preserveEasyMedium','scoreReview','scoreRevision','scoreReference'].filter(key=>results.find(r=>r.quality?.scoreReview).quality[key]!==undefined).map(key=>[key,results.find(r=>r.quality?.scoreReview).quality[key]])): {}),audioReviews:Object.assign({},...results.map(r=>r.quality?.audioReviews||{})),sources:Object.fromEntries(results.map(r=>[r.instrument,r.quality?.sources?.[r.instrument]||null])),unavailable,methods:Object.fromEntries(results.map(r=>[r.instrument,r.quality?.method||'Audio analysis']))}};
   }
   function mergeSongCharts(previous,result){
     const charts={...previous,...result.charts};
@@ -246,7 +248,7 @@
     try{
       const samples=song.analysisSamples||await prepareSamples(song.buffer);if(generation!==uploadGeneration)return;
       const result=await analyzeParts(samples,targets,generation,song.id);if(generation!==uploadGeneration)return;
-      song={...song,analysisSamples:samples,charts:mergeSongCharts(song.charts,result),quality:{...song.quality,...result.quality,sources:{...song.quality?.sources,...result.quality.sources},methods:{...song.quality?.methods,...result.quality.methods}}};
+      song={...song,analysisSamples:samples,charts:mergeSongCharts(song.charts,result),quality:{...song.quality,...result.quality,audioReviews:{...song.quality?.audioReviews,...result.quality?.audioReviews},sources:{...song.quality?.sources,...result.quality.sources},methods:{...song.quality?.methods,...result.quality.methods}}};
       clearImportedParts(Object.keys(result.charts));instrument=result.instrument;song.instrument=instrument;setSongPercussion();state='idle';newSession();refreshSong();updateUi(0);saveSong();uploadProgress(100,readyMessage(result));setAnnouncement('CHARTS READY','CHOOSE YOUR PART');
     }catch(error){if(generation!==uploadGeneration)return;state='idle';reset();refreshSong();$('chartStatus').textContent=error.message;$('chartStatus').classList.add('error');}
     finally{if(generation===uploadGeneration){$('uploadProgress').hidden=true;updateButtons();}}
@@ -267,7 +269,7 @@
       const samples=song.analysisSamples||await prepareSamples(song.buffer);if(generation!==uploadGeneration)return;
       const result=await runAnalysis(samples,target,generation,song.id);if(generation!==uploadGeneration)return;
       // Analysis may replace chart data, never the original audio or identity.
-      song={...song,...result,id:song.id,title:song.title,filename:song.filename,audioBlob:song.audioBlob,buffer:song.buffer,musicEnd:song.musicEnd,analysisSamples:samples,charts:mergeSongCharts(song.charts,result),quality:{...song.quality,...result.quality,sources:{...song.quality?.sources,[target]:result.quality?.sources?.[target]||null},methods:{...song.quality?.methods,[target]:result.quality?.method||'Audio analysis'}},duration:song.musicEnd+.8};instrument=target;clearImportedParts([target]);setSongPercussion();state='idle';newSession();refreshSong();updateUi(0);saveSong();
+      song={...song,...result,id:song.id,title:song.title,filename:song.filename,audioBlob:song.audioBlob,buffer:song.buffer,musicEnd:song.musicEnd,analysisSamples:samples,charts:mergeSongCharts(song.charts,result),quality:{...song.quality,...result.quality,audioReviews:{...song.quality?.audioReviews,...result.quality?.audioReviews},sources:{...song.quality?.sources,[target]:result.quality?.sources?.[target]||null},methods:{...song.quality?.methods,[target]:result.quality?.method||'Audio analysis'}},duration:song.musicEnd+.8};instrument=target;clearImportedParts([target]);setSongPercussion();state='idle';newSession();refreshSong();updateUi(0);saveSong();
       uploadProgress(100,`${partName(target)} chart ready. Preview it before playing.`);setAnnouncement('FOCUSED CHART READY','LET IT RIP.');
     }catch(error){if(generation!==uploadGeneration)return;state='idle';reset();refreshSong();$('chartStatus').textContent=error.message;$('chartStatus').classList.add('error');}
     finally{if(generation===uploadGeneration){$('uploadProgress').hidden=true;updateButtons();}}
@@ -297,7 +299,7 @@
       if(generation!==uploadGeneration)return;
       let previous=song?.id===id?song:null;if(!previous)try{previous=await Library.get(id);}catch{}
       if(generation!==uploadGeneration)return;
-      song={...result,charts:mergeSongCharts(previous?.charts,result),quality:{...previous?.quality,...result.quality,sources:{...previous?.quality?.sources,...result.quality.sources},methods:{...previous?.quality?.methods,...result.quality.methods}},id,buffer,audioBlob,filename:file.name,analysisSamples:samples,title:file.name.replace(/\.[^.]+$/,'')||'Your song',musicEnd:buffer.duration,duration:buffer.duration+.8};
+      song={...result,charts:mergeSongCharts(previous?.charts,result),quality:{...previous?.quality,...result.quality,audioReviews:{...previous?.quality?.audioReviews,...result.quality?.audioReviews},sources:{...previous?.quality?.sources,...result.quality.sources},methods:{...previous?.quality?.methods,...result.quality.methods}},id,buffer,audioBlob,filename:file.name,analysisSamples:samples,title:file.name.replace(/\.[^.]+$/,'')||'Your song',musicEnd:buffer.duration,duration:buffer.duration+.8};
       clearImportedParts(Object.keys(result.charts));instrument=result.instrument;
       setSongPercussion();
       state='idle';newSession();refreshSong();updateUi(0);uploadProgress(100,readyMessage(result));setAnnouncement('CHARTS READY','LET IT RIP.');saveSong();
@@ -446,7 +448,8 @@
       }
       const samples=buffer.getChannelData(0),waveform=Array.from({length:240},(_,i)=>{let peak=0;const end=Math.floor((i+1)*samples.length/240);for(let j=Math.floor(i*samples.length/240);j<end;j+=32)peak=Math.max(peak,Math.abs(samples[j]));return peak;});
       const quality={...previous?.quality,imports,chartTiming:draft.parsed.timing,chartArtist:draft.parsed.artist,sources:{...previous?.quality?.sources}};
-      for(const part of affected)quality.sources[part]=null;
+      quality.audioReviews={...quality.audioReviews};
+      for(const part of affected){quality.sources[part]=null;delete quality.audioReviews[part];}
       if(affected.includes('drums')){delete quality.scoreReview;delete quality.scoreRevision;delete quality.preserveEasyMedium;}
       const record={...previous,id,title:previous?.title||draft.parsed.title||filename.replace(/\.[^.]+$/,''),filename,instrument:selected,musicEnd:buffer.duration,bpm:draft.parsed.bpm,beat:draft.parsed.beat,offset:draft.parsed.timing.offset,charts:arranged.charts,waveform,quality,chartVersion:previous?.chartVersion||1};
       const validated=Library.validate(record);

@@ -705,6 +705,48 @@
     }
     return unique;
   }
+  function recoverBuriedResonance(events,samples,sr,plan,re,im){
+    // Recover only independently observed changes to a predictable ringing
+    // voice. No beat-grid completion and no reconstruction of buried noise.
+    const bodies=events.filter(e=>[2,4,5].includes(e.lane)).sort((a,b)=>a.time-b.time);
+    if(!bodies.length)return {events:events.slice(),recovered:0};
+    const known=new Map(bodies.map(e=>[e,drumFeatures(samples,e.time,sr,plan,re,im).early.frequency]));
+    const f=new Float32Array(samples.length),a=1-Math.exp(-2*Math.PI*450/sr);let l=0,l2=0;for(let i=0;i<f.length;i++){l+=a*(samples[i]-l);l2+=a*(l-l2);f[i]=l2;}
+    const step=Math.max(1,Math.round(sr*.002)),window=Math.round(sr*.04),look=Math.round(sr*.014),candidates=[];
+    let first=0,last=0,near=0;
+    // Sliding moments fit a stable ringing body in linear time; prediction is
+    // bounded to 14 ms and can never borrow a later hit's timestamp.
+    let xx=0,xy=0,yy=0,xz=0,yz=0,power=0;
+    const moment=(i,sign)=>{const x=f[i-1],y=f[i-2],z=f[i];xx+=sign*x*x;xy+=sign*x*y;yy+=sign*y*y;xz+=sign*x*z;yz+=sign*y*z;power+=sign*z*z;};
+    for(let i=2;i<window;i++)moment(i,1);
+    for(let at=window;at<f.length-look;at+=step){const time=at/sr;
+     if(at>window)for(let i=at-step;i<at;i++){moment(i,1);moment(i-window+2,-1);}
+     while(first<bodies.length&&bodies[first].time<time-.35)first++;
+     while(last<bodies.length&&bodies[last].time<time-.09)last++;
+     while(near<events.length&&events[near].time<time-.045)near++;
+     let blocked=false;for(let i=near;i<events.length&&events[i].time<time+.045;i++)if([0,2,4,5].includes(events[i].lane))blocked=true;
+     if(first>=last||blocked)continue;
+     const det=xx*yy-xy*xy;if(det<1e-18)continue;const c1=(xz*yy-yz*xy)/det,c2=(yz*xx-xz*xy)/det;if(c2>-.7||c2< -1.01||c1<1.5||c1>2.01)continue;
+     const freq=sr/(2*Math.PI)*Math.acos(Math.min(1,c1/(2*Math.sqrt(-c2))));if(freq<35||freq>350)continue;
+     const previous=bodies.slice(first,last).find(e=>Math.abs(Math.log2(freq/Math.max(1,known.get(e))))<.12&&(e.lane===5?freq<68:freq>=68));
+     if(!previous)continue;const lane=previous.lane;
+     const err=Math.max(0,power-2*c1*xz-2*c2*yz+c1*c1*xx+2*c1*c2*xy+c2*c2*yy);
+     let e=0,x=f[at-1],y=f[at-2],cc=0,ss=0,cs=0,rc=0,rs=0,pc=0,ps=0;
+     for(let j=0;j<look;j++){let z=c1*x+c2*y,d=f[at+j]-z,angle=2*Math.PI*freq*j/sr,c=Math.cos(angle),s=Math.sin(angle);e+=d*d;cc+=c*c;ss+=s*s;cs+=c*s;rc+=d*c;rs+=d*s;pc+=z*c;ps+=z*s;y=x;x=z;}
+     const rms=Math.sqrt(e/look),baseline=Math.sqrt(err/window),ratio=rms/Math.max(1e-10,baseline);
+     // A strict prediction-error margin avoids fitting stochastic wash or
+     // smooth envelope modulation as a new strike in mixed audio.
+     if(rms<Math.max(.00012,Math.sqrt(power/window)*.04)||ratio<20000)continue;
+     const determinant=cc*ss-cs*cs,rcos=(rc*ss-rs*cs)/determinant,rsin=(rs*cc-rc*cs)/determinant,pcos=(pc*ss-ps*cs)/determinant,psin=(ps*cc-pc*cs)/determinant;
+     const concentration=(rcos*rc+rsin*rs)/(e+1e-20),orthogonal=Math.abs(rcos*psin-rsin*pcos)/(Math.hypot(rcos,rsin)*Math.hypot(pcos,psin)+1e-20);
+     const aligned=(rcos*pcos+rsin*psin)/(Math.hypot(rcos,rsin)*Math.hypot(pcos,psin)+1e-20);
+     if(concentration<.7||(orthogonal<.12&&aligned<=.15))continue;
+     candidates.push({time,lane,frequency:freq,strength:ratio,level:rms});
+    }
+    const chosen=[];for(const e of candidates.sort((a,b)=>b.strength-a.strength))if(!chosen.some(n=>Math.abs(e.time-n.time)<.07))chosen.push(e);
+    return {events:[...events,...chosen.map(e=>({...e,strength:1,buried:true}))].sort((a,b)=>a.time-b.time),recovered:chosen.length};
+  }
+
   function measureDynamics(events,samples,sampleRate,instrument){
     // Dynamics annotate accepted attacks only; they never create note heads.
     // Compare each voice locally, so a quiet recording is not all ghost notes.
@@ -880,7 +922,7 @@
     const timing=tempo(flux,dt),charts=buildFocusedCharts(accepted,instrument,timing.beat,duration,energy,dt),expert=charts[instrument].expert;
     const waveform=Array.from({length:160},(_,i)=>{let value=0;for(let f=Math.floor(i*frames/160);f<Math.ceil((i+1)*frames/160)&&f<frames;f++)value=Math.max(value,energy[f]);return value;});
     const peak=Math.max(...waveform)||1;
-    return {...timing,instrument,duration,charts,chartVersion:5,waveform:waveform.map(v=>v/peak),quality:{ghostEvidencePolicy:'relative-attack-dynamics-v1',ghostHits:expert.filter(n=>n.ghost).length,evidencePolicy:'audible-attacks-v2',counts:Array.from({length:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),method:bass?'Low fundamental and attack tracking':'Voiced pitch and phrase tracking'}};
+    return {...timing,instrument,duration,charts,chartVersion:5,waveform:waveform.map(v=>v/peak),quality:{audioReviews:{[instrument]:{policy:'audible-attacks-v2',checked:true,recovered:0}},ghostEvidencePolicy:'relative-attack-dynamics-v1',ghostHits:expert.filter(n=>n.ghost).length,evidencePolicy:'audible-attacks-v2',counts:Array.from({length:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),method:bass?'Low fundamental and attack tracking':'Voiced pitch and phrase tracking'}};
   }
   function analyze({samples,sampleRate,instrument='guitar',audioId},progress=()=>{}){
     if(!['guitar','drums','bass','vocals'].includes(instrument))throw Error('Choose Guitar, Drums, Bass or Vocals before charting.');
@@ -894,7 +936,7 @@
       const charts=buildMatchedCharts(reference,duration);
       const expert=charts.drums.expert;
       return {instrument,duration,bpm:reference.bpm,beat:reference.beat,offset:reference.offset,...(reference.exactTiming?{}:{confidence:.7028361194449136}),charts,waveform:reference.waveform,chartVersion:reference.chartVersion||15,
-        quality:{preserveEasyMedium:reference.preserveEasyMedium!==false,scoreRevision:reference.revision,...(reference.scoreReference?{scoreReference:reference.scoreReference}:{}),scoreReview:reference.review||'In Bloom notation review: Expert and Hard updated; Easy and Medium retained.',counts:Array.from({length:6},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:reference.label,sources:{drums:reference.label}}};
+        quality:{audioReviews:{drums:{policy:'reviewed-audio-identity-v1',checked:true,recovered:0}},preserveEasyMedium:reference.preserveEasyMedium!==false,scoreRevision:reference.revision,...(reference.scoreReference?{scoreReference:reference.scoreReference}:{}),scoreReview:reference.review||'In Bloom notation review: Expert and Hard updated; Easy and Medium retained.',counts:Array.from({length:6},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:reference.label,sources:{drums:reference.label}}};
     }
     const n=2048,hop=256,dt=hop/sampleRate,frames=Math.ceil(samples.length/hop),bins=Math.min(n/2,Math.floor(10000*n/sampleRate));
     const plan=fftPlan(n),re=new Float32Array(n),im=new Float32Array(n),rows=Array.from({length:17},()=>new Float32Array(bins));
@@ -1044,6 +1086,11 @@
       const withKicks=alignKickAttacks(verifyKickRepeats(toms,samples,sampleRate,plan,re,im),samples,sampleRate,plan,re,im);events.length=0;events.push(...withKicks);
     }
     events.sort((a,b)=>a.time-b.time);
+    let recovered=0;
+    if(instrument==='drums'){
+      progress(90,'Checking overlapping drum hits…');
+      const review=recoverBuriedResonance(events,samples,sampleRate,plan,re,im);events.length=0;events.push(...review.events);recovered=review.recovered;
+    }
     if(!events.length)throw Error(`Not enough clear ${instrument==='guitar'?'guitar-like tones':'drum hits'} were detected. Try a recording where that instrument is louder, or upload its isolated track.`);
     progress(92,`Building the ${instrument==='guitar'?'Guitar':'Drums'} chart…`);
     measureDynamics(events,samples,sampleRate,instrument);
@@ -1051,8 +1098,8 @@
     const waveform=Array.from({length:160},(_,i)=>{const a=Math.floor(i*frames/160),b=Math.max(a+1,Math.floor((i+1)*frames/160));let max=0;for(let f=a;f<b&&f<frames;f++)max=Math.max(max,energy[f]);return max;});
     const peak=Math.max(...waveform)||1;
     const expert=charts[instrument].expert;
-    const quality={ghostEvidencePolicy:'relative-attack-dynamics-v1',ghostHits:expert.filter(n=>n.ghost).length,evidencePolicy:'audible-attacks-v2',...(instrument==='drums'?{tomEvidencePolicy:'measured-resonance-v1'}:{}),counts:Array.from({length:instrument==='drums'?6:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:instrument==='drums'&&events.some(e=>e.part!==undefined)?'Adaptive kit separation':'Attack and tone analysis'};
-    return {...timing,instrument,duration,charts,quality,chartVersion:instrument==='drums'?21:7,waveform:waveform.map(v=>v/peak)};
+    const quality={audioReviews:{[instrument]:{policy:instrument==='drums'?'ring-residual-v1':'audible-attacks-v2',checked:true,recovered}},ghostEvidencePolicy:'relative-attack-dynamics-v1',ghostHits:expert.filter(n=>n.ghost).length,evidencePolicy:'audible-attacks-v2',...(instrument==='drums'?{tomEvidencePolicy:'measured-resonance-v1'}:{}),counts:Array.from({length:instrument==='drums'?6:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:instrument==='drums'&&events.some(e=>e.part!==undefined)?'Adaptive kit separation':'Attack and tone analysis'};
+    return {...timing,instrument,duration,charts,quality,chartVersion:instrument==='drums'?22:7,waveform:waveform.map(v=>v/peak)};
   }
   const api={analyze,buildFocusedCharts,buildMatchedCharts,filterSeparated};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;

@@ -65,6 +65,33 @@ test('mobile quiet-note upload keeps markers through setlist reopen and opens fo
   assert.equal(fresh.nodes.playButton.disabled,false);
 });
 
+test('mobile upload automatically recovers buried blue hits and keeps its review on reopen',async()=>{
+  const f=require('./fixtures/quiet-attacks.cjs').fixture('drums',2,.03,.23),s=require('./helpers/song-storage.cjs').storage({rejectBlobs:true});
+  const app=setup({mobile:true,audioSamples:f.samples,libraryOverrides:s.library});
+  await app.radios.instrument[1].emit('change');await app.radios.difficulty[3].emit('change');await app.upload('Buried blue.wav');
+  await until(()=>app.nodes.saveStatus.textContent.includes('Added to your setlist'));
+  const record=await s.library.get((await s.library.list())[0].id);
+  assert.equal(record.charts.drums.expert.length,24);assert.equal(record.quality.audioReviews.drums.recovered,8);
+  assert.match(app.nodes.chartDetails.textContent,/8 overlapping hits recovered/);
+  const fresh=setup({mobile:true,audioSamples:f.samples,libraryOverrides:s.fresh()});
+  await until(()=>fresh.nodes.setlistEntries.children.length===2);await fresh.nodes.setlistEntries.children[1].click();
+  await fresh.radios.difficulty[3].emit('change');assert.match(fresh.nodes.chartDetails.textContent,/8 overlapping hits recovered/);
+  assert.deepEqual(fresh.requests,[]);
+});
+
+test('every requested upload part keeps its own audio review, including after one-part rebuild',async()=>{
+  const notes=[{lane:0,time:1,duration:0},{lane:0,time:2,duration:0}];
+  const extras=part=>({quality:{audioReviews:{[part]:{checked:true,policy:part==='drums'?'ring-residual-v1':'audible-attacks-v2',recovered:part==='drums'?1:0}}}});
+  const app=setup({mobile:true,chartFixture:notes,chartResultExtras:extras}),n=app.nodes;
+  n.chartScope.value='whole';await n.chartScope.emit('change');await app.upload();await until(()=>app.savedSongs.size===1);
+  let record=[...app.savedSongs.values()][0];assert.deepEqual(Object.keys(record.quality.audioReviews).sort(),['bass','drums','guitar','vocals']);
+  assert.ok(Object.values(record.quality.audioReviews).every(r=>r.checked));
+  n.chartScope.value='single';await n.chartScope.emit('change');await app.radios.instrument[2].emit('change');await n.rechartButton.click();
+  await until(()=>app.requests.filter(p=>p==='bass').length===2&&n.saveStatus.textContent.includes('Added to your setlist'));
+  record=[...app.savedSongs.values()][0];assert.deepEqual(Object.keys(record.quality.audioReviews).sort(),['bass','drums','guitar','vocals']);
+  assert.equal(record.quality.audioReviews.drums.recovered,1);
+});
+
 test('empty Manage songs explains disabled Save and uploads drums into the real setlist without Blob writes',async()=>{
   const s=require('./helpers/song-storage.cjs').storage({rejectBlobs:true});
   const app=setup({chartFixture:[{lane:1,time:1,duration:0}],libraryOverrides:s.library}),n=app.nodes;
