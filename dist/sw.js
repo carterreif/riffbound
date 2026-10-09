@@ -12,9 +12,13 @@ async function cacheGame(progress=()=>{}){
     // retaining the index.html cache key used by existing offline navigation.
     const target=files[i]==='index.html'?base.href:url;
     const response=await fetch(new Request(target,{cache:'reload',credentials:'same-origin'}));
-    if(!response.ok||response.redirected)throw Error(`Could not download ${files[i]}${response.status?' (HTTP '+response.status+')':''}. Check your connection and try again.`);
+    // Static hosting canonicalizes secondary HTML pages to extensionless URLs.
+    // Accept only that exact same-origin route, never login/error redirects.
+    const canonical=files[i].endsWith('.html')?new URL(files[i]==='index.html'?'./':files[i].slice(0,-5),base).href:null;
+    const expectedRedirect=response.redirected&&canonical&&response.url===canonical;
+    if(!response.ok||response.redirected&&!expectedRedirect)throw Error(`Could not download ${files[i]}${response.status?' (HTTP '+response.status+')':''}. Check your connection and try again.`);
     const type=response.headers.get('content-type')||'';
-    if((/\.(js|css|png)$/.test(url)&&type.includes('text/html'))||(/\.png$/.test(url)&&!type.startsWith('image/'))||files[i]==='index.html'&&!type.includes('text/html'))throw Error(`${files[i]} returned an unexpected page. Open the game in your browser and try again.`);
+    if((/\.(js|css|png)$/.test(url)&&type.includes('text/html'))||(/\.png$/.test(url)&&!type.startsWith('image/'))||files[i].endsWith('.html')&&!type.includes('text/html'))throw Error(`${files[i]} returned an unexpected page. Open the game in your browser and try again.`);
     progress(++completed,urls.length);
     return response;
   }));
@@ -51,7 +55,8 @@ self.addEventListener('activate',event=>event.waitUntil((async()=>{
 self.addEventListener('fetch',event=>{
   const request=event.request,url=new URL(request.url);if(request.method!=='GET'||url.origin!==base.origin)return;
   const isHome=url.pathname===base.pathname||url.pathname===new URL('index.html',base).pathname;
-  const key=isHome?new URL('index.html',base).href:new URL(url.pathname,base).href;
+  const htmlAlias=files.find(file=>file.endsWith('.html')&&file!=='index.html'&&new URL(file.slice(0,-5),base).pathname===url.pathname);
+  const key=isHome?new URL('index.html',base).href:htmlAlias?new URL(htmlAlias,base).href:new URL(url.pathname,base).href;
   if(!urls.includes(key))return;
   event.respondWith((async()=>{const cache=await caches.open(version),cached=await cache.match(key);return cached||fetch(request);})());
 });

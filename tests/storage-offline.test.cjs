@@ -65,11 +65,11 @@ test('a missing audio chunk fails explicitly instead of opening a truncated song
   await assert.rejects(s.fresh().get(r.id),/incomplete/);
 });
 
-function worker({badAsset=false,tabs=[],failWrite=false}={}){
+function worker({badAsset=false,tabs=[],failWrite=false,htmlRedirect=null,htmlType='text/html'}={}){
   const listeners={},banks=new Map(),requests=[];let online=true,skipped=0;
   const caches={open:async key=>{if(!banks.has(key))banks.set(key,new Map());const bank=banks.get(key);return {put:async(k,v)=>{if(failWrite)throw Error('Quota');bank.set(k,v);},match:async k=>bank.get(typeof k==='string'?k:k.url)};},keys:async()=>[...banks.keys()],delete:async key=>banks.delete(key)};
   const self={location:{href:'https://game.example/sw.js'},clients:{claim:async()=>{},matchAll:async()=>tabs},skipWaiting:async()=>{skipped++;},addEventListener:(type,fn)=>listeners[type]=fn};
-  const sandbox={self,caches,URL,Request,Promise,fetch:async request=>{if(!online)throw Error('Offline');const url=request.url||request;requests.push(url);return {ok:true,status:200,redirected:url.endsWith('/index.html')||badAsset&&url.endsWith('game.js'),headers:{get:()=>url.endsWith('.png')?'image/png':url.endsWith('.js')?'text/javascript':url.endsWith('.css')?'text/css':'text/html'},url};}};
+  const sandbox={self,caches,URL,Request,Promise,fetch:async request=>{if(!online)throw Error('Offline');const url=request.url||request;requests.push(url);const redirect=url.endsWith('/backup-save.html')&&htmlRedirect;return {ok:true,status:200,redirected:!!redirect||url.endsWith('/index.html')||badAsset&&url.endsWith('game.js'),headers:{get:()=>url.endsWith('.png')?'image/png':url.endsWith('.js')?'text/javascript':url.endsWith('.css')?'text/css':url.endsWith('/backup-save.html')?htmlType:'text/html'},url:redirect?htmlRedirect:url};}};
   vm.createContext(sandbox);sandbox.importScripts=name=>vm.runInContext(code(name),sandbox);vm.runInContext(code('sw.js'),sandbox);
   const emit=async(type,data={})=>{let result;listeners[type]({waitUntil:p=>{result=p;},respondWith:p=>{result=p;},...data});return result?await result:null;};
   return {self,banks,requests,emit,offline:()=>{online=false;},get skipped(){return skipped;}};
@@ -84,6 +84,25 @@ test('offline package includes every runtime asset and serves the game without n
 });
 test('a redirected game file prevents an incomplete offline install',async()=>{
   const w=worker({badAsset:true});await assert.rejects(w.emit('install'),/Could not download/);assert.equal(w.banks.size,0);
+});
+
+test('a hosted backup page redirect installs and remains available offline at both URLs',async()=>{
+  const w=worker({htmlRedirect:'https://game.example/backup-save'});await w.emit('install');w.offline();
+  for(const route of ['backup-save.html','backup-save']){
+    const response=await w.emit('fetch',{request:new Request('https://game.example/'+route)});
+    assert.ok(response?.ok,route);assert.equal(response.url,'https://game.example/backup-save');
+  }
+});
+
+test('backup page login, external and unexpected redirects still reject the update',async()=>{
+  for(const htmlRedirect of ['https://game.example/login','https://other.example/backup-save','https://game.example/backup-save?login=1']){
+    const w=worker({htmlRedirect});await assert.rejects(w.emit('install'),/Could not download backup-save.html/);assert.equal(w.banks.size,0);
+  }
+});
+
+test('the backup page must contain HTML before the update is saved',async()=>{
+  const w=worker({htmlRedirect:'https://game.example/backup-save',htmlType:'application/json'});
+  await assert.rejects(w.emit('install'),/backup-save.html returned an unexpected page/);assert.equal(w.banks.size,0);
 });
 
 

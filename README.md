@@ -1,8 +1,10 @@
 # Riffbound
 
-Browser rhythm game, version 45. Play Guitar, Bass, Drums or pitch-pad Vocals with automatic charting and Easy, Medium, Hard and Expert arrangements.
+Browser rhythm game, version 53. Play Guitar, Bass, Drums or pitch-pad Vocals with automatic charting and Easy, Medium, Hard and Expert arrangements.
 
 [Play Riffbound](https://riffbound.aaronreifschneider.chatgpt.site)
+
+Version 53 corrects offline installation of the standalone backup page when static hosting redirects its `.html` address to the equivalent extensionless address. Both addresses work from the offline cache; unexpected redirects still reject installation. Existing setlist storage and chart detection are preserved.
 
 Expert keeps every distinct note accepted by the audio analysis. Hard, Medium and Easy progressively reduce that chart while preserving retained timing and drum colors. The preview shows the note totals for all four difficulties. Exact duplicate detections of one physical hit are merged; quiet or closely spaced independent hits remain in Expert.
 
