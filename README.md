@@ -1,12 +1,20 @@
 # Riffbound
 
-Browser rhythm game, version 44. Play Guitar, Bass, Drums or pitch-pad Vocals with automatic charting and Easy, Medium, Hard and Expert arrangements.
+Browser rhythm game, version 45. Play Guitar, Bass, Drums or pitch-pad Vocals with automatic charting and Easy, Medium, Hard and Expert arrangements.
 
 [Play Riffbound](https://riffbound.aaronreifschneider.chatgpt.site)
 
 Expert keeps every distinct note accepted by the audio analysis. Hard, Medium and Easy progressively reduce that chart while preserving retained timing and drum colors. The preview shows the note totals for all four difficulties. Exact duplicate detections of one physical hit are merged; quiet or closely spaced independent hits remain in Expert.
 
 The matched In Bloom drum chart includes score-and-audio reviews for Expert and Hard: separate same-color flam strokes, open hi-hat overlaps, removal of two yellow kick-click artifacts, and 36 additional hi-hats guided by supplied video screenshots. Easy and Medium retain their previous arrangements.
+
+## Tom recovery on every drum upload (version 45)
+
+Drum analysis now checks a short stick attack and its independent pitched body when recovering blue rack-tom and green floor-tom hits. It measures the previous vibration's decay so a quieter repeat can be detected even when it partly cancels that vibration. It also verifies that the body begins at the current hit: a later tom cannot steal an earlier hi-hat's yellow note. A tom's brief stick noise no longer supplies an extra yellow head in the new fill fixtures, and a floor-tom body cannot supply a purple kick without an independent kick resonance.
+
+When repeated clear tom bodies establish two sufficiently separated pitch groups, the lower group can map to green even if the floor tom is tuned higher than the default range. Two high rack-tom pitches stay blue. Recordings that do not establish both groups keep the default range; tuning and strongly overlapping voices can still be ambiguous. Red = snare, Yellow = hi-hat, Blue = rack tom, Orange = cymbal, Green = floor tom; Purple is kick.
+
+This runs for every newly analyzed drum recording, including Drums within Whole song and separate-part uploads. It does not add absent colors or complete fills from a rhythm grid. Reviewed In Bloom/Roam charts and authored imports remain protected. To update an existing automatic drum chart, select **Drums → Rebuild this instrument’s chart**.
 
 ## Expert note recovery (version 44)
 

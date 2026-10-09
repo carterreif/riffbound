@@ -464,6 +464,104 @@
     }
     return events;
   }
+  function verifyTomStrikes(events,attacks,samples,sampleRate,plan,re,im){
+    // A brief stick transient can survive when the tonal mask absorbs a rapid
+    // tom repeat. Require a new pitched body too; a hat over a ringing tom is
+    // still a hat. Never create a fill from the beat grid or the previous hit.
+    const bodies=[];
+    for(const attack of [...attacks,...maskedHatBursts(samples,sampleRate)].sort((a,b)=>a.time-b.time)){
+      const time=attack.time,noise=noiseEnvelope(samples,time,sampleRate);
+      if(noise.early<1e-9||noise.novel<.7||noise.decay>.08||noise.excess<.25||!freshStickAttack(samples,time,sampleRate))continue;
+      const {early,body}=drumFeatures(samples,time,sampleRate,plan,re,im);
+      const low=early.bands[0]+early.bands[1]+early.bands[2];
+      if(low<early.total*.94||early.frequency<68)continue;
+      const kick=events.some(e=>e.lane===5&&Math.abs(e.time-time)<.035);
+      if(kick&&(body.frequency<68||Math.abs(Math.log2(early.frequency/Math.max(1,body.frequency)))>.12))continue;
+      const repeat=events.some(e=>[2,4].includes(e.lane)&&time-e.time>.065&&time-e.time<.25);
+      const resonance=tomResonance(samples,time,sampleRate,plan,re,im,repeat),frequency=resonance.frequency;
+      if(!frequency)continue;
+      const lane=frequency>=102?2:4;
+      const existing=events.find(e=>[2,4].includes(e.lane)&&(Math.abs(e.time-time)<.015||(e.time>time&&e.time-time<.035)||(time-e.time>0&&time-e.time<.035&&!freshStickAttack(samples,e.time,sampleRate))));
+      if(existing){
+        bodies.push({time,frequency});
+        if(Math.abs(existing.time-time)>=.015)events=events.map(e=>e===existing?{...e,time,attack:attack.attack||attack}:e);
+        events=events.filter(e=>e.lane!==1||Math.abs(e.time-time)>=.012);
+        if(!resonance.kick)events=events.filter(e=>e.lane!==5||Math.abs(e.time-time)>=.015);
+        continue;
+      }
+      if(events.some(e=>[0,2,4].includes(e.lane)&&Math.abs(e.time-time)<.065))continue;
+      if(kick&&resonance.kick)continue;
+      bodies.push({time,frequency});
+      events=events.filter(e=>e.lane!==1||Math.abs(e.time-time)>=.012);
+      if(kick)events=events.filter(e=>e.lane!==5||Math.abs(e.time-time)>=.015);
+      events.push({...attack,time,lane});
+    }
+    // Learn a split only when both resonant groups are repeatedly observed.
+    // This admits a higher-tuned floor tom without making two rack toms green.
+    const pitches=bodies.filter((e,i)=>!bodies.slice(0,i).some(n=>Math.abs(n.time-e.time)<.035)).map(e=>e.frequency).sort((a,b)=>a-b);
+    let split=102,gap=.5;
+    for(let i=2;i<=pitches.length-2;i++){
+      const a=pitches[i-1],b=pitches[i],distance=Math.log2(b/a);
+      if(a<=145&&b>=165&&distance>gap){gap=distance;split=Math.sqrt(a*b);}
+    }
+    return events.map(e=>{
+      if(![2,4].includes(e.lane))return e;
+      const body=bodies.find(n=>Math.abs(n.time-e.time)<.035);
+      return body?{...e,lane:body.frequency>=split?2:4}:e;
+    });
+  }
+  function freshStickAttack(samples,time,sampleRate){
+    // The stick must begin now, rather than entering the end of a spectral
+    // window. Two treble stages prevent a resonant drum cycle supplying it.
+    const at=Math.round(time*sampleRate),window=Math.round(sampleRate*.012),alpha=1-Math.exp(-2*Math.PI*2500/sampleRate);
+    let low=0,second=0,before=0,after=0;
+    for(let i=Math.max(0,at-window*4);i<Math.min(samples.length,at+window);i++){
+      low+=alpha*(samples[i]-low);const high=samples[i]-low;second+=alpha*(high-second);
+      const power=(high-second)**2;if(i>=at)after+=power;else if(i>=at-window)before+=power;
+    }
+    return after>Math.max(1e-9,before*1.5);
+  }
+  function tomResonance(samples,time,sampleRate,plan,re,im,repeat){
+    // Test separate resonances, rather than letting the loudest previous drum
+    // set this hit's pitch. Extrapolate its measured complex decay from two
+    // pre-hit windows; only a new component can pass the residual threshold.
+    spectrum(samples,Math.round((time+.025)*sampleRate)-re.length/2,re,im,plan);
+    const power=k=>re[k]*re[k]+im[k]*im[k],peaks=[];let maximum=0,kick=false;
+    for(let k=3;k*sampleRate/re.length<350;k++)maximum=Math.max(maximum,power(k));
+    for(let k=4;k*sampleRate/re.length<350;k++){
+      const a=power(k-1),b=power(k),c=power(k+1);
+      if(b<a||b<=c||b<maximum*.02)continue;
+      const l=Math.log(a+1e-20),m=Math.log(b+1e-20),r=Math.log(c+1e-20);
+      const frequency=(k+clamp(.5*(l-r)/(l-2*m+r||1),-.5,.5))*sampleRate/re.length;
+      if(frequency>=35&&frequency<68&&b>=maximum*.08)kick=true;
+      if(frequency>=68&&frequency<350)peaks.push({frequency});
+    }
+    const project=(frequency,offset,seconds=.02)=>{
+      const n=Math.round(sampleRate*seconds),start=Math.round((time+offset)*sampleRate);let real=0,imag=0,power=0,weight=0;
+      for(let j=0;j<n;j++){
+        const i=start+j;if(i<0||i>=samples.length)continue;
+        const w=.5-.5*Math.cos(2*Math.PI*j/(n-1)),value=samples[i],angle=2*Math.PI*frequency*(i/sampleRate-time);
+        real+=w*value*Math.cos(angle);imag+=w*value*Math.sin(angle);power+=w*value*value;weight+=w;
+      }
+      return {real:real/(weight||1),imag:imag/(weight||1),power:power/(weight||1)};
+    };
+    let selected=0,best=0;
+    for(const {frequency} of peaks){
+      const a=project(frequency,-.06),b=project(frequency,-.03),c=project(frequency,0),first=Math.hypot(a.real,a.imag),before=Math.hypot(b.real,b.imag),after=Math.hypot(c.real,c.imag);
+      const decay=clamp(before/(first+1e-15),0,1),turn=Math.atan2(b.imag,b.real)-Math.atan2(a.imag,a.real);
+      const angle=Math.atan2(b.imag,b.real)+turn,predicted=first>1e-6?before*decay:before;
+      const residual=Math.hypot(c.real-predicted*Math.cos(angle),c.imag-predicted*Math.sin(angle));
+      const cancelled=repeat&&2*before*before>b.power*.3&&residual>before*.5;
+      if((2*after*after<c.power*.15&&!cancelled)||residual<Math.max(.00002,after*.3,before*.12))continue;
+      // The short window proves that this body begins at this hit. A longer
+      // projection distinguishes its pitch from the preceding drum's tail.
+      const x=project(frequency,-.075,.03),y=project(frequency,-.035,.03),z=project(frequency,.005,.03);
+      const previous=Math.hypot(y.real,y.imag),ratio=clamp(previous/(Math.hypot(x.real,x.imag)+1e-15),0,1),phase=2*Math.atan2(y.imag,y.real)-Math.atan2(x.imag,x.real);
+      const rank=Math.hypot(z.real-previous*ratio*Math.cos(phase),z.imag-previous*ratio*Math.sin(phase));
+      if(rank>best){best=rank;selected=frequency;}
+    }
+    return {frequency:selected,kick};
+  }
   function snareNoiseProfile(samples,time,sampleRate){
     // Compare the treble/mid balance at the attack with its early tail. Windows
     // end at 60 ms, avoiding the next strike in typical 80–125 ms rolls.
@@ -914,7 +1012,8 @@
       const rolls=verifySnareRolls(masked,hatAttacks,samples,sampleRate,plan,re,im,noiseAttacks);
       const colors=verifyBassMaskedNoise(rolls,trebleAttacks,samples,sampleRate,plan,re,im);
       const verified=rejectNoiseTails(verifyNoiseColors(colors,samples,sampleRate,plan,re,im),samples,sampleRate);
-      const withKicks=alignKickAttacks(verifyKickRepeats(verified,samples,sampleRate,plan,re,im),samples,sampleRate,plan,re,im);events.length=0;events.push(...withKicks);
+      const toms=verifyTomStrikes(verified,trebleAttacks,samples,sampleRate,plan,re,im);
+      const withKicks=alignKickAttacks(verifyKickRepeats(toms,samples,sampleRate,plan,re,im),samples,sampleRate,plan,re,im);events.length=0;events.push(...withKicks);
     }
     events.sort((a,b)=>a.time-b.time);
     if(!events.length)throw Error(`Not enough clear ${instrument==='guitar'?'guitar-like tones':'drum hits'} were detected. Try a recording where that instrument is louder, or upload its isolated track.`);
@@ -923,8 +1022,8 @@
     const waveform=Array.from({length:160},(_,i)=>{const a=Math.floor(i*frames/160),b=Math.max(a+1,Math.floor((i+1)*frames/160));let max=0;for(let f=a;f<b&&f<frames;f++)max=Math.max(max,energy[f]);return max;});
     const peak=Math.max(...waveform)||1;
     const expert=charts[instrument].expert;
-    const quality={evidencePolicy:'audible-attacks-v2',counts:Array.from({length:instrument==='drums'?6:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:instrument==='drums'&&events.some(e=>e.part!==undefined)?'Adaptive kit separation':'Attack and tone analysis'};
-    return {...timing,instrument,duration,charts,quality,chartVersion:instrument==='drums'?19:6,waveform:waveform.map(v=>v/peak)};
+    const quality={evidencePolicy:'audible-attacks-v2',...(instrument==='drums'?{tomEvidencePolicy:'measured-resonance-v1'}:{}),counts:Array.from({length:instrument==='drums'?6:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:instrument==='drums'&&events.some(e=>e.part!==undefined)?'Adaptive kit separation':'Attack and tone analysis'};
+    return {...timing,instrument,duration,charts,quality,chartVersion:instrument==='drums'?20:6,waveform:waveform.map(v=>v/peak)};
   }
   const api={analyze,buildFocusedCharts,buildMatchedCharts,filterSeparated};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
