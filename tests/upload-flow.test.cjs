@@ -157,16 +157,17 @@ for(const [instrument,index] of [['guitar',0],['bass',2],['vocals',3]])test(`mob
   const rebuilt=await storage.library.get(id);assert.deepEqual(rebuilt.charts,record.charts);assert.deepEqual(rebuilt.quality.audioReviews,record.quality.audioReviews);
 });
 
-test('mobile upload and explicit rebuild keep open hats yellow and persist the timbre review',async()=>{
-  const f=require('./fixtures/open-hat-identity.cjs').fixture(),storage=require('./helpers/song-storage.cjs').storage({rejectBlobs:true});
+for(const snareOverlap of [false,true])test(`mobile upload and rebuild keep open hats yellow${snareOverlap?' with simultaneous snares':''} and persist the timbre review`,async()=>{
+  const f=require('./fixtures/open-hat-identity.cjs').fixture({snareOverlap}),storage=require('./helpers/song-storage.cjs').storage({rejectBlobs:true});
   const app=setup({mobile:true,audioSamples:f.samples,libraryOverrides:storage.library});
   await app.radios.instrument[1].emit('change');await app.radios.difficulty[3].emit('change');await app.upload('Open hi-hats.wav');
   await until(()=>app.nodes.saveStatus.textContent.includes('Added to your setlist'));
   const id=(await storage.library.list())[0].id;
   const check=record=>{
     for(const m of require('./chart-metrics.cjs').measureChart(f.expected,record.charts.drums.expert)){assert.equal(m.matched,m.expected);assert.equal(m.extra,0);}
-    assert.equal(record.chartVersion,24);assert.equal(record.quality.audioReviews.drums.metalIdentityPolicy,'attack-release-timbre-v2');
-    assert.equal(record.quality.audioReviews.drums.metalCorrections,6);
+    assert.equal(record.chartVersion,25);assert.equal(record.quality.audioReviews.drums.metalIdentityPolicy,'attack-release-timbre-v2');
+    assert.equal(record.quality.audioReviews.drums.snareOverlapPolicy,'independent-metal-timbre-v1');
+    if(!snareOverlap)assert.equal(record.quality.audioReviews.drums.metalCorrections,6);
   };
   check(await storage.library.get(id));assert.match(app.nodes.chartMapping.textContent,/Yellow: closed\/open hi-hat/);
   const fresh=setup({mobile:true,audioSamples:f.samples,libraryOverrides:storage.fresh()});
@@ -183,7 +184,7 @@ test('mobile overlap upload keeps a ringing hat before its crash through chunked
   await until(()=>app.nodes.saveStatus.textContent.includes('Added to your setlist'));
   const id=(await storage.library.list())[0].id,record=await storage.library.get(id);
   for(const m of require('./chart-metrics.cjs').measureChart(f.expected,record.charts.drums.expert)){assert.equal(m.matched,m.expected);assert.equal(m.extra,0);}
-  assert.equal(record.chartVersion,24);assert.equal(record.quality.audioReviews.drums.metalIdentityPolicy,'attack-release-timbre-v2');
+  assert.equal(record.chartVersion,25);assert.equal(record.quality.audioReviews.drums.metalIdentityPolicy,'attack-release-timbre-v2');
   const fresh=setup({mobile:true,audioSamples:f.samples,libraryOverrides:storage.fresh()});
   await until(()=>fresh.nodes.setlistEntries.children.length===2);await fresh.nodes.setlistEntries.children[1].click();
   await fresh.radios.difficulty[3].emit('change');assert.deepEqual(fresh.requests,[]);

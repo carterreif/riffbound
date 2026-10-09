@@ -37,5 +37,5 @@ test('overlap corrections survive backup with exact onsets, colors, review and o
  const playable=charts=>Object.fromEntries(Object.entries(charts).map(([part,levels])=>[part,Object.fromEntries(Object.entries(levels).map(([level,notes])=>[level,notes.map(({bar,...note})=>note)]))]));
  // Bar indices are derived display data; every playable field must persist.
  check(f,restored);assert.deepEqual(playable(restored.charts),playable(r.charts));assert.deepEqual(restored.quality.audioReviews,r.quality.audioReviews);
- assert.equal(restored.chartVersion,24);assert.equal(await restored.audioBlob.text(),'unchanged original');
+ assert.equal(restored.chartVersion,25);assert.equal(await restored.audioBlob.text(),'unchanged original');
 });

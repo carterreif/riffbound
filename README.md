@@ -1,10 +1,10 @@
 # Riffbound
 
-Browser rhythm game, version 53. Play Guitar, Bass, Drums or pitch-pad Vocals with automatic charting and Easy, Medium, Hard and Expert arrangements.
+Browser rhythm game, version 54. Play Guitar, Bass, Drums or pitch-pad Vocals with automatic charting and Easy, Medium, Hard and Expert arrangements.
 
 [Play Riffbound](https://riffbound.aaronreifschneider.chatgpt.site)
 
-Version 53 corrects offline installation of the standalone backup page when static hosting redirects its `.html` address to the equivalent extensionless address. Both addresses work from the offline cache; unexpected redirects still reject installation. Existing setlist storage and chart detection are preserved.
+Version 54 reviews hi-hat/cymbal identity even when the hit shares a snare onset. The review learns exposed hi-hat resonances from the recording and checks independent attack and release evidence, keeping open hats yellow without treating snare wires as another cymbal. Quiet sustained hats need their own measured resonances; later strokes cannot supply an earlier note. This applies across every new drum chart and explicit drum rebuild, including whole-song uploads. Saved charts keep their arrangements until rebuilt or replaced by a reviewed backup. Version 53's offline and backup fixes remain included.
 
 Expert keeps every distinct note accepted by the audio analysis. Hard, Medium and Easy progressively reduce that chart while preserving retained timing and drum colors. The preview shows the note totals for all four difficulties. Exact duplicate detections of one physical hit are merged; quiet or closely spaced independent hits remain in Expert.
 

@@ -10,7 +10,7 @@ for(const options of [
 ])test(`tom recovery ${JSON.stringify(options)}: retain every hit and no unused colors`,t=>{
   const f=fill(options),labels=[],result=analyze({...f,instrument:'drums'},(_,label)=>labels.push(label));
   const notes=result.charts.drums.expert,metrics=measureChart(f.truth,notes);
-  assert.equal(result.chartVersion,24);
+  assert.equal(result.chartVersion,25);
   assert.equal(result.quality.tomEvidencePolicy,'measured-resonance-v1');
   for(const m of metrics){assert.equal(m.matched,m.expected,`Missing or wrong color ${m.lane}`);assert.equal(m.extra,0,`Invented color ${m.lane}`);}
   assert.ok(metrics.flatMap(m=>m.errors).every(error=>error<.025),'Tom attacks follow their own onset');

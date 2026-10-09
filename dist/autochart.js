@@ -357,13 +357,27 @@
       }
       return supported>=3;
     };
+    const sustainedHatAttack=time=>{
+      if(metalPeaks.length<3)return false;
+      const early=finePowers(time,.005),first=finePowers(time,.14),second=finePowers(time,.2),before=finePowers(time,-.055);
+      let supported=0,started=0;
+      for(const k of metalPeaks){
+        let a=k,b=k,c=k,prior=0;
+        for(let j=k-1;j<=k+1;j++){if(first[j]>first[a])a=j;if(second[j]>second[b])b=j;if(early[j]>early[c])c=j;prior=Math.max(prior,before[j]);}
+        if(contrast(first,a)>6&&contrast(second,b)>6&&first[a]>prior*1.5&&second[b]>prior*1.5)supported++;
+        if(contrast(early,c)>2&&early[c]>prior*1.5)started++;
+      }
+      return supported>=3&&started>=1;
+    };
     const corrections=[];
     const candidates=events.filter(e=>[1,3].includes(e.lane)).concat(attacks
-      .filter(e=>!events.some(n=>[0,1,3].includes(n.lane)&&Math.abs(n.time-e.time)<.025))
-      .map(e=>({...e,lane:3,metalCandidate:true}))).sort((a,b)=>a.time-b.time);
+      .filter(e=>!events.some(n=>[1,3].includes(n.lane)&&Math.abs(n.time-e.time)<.025))
+      .map(e=>({...e,lane:3,metalCandidate:true,snareCandidate:snares.some(n=>Math.abs(n.time-e.time)<.03)}))).sort((a,b)=>a.time-b.time);
     for(const event of candidates){
       if(![1,3].includes(event.lane)||corrections.some(e=>Math.abs(e.event.time-event.time)<.025))continue;
-      if(snares.some(e=>Math.abs(e.time-event.time)<.03))continue;
+      // Wire noise can dilute a simultaneous hat's attack, but it does not
+      // exempt the metal voice from checking its own attack and release.
+      const concurrentSnare=snares.some(e=>Math.abs(e.time-event.time)<.03);
       // Detector timestamps can sit a few milliseconds inside the attack. Do
       // not let that initial energy masquerade as an old ringing background.
       // Measure nearby fresh windows without moving the charted onset.
@@ -379,6 +393,23 @@
       if(!attack||!release)continue;
       const attackMatch=similarity(attack,template),releaseMatch=similarity(release,template);
       const partialAttack=distinctHatAttack(time);
+      // Permit a noisier mixed attack only when the kit's separate resonances
+      // grow in BOTH attack windows. Broadband snare noise cannot lower this
+      // threshold, and the release still has to match the learned hi-hat.
+      const hatMatch=concurrentSnare&&partialAttack===true?.85:.93;
+      // A detected metal attack beside a snare can be absent from the first
+      // pass. Independent attack and release identity still authorize its hat;
+      // a later fluctuation in that same release must not suppress the stroke.
+      if(concurrentSnare&&partialAttack===true&&attackMatch>=hatMatch&&releaseMatch>=.9){corrections.push({event,lanes:[1]});continue;}
+      // A quiet open hat can remain audible after the snare wires decay.
+      // Three learned resonances must grow above the pre-hit sound twice,
+      // with at least one already present at the attack. A later onset cannot
+      // lend its hat sound to this snare or turn a snare tail into a new note.
+      const later=e=>e.time-event.time>.035&&e.time-event.time<.25;
+      const cleanRelease=!events.some(later)&&!attacks.some(e=>later(e)&&distinctHatAttack(e.time)===true);
+      const quietHat=concurrentSnare&&cleanRelease&&similarity(signature(time,.2),template)>=.9&&sustainedHatAttack(time);
+      if(quietHat){corrections.push({event,lanes:[1]});continue;}
+      if(event.snareCandidate)continue;
       // Wash flutter may pass a short-envelope test, but it must still expose
       // this kit's hat sound. Do not retain a speculative yellow tail head.
       if(event.lane===1&&!event.metalCandidate&&partialAttack===false&&attackMatch<.75&&
@@ -387,14 +418,15 @@
         corrections.push({event:cymbal||event,lanes:cymbal?[3]:[]});continue;
       }
       if(![-.008,0,.008].some(offset=>freshNoiseAttack(samples,event.time+offset,sampleRate)))continue;
-      if(!measurement||noise.decay<.08)continue;
+      if(!measurement)continue;
       // A later measured hit contaminates the release. Strong fresh hat
       // identity can label the earlier stroke, but cannot supply a crash there.
       if(candidates.some(e=>e.time-event.time>.035&&e.time-event.time<.16)){
-        if(attackMatch>=.93&&partialAttack===true)corrections.push({event,lanes:[1]});
+        if(attackMatch>=hatMatch&&partialAttack===true)corrections.push({event,lanes:[1]});
         continue;
       }
-      if(attackMatch>=.93&&releaseMatch>=.9&&partialAttack!==false){corrections.push({event,lanes:[1]});continue;}
+      if(attackMatch>=hatMatch&&releaseMatch>=.9&&partialAttack!==false){corrections.push({event,lanes:[1]});continue;}
+      if(noise.decay<.08)continue;
       // A bright attack on one crash can decay in two stages. That alone does
       // not prove a second hand hit. Its release must differ from the kit's
       // hat, and a real hat/crash pair must also expose the hat's fast timbre.
@@ -1244,10 +1276,14 @@
     const waveform=Array.from({length:160},(_,i)=>{const a=Math.floor(i*frames/160),b=Math.max(a+1,Math.floor((i+1)*frames/160));let max=0;for(let f=a;f<b&&f<frames;f++)max=Math.max(max,energy[f]);return max;});
     const peak=Math.max(...waveform)||1;
     const expert=charts[instrument].expert;
-    const quality={audioReviews:{[instrument]:{policy:instrument==='drums'?'ring-residual-v1':'audible-attacks-v2',checked:true,recovered,...colorEvidence(expert,instrument),...(instrument==='drums'?{metalIdentityPolicy:'attack-release-timbre-v2',metalCorrections}:{})}},ghostEvidencePolicy:'relative-attack-dynamics-v1',ghostHits:expert.filter(n=>n.ghost).length,evidencePolicy:'audible-attacks-v2',...(instrument==='drums'?{tomEvidencePolicy:'measured-resonance-v1'}:{}),counts:Array.from({length:instrument==='drums'?6:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:instrument==='drums'&&events.some(e=>e.part!==undefined)?'Adaptive kit separation':'Attack and tone analysis'};
-    return {...timing,instrument,duration,charts,quality,chartVersion:instrument==='drums'?24:8,waveform:waveform.map(v=>v/peak)};
+    const quality={audioReviews:{[instrument]:{policy:instrument==='drums'?'ring-residual-v1':'audible-attacks-v2',checked:true,recovered,...colorEvidence(expert,instrument),...(instrument==='drums'?{metalIdentityPolicy:'attack-release-timbre-v2',snareOverlapPolicy:'independent-metal-timbre-v1',metalCorrections}:{})}},ghostEvidencePolicy:'relative-attack-dynamics-v1',ghostHits:expert.filter(n=>n.ghost).length,evidencePolicy:'audible-attacks-v2',...(instrument==='drums'?{tomEvidencePolicy:'measured-resonance-v1'}:{}),counts:Array.from({length:instrument==='drums'?6:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:instrument==='drums'&&events.some(e=>e.part!==undefined)?'Adaptive kit separation':'Attack and tone analysis'};
+    return {...timing,instrument,duration,charts,quality,chartVersion:instrument==='drums'?25:8,waveform:waveform.map(v=>v/peak)};
   }
-  const api={analyze,buildFocusedCharts,buildMatchedCharts,filterSeparated};
+  function reviewDrumColors({notes,samples,sampleRate=22050}){
+    const plan=fftPlan(2048),review=verifyMetalIdentity(notes,samples,sampleRate,plan,new Float32Array(2048),new Float32Array(2048));
+    return {notes:review.events.sort((a,b)=>a.time-b.time),corrected:review.corrected};
+  }
+  const api={analyze,reviewDrumColors,buildFocusedCharts,buildMatchedCharts,filterSeparated};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   else if(typeof document==='undefined')root.onmessage=event=>{try{const result=analyze(event.data,(value,label)=>root.postMessage({type:'progress',value,label}));root.postMessage({type:'complete',result});}catch(error){root.postMessage({type:'error',message:error.message});}};
   else root.RiffAutoChart=api;

@@ -16,7 +16,7 @@ for(const bars of [6,16])for(const seed of [481,907])for(const decay of [4,7,10]
  test(`${bars>6?'adaptive':'direct'} kit ${seed}, open-hat decay ${decay}: yellow stays yellow; every other voice stays separate`,()=>{
   const f=fixture({bars,seed,decay}),r=analyze({...f,instrument:'drums'});exact(f,r);
   assert.equal(r.quality.method,bars>6?'Adaptive kit separation':'Attack and tone analysis');
-  assert.equal(r.chartVersion,24);assert.equal(r.quality.audioReviews.drums.metalIdentityPolicy,'attack-release-timbre-v2');
+  assert.equal(r.chartVersion,25);assert.equal(r.quality.audioReviews.drums.metalIdentityPolicy,'attack-release-timbre-v2');
   assert.equal(r.quality.audioReviews.drums.metalCorrections,bars);
  });
 for(const seed of [481,907,2611])test(`sharp crash ${seed}: one cymbal is orange, never an extra yellow head`,()=>{
