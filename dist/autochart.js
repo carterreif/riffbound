@@ -65,6 +65,30 @@
     return selected.sort((a,b)=>a.time-b.time);
   }
   function median(values){values.sort();return values[values.length>>1];}
+  function tonalAttacks(samples,sampleRate,instrument){
+    // Volume swells and tremolo are not new picked/sung notes. Check attack
+    // speed in the selected tonal band, independently of percussion timing.
+    const bass=instrument==='bass',step=Math.max(1,Math.round(sampleRate*.003)),dt=step/sampleRate;
+    const lo=1-Math.exp(-2*Math.PI*(bass?380:instrument==='guitar'?4200:1800)/sampleRate);
+    const hi=1-Math.exp(-2*Math.PI*(bass?25:instrument==='guitar'?100:80)/sampleRate);
+    const frames=Math.ceil(samples.length/step),power=new Float64Array(frames+1);let low=0,high=0;
+    for(let f=0;f<frames;f++){
+      let sum=0;for(let i=f*step;i<Math.min(samples.length,(f+1)*step);i++){low+=lo*(samples[i]-low);high+=hi*(samples[i]-high);sum+=(low-high)**2;}
+      power[f+1]=power[f]+sum/step;
+    }
+    const size=Math.round((bass?.024:.012)/dt),level=new Float32Array(frames);
+    for(let f=0;f<frames;f++){const a=Math.max(0,f-size);level[f]=Math.sqrt((power[f]-power[a])/Math.max(1,f-a));}
+    const at=t=>level[clamp(Math.round(t/dt),0,level.length-1)];
+    return time=>{
+      let peak=0,base=Infinity,best=0;
+      for(let t=time-.08;t<=time+.10;t+=dt){const v=at(t);peak=Math.max(peak,v);base=Math.min(base,v);}
+      for(let t=time-.035;t<=time+.045;t+=dt){
+        const before=at(t-.012),after=at(t+.015),rise=after-before;
+        if(after>before*1.25)best=Math.max(best,rise);
+      }
+      return peak>.00008&&best>Math.max(.00003,(peak-base)*.5,peak*.18);
+    };
+  }
   function refineTime(samples,time,sampleRate){
     const step=Math.max(1,Math.round(sampleRate*.003)),start=Math.max(0,Math.floor((time-.065)*sampleRate));
     const end=Math.min(samples.length-step,Math.ceil((time+.04)*sampleRate));
@@ -211,6 +235,7 @@
       return bright?{...event,lane:1}:event;
     });
     const result=[],snares=events.filter(e=>e.lane===0);
+    const clearHats=events.filter(e=>e.lane===1&&noiseEnvelope(samples,e.time,sampleRate).decay<.12);
     for(const event of events){
       if(![1,3].includes(event.lane)||snares.some(n=>Math.abs(n.time-event.time)<.03)){result.push(event);continue;}
       const noise=noiseEnvelope(samples,event.time,sampleRate);
@@ -222,10 +247,27 @@
       if(noise.novel>.85&&ringing){
         result.push({...event,lane:3});
         // A distinct fast component can be a real hi-hat with the crash.
-        if(event.lane===1&&noise.excess>.45)result.push(event);
+        if(event.lane===1&&noise.excess>.45&&clearHats.some(e=>Math.abs(e.time-event.time)>.06))result.push(event);
       }else result.push(event);
     }
     return result;
+  }
+  function rejectNoiseTails(events,samples,sampleRate){
+    // Recovered and relabeled notes must still pass after all detectors run.
+    // A snare's wires do not prove a simultaneous crash, and cymbal flutter
+    // needs a predominantly new attack to count as a repeated cymbal strike.
+    const snares=events.filter(e=>e.lane===0),accepted=[];
+    const noiseAt=new Map(),at=time=>{if(!noiseAt.has(time))noiseAt.set(time,noiseEnvelope(samples,time,sampleRate));return noiseAt.get(time);};let previous=null;
+    for(const event of events.slice().sort((a,b)=>a.time-b.time)){
+      if(event.lane!==3){accepted.push(event);continue;}
+      const noise=at(event.time);
+      if(previous&&event.time-previous.time<.012)continue;
+      if(snares.some(e=>Math.abs(e.time-event.time)<.025)&&(noise.decay<.25||noise.sustain<.11))continue;
+      if(previous&&event.time-previous.time<.2&&noise.novel<.85)continue;
+      if(previous&&event.time-previous.time<1.2&&noise.early<at(previous.time).early*.01&&noise.novel<.95&&snareNoiseProfile(samples,event.time,sampleRate).contrast<1.5)continue;
+      accepted.push(event);previous=event;
+    }
+    return accepted;
   }
   function verifyBassMaskedNoise(events,attacks,samples,sampleRate,plan,re,im){
     // In a full mix, the loudest low peak can belong to bass/guitar or kick.
@@ -274,6 +316,7 @@
     return events;
   }
   function verifyCymbalAttacks(events,attacks,samples,sampleRate,plan,re,im){
+    const clearHats=events.filter(e=>e.lane===1&&noiseEnvelope(samples,e.time,sampleRate).decay<.12);
     for(const attack of attacks){
       if(events.some(e=>e.lane===3&&Math.abs(e.time-attack.time)<.03))continue;
       const noise=noiseEnvelope(samples,attack.time,sampleRate);
@@ -292,7 +335,7 @@
       const shared=events.find(e=>e.attack&&(e.frame===attack.frame||e.attack.frame===attack.frame)&&Math.abs(e.time-attack.time)<.012);
       const recovered={...attack,attack:attack.attack||shared?.attack};
       events.push({...recovered,lane:3});
-      if(noise.decay<.35&&noise.excess>.45&&!events.some(e=>[0,1].includes(e.lane)&&Math.abs(e.time-attack.time)<.03))events.push({...recovered,lane:1});
+      if(clearHats.length&&noise.decay<.35&&noise.excess>.45&&!events.some(e=>[0,1].includes(e.lane)&&Math.abs(e.time-attack.time)<.03))events.push({...recovered,lane:1});
     }
     return events;
   }
@@ -590,6 +633,7 @@
     // voiced pitch segments, including legato changes without a new attack.
     // These are signal-based estimates, not source-separated audio stems.
     const bass=instrument==='bass',n=bass?4096:2048,hop=256,dt=hop/sampleRate,duration=samples.length/sampleRate;
+    const freshTone=tonalAttacks(samples,sampleRate,instrument);
     const frames=Math.ceil(samples.length/hop),plan=fftPlan(n),re=new Float32Array(n),im=new Float32Array(n),mag=new Float32Array(n/2);
     const pitches=new Float32Array(frames),energy=new Float32Array(frames),flux=new Float32Array(frames),confidence=new Float32Array(frames),previous=new Float32Array(n/2);
     const minHz=bass?30:85,maxHz=bass?330:1050;
@@ -646,8 +690,7 @@
       for(const attack of attacks){
         const t=attack.frame*dt;
         if(t<event.time+.10||t>end-.09)continue;
-        const before=energy[Math.max(0,attack.frame-4)],after=energy[Math.min(frames-1,attack.frame+3)];
-        if(after>before*1.5&&t-cuts[cuts.length-1]>.1)cuts.push(t);
+        if(t-cuts[cuts.length-1]>.1&&freshTone(t))cuts.push(t);
       }
       cuts.forEach((time,i)=>split.push({...event,time,duration:(cuts[i+1]??end)-time}));
     }
@@ -666,7 +709,7 @@
     const timing=tempo(flux,dt),charts=buildFocusedCharts(accepted,instrument,timing.beat,duration,energy,dt),expert=charts[instrument].expert;
     const waveform=Array.from({length:160},(_,i)=>{let value=0;for(let f=Math.floor(i*frames/160);f<Math.ceil((i+1)*frames/160)&&f<frames;f++)value=Math.max(value,energy[f]);return value;});
     const peak=Math.max(...waveform)||1;
-    return {...timing,instrument,duration,charts,chartVersion:2,waveform:waveform.map(v=>v/peak),quality:{counts:Array.from({length:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),method:bass?'Low fundamental and attack tracking':'Voiced pitch and phrase tracking'}};
+    return {...timing,instrument,duration,charts,chartVersion:3,waveform:waveform.map(v=>v/peak),quality:{evidencePolicy:'audible-attacks-v1',counts:Array.from({length:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),method:bass?'Low fundamental and attack tracking':'Voiced pitch and phrase tracking'}};
   }
   function analyze({samples,sampleRate,instrument='guitar',audioId},progress=()=>{}){
     if(!['guitar','drums','bass','vocals'].includes(instrument))throw Error('Choose Guitar, Drums, Bass or Vocals before charting.');
@@ -731,10 +774,11 @@
     for(let f=0;f<frames;f++)for(let band=0;band<3;band++){drumFlux[band][f]/=Math.max(scales[band],floor,1e-8);combined[f]+=drumFlux[band][f];}
     progress(79,'Aligning detected attacks to the audio…');const timing=tempo(combined,dt),events=[];
     if(instrument==='guitar'){
+      const freshTone=tonalAttacks(samples,sampleRate,instrument);
       for(const event of peaks(guitarFlux,dt,energy)){
         const votes=new Map();let confidence=0,tonal=0,percussive=0;
         for(let j=2;j<=7;j++){const f=Math.min(frames-1,event.frame+j),weight=hEnergy[f];votes.set(pitch[f],(votes.get(pitch[f])||0)+weight);confidence+=tonality[f];tonal+=hEnergy[f];percussive+=pEnergy[f];}
-        if(confidence/6<.17||tonal<percussive*.25||tonal<.0007)continue;
+        if(confidence/6<.17||tonal<percussive*.25||tonal<.0007||!freshTone(event.frame*dt))continue;
         const time=refineTime(samples,event.frame*dt,sampleRate),attack=Math.round(time/dt);
         const before=hEnergy[Math.max(0,attack-5)],after=hEnergy[Math.min(frames-1,attack+3)];
         let rawPeak=0;for(let j=0;j<=4;j++)rawPeak=Math.max(rawPeak,energy[Math.min(frames-1,attack+j)]);
@@ -793,7 +837,7 @@
       const masked=verifyMaskedHats(cymbals,samples,sampleRate,plan,re,im);
       const rolls=verifySnareRolls(masked,hatAttacks,samples,sampleRate,plan,re,im,noiseAttacks);
       const colors=verifyBassMaskedNoise(rolls,trebleAttacks,samples,sampleRate,plan,re,im);
-      const verified=verifyNoiseColors(colors,samples,sampleRate,plan,re,im);
+      const verified=rejectNoiseTails(verifyNoiseColors(colors,samples,sampleRate,plan,re,im),samples,sampleRate);
       const withKicks=verifyKickRepeats(verified,samples,sampleRate,plan,re,im);events.length=0;events.push(...withKicks);
     }
     events.sort((a,b)=>a.time-b.time);
@@ -803,8 +847,8 @@
     const waveform=Array.from({length:160},(_,i)=>{const a=Math.floor(i*frames/160),b=Math.max(a+1,Math.floor((i+1)*frames/160));let max=0;for(let f=a;f<b&&f<frames;f++)max=Math.max(max,energy[f]);return max;});
     const peak=Math.max(...waveform)||1;
     const expert=charts[instrument].expert;
-    const quality={counts:Array.from({length:instrument==='drums'?6:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:instrument==='drums'&&events.some(e=>e.part!==undefined)?'Adaptive kit separation':'Attack and tone analysis'};
-    return {...timing,instrument,duration,charts,quality,chartVersion:instrument==='drums'?16:4,waveform:waveform.map(v=>v/peak)};
+    const quality={evidencePolicy:'audible-attacks-v1',counts:Array.from({length:instrument==='drums'?6:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:instrument==='drums'&&events.some(e=>e.part!==undefined)?'Adaptive kit separation':'Attack and tone analysis'};
+    return {...timing,instrument,duration,charts,quality,chartVersion:instrument==='drums'?18:5,waveform:waveform.map(v=>v/peak)};
   }
   const api={analyze,buildFocusedCharts,buildMatchedCharts,filterSeparated};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;

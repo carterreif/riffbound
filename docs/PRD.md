@@ -844,3 +844,30 @@ Goal: make the current corrected Roam arrangement available through the live des
 - Require recording identity/length guards, exact backup equivalence, corrected color landmarks, scoreability, protected imports, automatic migration idempotency, desktop/mobile upload-save-reopen and offline asset checks before publishing.
 
 Accuracy limit: only the short shared opening was video-guided. The rest uses recording-specific audio estimation and bounded spectral inspection. This release does not promise every drum hit is manually verified or apply this recording-specific chart to different files.
+
+
+## Version 43 — prioritize audible notes on every upload
+
+### Product goal
+
+Reduce notes that were never played, for all newly analyzed supported recordings and all four parts: Drums, Guitar, Bass and Vocals. The same evidence rules must run in single-instrument, separate-part and Whole song upload flows; no title, filename or audio identity may enable the general correction.
+
+### Requirements
+
+- Require a fresh, rapid tonal envelope attack before adding Guitar notes or splitting a held Bass/Vocal pitch into repeated note heads. Compare the localized rise with the surrounding band's full envelope change, rather than treating spectral flux or increasing volume alone as proof. Preserve stable legato pitch changes, including gradual vocal entrances.
+- Measure each tonal instrument's frequency band independently of the percussion timing estimate. Average short-window band power using frame-sized buffers so long songs do not need a second sample-sized prefix array on mobile.
+- Recheck orange drum notes after all recovery and color passes. Collapse duplicate orange detections within a single 12 ms burst; do not apply this merge to red snare/flam strokes or to the public chart builder's distinct accepted anchors. Reject orange notes paired with a snare without sustained cymbal evidence. Recent ringing and weak flutter require stronger evidence of a new cymbal attack. Track only accepted prior cymbals so a rejected candidate cannot suppress a later true strike.
+- Do not infer a simultaneous yellow hi-hat merely from a cymbal's two-stage envelope. Require separately established short hi-hat evidence before the existing composite-attack recovery adds that voice. Retain clearly detected hats, real crash/body chords, quiet repeats and blue/green tom fills.
+- Never complete a beat grid, add notes to fill silence, or alternate fill colors for decoration. Expert is the set of accepted distinct audible events; Hard, Medium and Easy are reduced subsets with original event timing and instrument identity.
+- Keep already saved charts until an explicit rebuild, with the existing reviewed In Bloom/Roam migration rules and imported-chart protections. Audio storage, save/reopen and mobile offline behavior remain intact.
+- Tag newly generated quality metadata with evidencePolicy audible-attacks-v1; general analysis versions become Drums 18, Guitar 5, Bass/Vocals 3. Reviewed recording-specific chart versions remain unchanged. Ship game/offline package version 43.
+
+### Acceptance checks
+
+Independently synthesize held notes with 1.5, 2 and 3 Hz volume modulation for Guitar, Bass and Vocals. Require one note per labeled entrance, correct pitch, no notes in rests and onset error below 30 ms. Independently synthesize crash tails with 13, 17 and 23 Hz flutter; require all four real orange hits and zero invented colors. The preceding detector adds repeated pitched notes and duplicate or phantom metal notes in these fixtures.
+
+Existing fixtures must continue to verify actual bass/vocal re-articulations, vocal legato and vibrato, interleaved guitar/drum recordings, fast snare rolls, rack/floor tom fills, quiet hats and genuine simultaneous cymbal/body hits. Verify difficulty subsets, reviewed reference protection, whole-song/desktop/mobile upload-save-reopen flows, and offline updates before publication.
+
+Accuracy limit: these are audio-evidence heuristics, not exact source separation or a promise of every note in every mix. Conservative rejection can omit ambiguous quiet attacks. Authored chart import remains the path for an exact arrangement; generated charts need previewing.
+
+Validation: the broad 240-check run passed 236 tests, skipped three optional full-WAV Roam cases and hit one stale version-42 offline assertion. Updating that assertion for version 43 and running all 11 Roam checks with the supplied original WAV passed without failures or skips, covering the skipped scenarios and corrected assertion. All note-detection, new false-note fixtures, whole-song analysis, mobile/desktop upload, save/reopen, difficulty, reference, storage and update checks are covered across those runs. Runtime syntax and whitespace checks passed. UI/storage adapters are automated simulations, not physical-phone testing. In the four-note 2 Hz held-tone fixture, the previous Guitar, Bass and Vocal detectors each generated 24 notes; the final code generates four each.

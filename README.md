@@ -1,12 +1,18 @@
 # Riffbound
 
-Browser rhythm game, version 42. Play Guitar, Bass, Drums or pitch-pad Vocals with automatic charting and Easy, Medium, Hard and Expert arrangements.
+Browser rhythm game, version 43. Play Guitar, Bass, Drums or pitch-pad Vocals with automatic charting and Easy, Medium, Hard and Expert arrangements.
 
 [Play Riffbound](https://riffbound.aaronreifschneider.chatgpt.site)
 
 Expert keeps every distinct note accepted by the audio analysis. Hard, Medium and Easy progressively reduce that chart while preserving retained timing and drum colors. The preview shows the note totals for all four difficulties. Exact duplicate detections of one physical hit are merged; quiet or closely spaced independent hits remain in Expert.
 
 The matched In Bloom drum chart includes score-and-audio reviews for Expert and Hard: separate same-color flam strokes, open hi-hat overlaps, removal of two yellow kick-click artifacts, and 36 additional hi-hats guided by supplied video screenshots. Easy and Medium retain their previous arrangements.
+
+## Follow audible notes on every upload
+
+New Guitar, Bass and Vocal charts distinguish a sharp re-articulation from a held note growing louder. Smooth volume modulation no longer creates repeated note heads. Genuine attacks and stable legato pitch changes still supply notes; no rhythm-grid completion or loudness-based chord generation is used. Drum analysis rechecks recovered orange notes to remove duplicated cymbal detections, snare-wire artifacts and weak fluttering tails. A cymbal decay alone cannot introduce a second hi-hat without separate hi-hat evidence in the recording.
+
+These checks run for any supported recording, including each instrument in Whole song mode. For a previously saved automatic chart, choose its instrument and **Rebuild this instrument’s chart** to use the current detector. Matched reviewed charts and authored imports keep their existing protections. Difficulties reduce accepted Expert notes without adding hits or moving their timing. Preview generated charts: overlapping instruments and very quiet notes can still produce errors.
 
 ## Drum colors on new uploads
 

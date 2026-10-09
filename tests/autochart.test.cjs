@@ -31,7 +31,7 @@ test('audio-derived notes follow measured attacks and leave silence empty',()=>{
   assert.equal(notes.filter(n=>n.time>10.3&&n.time<12.9).length,0);
   assert.ok(new Set(notes.map(n=>n.lane)).size>=4);
   const shifted=analyze(recording(.137));
-  assert.ok(Math.abs(shifted.charts.guitar.normal[0].time-result.charts.guitar.normal[0].time-.137)<.025);
+  assert.ok(Math.abs(shifted.charts.guitar.expert[0].time-result.charts.guitar.expert[0].time-.137)<.025);
 });
 
 test('all instrument/difficulty charts are playable and immutable across replays',()=>{
