@@ -50,7 +50,34 @@ function setup({mobile=false,chartFixture=null,chartResultExtras={},chartFailure
   return {updateSafety:window.RiffUpdateSafety,resumeStorage,nodes,radios,frets,smalls,sources,writes,requests,requestIds,savedSongs,runCalibrationTimer:()=>calibrationTimer?.(),body:document.body,lines,key,resize:()=>resize(),get decodes(){return decodes;},upload,tick,get audio(){return audio;},defer:()=>{deferDecode={};return deferDecode;},clearDefer:()=>{deferDecode=null;}};
 }
 const settle=()=>new Promise(resolve=>setImmediate(resolve));
-async function until(predicate){for(let i=0;i<100;i++){if(predicate())return;await settle();}assert.fail('UI did not reach its expected state');}
+async function until(predicate){
+  // Crypto/file jobs need elapsed time, not a fixed number of immediate polls.
+  // Yield to their completion under suite load while keeping a bounded failure.
+  const deadline=Date.now()+5000;let polls=0;
+  do{
+    if(predicate())return;
+    await settle();
+    if(++polls%100===0)await new Promise(resolve=>setTimeout(resolve,1));
+  }while(Date.now()<deadline);
+  assert.fail('UI did not reach its expected state');
+}
+
+for(const [instrument,index] of [['guitar',0],['bass',2],['vocals',3]])test(`mobile ${instrument} upload keeps rare pitch colors through save, reopen and rebuild`,async()=>{
+  const f=require('./fixtures/pitch-colors.cjs').fixture(instrument,{uneven:true}),storage=require('./helpers/song-storage.cjs').storage({rejectBlobs:true});
+  const app=setup({mobile:true,audioSamples:f.samples,libraryOverrides:storage.library});
+  await app.radios.instrument[index].emit('change');await app.radios.difficulty[3].emit('change');await app.upload(`Rare ${instrument}.wav`);
+  await until(()=>app.nodes.saveStatus.textContent.includes('Added to your setlist'));
+  const id=(await storage.library.list())[0].id,record=await storage.library.get(id);
+  assert.deepEqual(Array.from(record.charts[instrument].expert,n=>({pitch:n.pitch,lane:n.lane})),f.expected.map(({pitch,lane})=>({pitch,lane})));
+  assert.equal(record.quality.audioReviews[instrument].colorPolicy,'distinct-audio-pitches-v1');
+  const fresh=setup({mobile:true,audioSamples:f.samples,libraryOverrides:storage.fresh()});
+  await until(()=>fresh.nodes.setlistEntries.children.length===2);await fresh.nodes.setlistEntries.children[1].click();
+  await fresh.radios.difficulty[3].emit('change');assert.deepEqual(fresh.requests,[]);
+  const reopened=await storage.library.get(id);assert.deepEqual(reopened.charts,record.charts);assert.deepEqual(reopened.quality.audioReviews,record.quality.audioReviews);
+  await fresh.nodes.rechartButton.click();await until(()=>fresh.nodes.saveStatus.textContent.includes('Added to your setlist'));
+  assert.deepEqual(fresh.requests,[instrument]);
+  const rebuilt=await storage.library.get(id);assert.deepEqual(rebuilt.charts,record.charts);assert.deepEqual(rebuilt.quality.audioReviews,record.quality.audioReviews);
+});
 
 test('mobile upload and explicit rebuild keep open hats yellow and persist the timbre review',async()=>{
   const f=require('./fixtures/open-hat-identity.cjs').fixture(),storage=require('./helpers/song-storage.cjs').storage({rejectBlobs:true});

@@ -12,6 +12,7 @@ function demoKit(){
 function mix(samples,sound,time,gain=1){for(let i=0;i<sound.length;i++)samples[Math.round(time*sampleRate)+i]+=sound[i]*gain;}
 function assertHits(result,expected){
   const notes=result.charts.drums.expert;
+  assert.equal(result.quality.audioReviews.drums.colorPolicy,'fixed-drum-voices-v1');
   assert.equal(notes.length,expected.reduce((n,e)=>n+e.lanes.length,0),'No extra notes from ringing tails or broadband attacks');
   for(const hit of expected){
     const actual=notes.filter(n=>Math.abs(n.time-hit.time)<.035).map(n=>n.lane).sort();

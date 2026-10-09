@@ -929,8 +929,17 @@
       if(!previous||(event.strength||0)>(previous.strength||0))measured.set(key,event);
     }
     events=[...measured.values()].sort((a,b)=>a.time-b.time);
-    const charts={},low=percentile(events.map(e=>e.pitch||0),.05),high=percentile(events.map(e=>e.pitch||0),.95);
-    const laneFor=pitch=>Math.round(clamp((pitch-low)/Math.max(4,high-low),0,1)*4);
+    // Assign colors from distinct accepted pitches, not the frequency of their
+    // repetitions. A rare low/high note must not be clipped to a common note's
+    // color. Up to five pitches fit individually; wider melodies share pads
+    // in pitch order across their full measured range. Never add note heads
+    // merely to populate unused colors.
+    const charts={},pitches=[...new Set(events.map(e=>e.pitch).filter(Number.isFinite))].sort((a,b)=>a-b);
+    const low=pitches[0],high=pitches[pitches.length-1];
+    const colors=new Map(pitches.map((pitch,i)=>[pitch,pitches.length<=5?
+      Math.round(i*4/Math.max(1,pitches.length-1)):
+      Math.round((pitch-low)*4/(high-low))]));
+    const laneFor=pitch=>colors.get(pitch);
     // Build Expert first. The hidden normal key only supports older backups;
     // all three playable lower difficulties are derived from Expert below.
     for(const difficulty of ['expert','normal']){
@@ -951,6 +960,11 @@
       charts[difficulty]=notes.sort((a,b)=>a.time-b.time||a.lane-b.lane).map((note,id)=>({...note,id,bar:Math.floor(note.time/beat/4)}));
     }
     return {[instrument]:{...charts,...Difficulties.build(charts.expert,instrument,beat)}};
+  }
+  function colorEvidence(notes,instrument){
+    if(instrument==='drums')return {colorPolicy:'fixed-drum-voices-v1'};
+    const pitches=new Map(notes.map(n=>[n.pitch,n.lane]));
+    return {colorPolicy:'distinct-audio-pitches-v1',pitchColors:[...pitches].sort((a,b)=>a[0]-b[0]).map(([pitch,lane])=>({pitch,lane}))};
   }
   function buildMatchedCharts(reference,duration){
     if(reference.exactTiming){
@@ -1053,7 +1067,7 @@
     const timing=tempo(flux,dt),charts=buildFocusedCharts(accepted,instrument,timing.beat,duration,energy,dt),expert=charts[instrument].expert;
     const waveform=Array.from({length:160},(_,i)=>{let value=0;for(let f=Math.floor(i*frames/160);f<Math.ceil((i+1)*frames/160)&&f<frames;f++)value=Math.max(value,energy[f]);return value;});
     const peak=Math.max(...waveform)||1;
-    return {...timing,instrument,duration,charts,chartVersion:5,waveform:waveform.map(v=>v/peak),quality:{audioReviews:{[instrument]:{policy:'audible-attacks-v2',checked:true,recovered:0}},ghostEvidencePolicy:'relative-attack-dynamics-v1',ghostHits:expert.filter(n=>n.ghost).length,evidencePolicy:'audible-attacks-v2',counts:Array.from({length:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),method:bass?'Low fundamental and attack tracking':'Voiced pitch and phrase tracking'}};
+    return {...timing,instrument,duration,charts,chartVersion:6,waveform:waveform.map(v=>v/peak),quality:{audioReviews:{[instrument]:{policy:'audible-attacks-v2',checked:true,recovered:0,...colorEvidence(expert,instrument)}},ghostEvidencePolicy:'relative-attack-dynamics-v1',ghostHits:expert.filter(n=>n.ghost).length,evidencePolicy:'audible-attacks-v2',counts:Array.from({length:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),method:bass?'Low fundamental and attack tracking':'Voiced pitch and phrase tracking'}};
   }
   function analyze({samples,sampleRate,instrument='guitar',audioId},progress=()=>{}){
     if(!['guitar','drums','bass','vocals'].includes(instrument))throw Error('Choose Guitar, Drums, Bass or Vocals before charting.');
@@ -1067,7 +1081,7 @@
       const charts=buildMatchedCharts(reference,duration);
       const expert=charts.drums.expert;
       return {instrument,duration,bpm:reference.bpm,beat:reference.beat,offset:reference.offset,...(reference.exactTiming?{}:{confidence:.7028361194449136}),charts,waveform:reference.waveform,chartVersion:reference.chartVersion||15,
-        quality:{audioReviews:{drums:{policy:'reviewed-audio-identity-v1',checked:true,recovered:0}},preserveEasyMedium:reference.preserveEasyMedium!==false,scoreRevision:reference.revision,...(reference.scoreReference?{scoreReference:reference.scoreReference}:{}),scoreReview:reference.review||'In Bloom notation review: Expert and Hard updated; Easy and Medium retained.',counts:Array.from({length:6},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:reference.label,sources:{drums:reference.label}}};
+        quality:{audioReviews:{drums:{policy:'reviewed-audio-identity-v1',checked:true,recovered:0,...colorEvidence(expert,'drums')}},preserveEasyMedium:reference.preserveEasyMedium!==false,scoreRevision:reference.revision,...(reference.scoreReference?{scoreReference:reference.scoreReference}:{}),scoreReview:reference.review||'In Bloom notation review: Expert and Hard updated; Easy and Medium retained.',counts:Array.from({length:6},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:reference.label,sources:{drums:reference.label}}};
     }
     const n=2048,hop=256,dt=hop/sampleRate,frames=Math.ceil(samples.length/hop),bins=Math.min(n/2,Math.floor(10000*n/sampleRate));
     const plan=fftPlan(n),re=new Float32Array(n),im=new Float32Array(n),rows=Array.from({length:17},()=>new Float32Array(bins));
@@ -1230,8 +1244,8 @@
     const waveform=Array.from({length:160},(_,i)=>{const a=Math.floor(i*frames/160),b=Math.max(a+1,Math.floor((i+1)*frames/160));let max=0;for(let f=a;f<b&&f<frames;f++)max=Math.max(max,energy[f]);return max;});
     const peak=Math.max(...waveform)||1;
     const expert=charts[instrument].expert;
-    const quality={audioReviews:{[instrument]:{policy:instrument==='drums'?'ring-residual-v1':'audible-attacks-v2',checked:true,recovered,...(instrument==='drums'?{metalIdentityPolicy:'attack-release-timbre-v2',metalCorrections}:{})}},ghostEvidencePolicy:'relative-attack-dynamics-v1',ghostHits:expert.filter(n=>n.ghost).length,evidencePolicy:'audible-attacks-v2',...(instrument==='drums'?{tomEvidencePolicy:'measured-resonance-v1'}:{}),counts:Array.from({length:instrument==='drums'?6:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:instrument==='drums'&&events.some(e=>e.part!==undefined)?'Adaptive kit separation':'Attack and tone analysis'};
-    return {...timing,instrument,duration,charts,quality,chartVersion:instrument==='drums'?24:7,waveform:waveform.map(v=>v/peak)};
+    const quality={audioReviews:{[instrument]:{policy:instrument==='drums'?'ring-residual-v1':'audible-attacks-v2',checked:true,recovered,...colorEvidence(expert,instrument),...(instrument==='drums'?{metalIdentityPolicy:'attack-release-timbre-v2',metalCorrections}:{})}},ghostEvidencePolicy:'relative-attack-dynamics-v1',ghostHits:expert.filter(n=>n.ghost).length,evidencePolicy:'audible-attacks-v2',...(instrument==='drums'?{tomEvidencePolicy:'measured-resonance-v1'}:{}),counts:Array.from({length:instrument==='drums'?6:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:instrument==='drums'&&events.some(e=>e.part!==undefined)?'Adaptive kit separation':'Attack and tone analysis'};
+    return {...timing,instrument,duration,charts,quality,chartVersion:instrument==='drums'?24:8,waveform:waveform.map(v=>v/peak)};
   }
   const api={analyze,buildFocusedCharts,buildMatchedCharts,filterSeparated};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
