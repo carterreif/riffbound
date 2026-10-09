@@ -16,6 +16,7 @@
   let setlistSongs=[],setlistGeneration=0,setlistError='';
   let pendingSaves=0,reconnectingAudio=false,savedSong=null,saveSerial=0,importingBackup=false;
   let chartDraft=null,chartReviewGeneration=0;
+  let backupExport=null,backupSaving=false;
   let timingOffset=0,highwaySpeed=1;
   try{const saved=JSON.parse(localStorage.getItem('riffbound-preferences-v1')||'{}');timingOffset=Math.max(-250,Math.min(250,Number(saved.timingOffset)||0));highwaySpeed=Math.max(.7,Math.min(1.6,Number(saved.highwaySpeed)||1));}catch{}
   const countNodes=[];
@@ -396,8 +397,38 @@
   }
   function exportSong(record=song){
     if(!record)throw Error('Open a song before exporting.');
-    const url=URL.createObjectURL(Library.pack({...record,instrument:record===song?instrument:record.instrument})),link=document.createElement('a');link.href=url;link.download=(record.title.replace(/[^a-z0-9 _-]/gi,'').slice(0,80)||'Riffbound song')+'.riffpack';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
-    $('libraryStatus').textContent='Backup exported with its audio and charts.';
+    if(backupSaving)return;
+    const blob=Library.pack({...record,instrument:record===song?instrument:record.instrument});
+    const name=(record.title.replace(/[^a-z0-9 _-]/gi,'').slice(0,80)||'Riffbound song')+'.riffpack';
+    const url=URL.createObjectURL(blob);
+    if(backupExport)URL.revokeObjectURL(backupExport.url);
+    backupExport={blob,name,url};
+    const link=$('backupDownload');link.href=url;link.download=name;link.textContent='Download backup';
+    $('backupFileInfo').textContent=`${name} · ${(blob.size/1024/1024).toFixed(1)} MB · Audio and all chart difficulties`;
+    $('backupSaveAs').hidden=typeof window.showSaveFilePicker!=='function';
+    $('backupStatus').textContent='Backup ready. Choose where to save it below.';
+    $('libraryStatus').textContent='Backup ready. Save it in the Export backup panel.';
+    openTool('backupDialog');
+    // Invoke the picker in the original click turn. A saved-row export may
+    // have awaited storage; the visible buttons provide a fresh user gesture.
+    if(typeof window.showSaveFilePicker==='function')return saveBackupAs();
+    link.click();
+  }
+  async function saveBackupAs(){
+    if(!backupExport||backupSaving)return;
+    const prepared=backupExport;let writable=null;
+    backupSaving=true;$('backupSaveAs').disabled=true;
+    try{
+      const handle=await window.showSaveFilePicker({suggestedName:prepared.name,types:[{description:'Riffbound song backup',accept:{'application/octet-stream':['.riffpack']}}]});
+      $('backupStatus').textContent='Saving your audio and charts…';
+      writable=await handle.createWritable();await writable.write(prepared.blob);await writable.close();writable=null;
+      const message=`Backup saved: ${handle.name||prepared.name}. Keep this .riffpack file to restore your song or move it to another device.`;
+      $('backupStatus').textContent=message;$('libraryStatus').textContent=message;
+    }catch(error){
+      if(writable)try{await writable.abort();}catch{}
+      const message=error.name==='AbortError'?'Save canceled. Your backup is still ready; choose Download backup or Save backup as… to try again.':'The browser could not save the backup. Try Download backup below. If nothing downloads, open the game in a new tab and export again.';
+      $('backupStatus').textContent=message;$('libraryStatus').textContent=message;
+    }finally{backupSaving=false;$('backupSaveAs').disabled=false;}
   }
   function downloadChartFile(blob,name){
     const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=name;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
@@ -535,7 +566,7 @@
   $('confirmAddSong').addEventListener('click',addSongFromDialog);
   $('setlistCancelUpload').addEventListener('click',cancelUpload);
   $('setlistRetrySave').addEventListener('click',()=>{if(!busy()&&!pendingSaves)return saveSong();});
-  $('setlistExportBackup').addEventListener('click',()=>{try{exportSong();}catch(error){setSetlistMessage(error.message,true);}});
+  $('setlistExportBackup').addEventListener('click',()=>{try{return exportSong();}catch(error){setSetlistMessage(error.message,true);}});
   $('libraryButton').addEventListener('click',()=>{openTool('libraryDialog');refreshLibrary();refreshSetlist();});
   $('setlistSearch').addEventListener('input',renderSetlist);
   window.addEventListener('focus',()=>{if(!active())refreshSetlist();});
@@ -543,7 +574,13 @@
   for(const [id,target] of PARTS.map(part=>['libraryUpload'+partName(part),part]))$(id).addEventListener('click',()=>{if(song||active())return;$('chartScope').value='single';chooseInstrument(target);$('libraryDialog').close();$('songFile').click();});
   $('reconnectAudioButton').addEventListener('click',()=>{$('reconnectAudioFile').click();});
   $('reconnectAudioFile').addEventListener('change',()=>reconnectOriginalAudio($('reconnectAudioFile').files[0]));
-  $('exportCurrentButton').addEventListener('click',()=>{try{exportSong();}catch(error){$('libraryStatus').textContent=error.message;}});
+  $('exportCurrentButton').addEventListener('click',()=>{try{return exportSong();}catch(error){$('libraryStatus').textContent=error.message;}});
+  $('backupSaveAs').addEventListener('click',saveBackupAs);
+  $('backupDownload').addEventListener('click',()=>{
+    const message='Download requested. Check your browser’s Downloads list. If no file appears, use Save backup as… or open the game in a new tab and export again.';
+    $('backupStatus').textContent=message;$('libraryStatus').textContent=message;
+  });
+  window.addEventListener('pagehide',event=>{if(!event.persisted&&backupExport)URL.revokeObjectURL(backupExport.url);});
   $('importBackupButton').addEventListener('click',()=>{$('backupFile').click();});
   $('backupFile').addEventListener('change',()=>importBackup($('backupFile').files[0]));
   $('chartFilesButton').addEventListener('click',()=>{$('chartAudioMode').value=song?'current':'file';openTool('chartFilesDialog');refreshChartFiles();});
@@ -890,8 +927,8 @@
   const resumeKey='riffbound-update-resume-v1';
   window.RiffUpdateSafety={
     canReload(manual=false){
-      const dialogs=['libraryDialog','addSongDialog','chartFilesDialog','practiceDialog','timingDialog','helpDialog','resultDialog',...(manual?[]:['offlineDialog'])];
-      return !active()&&!previewing&&!calibrationTest&&!pendingSaves&&!importingBackup&&(!song||song===savedSong)&&!dialogs.some(id=>$(id).open);
+      const dialogs=['libraryDialog','backupDialog','addSongDialog','chartFilesDialog','practiceDialog','timingDialog','helpDialog','resultDialog',...(manual?[]:['offlineDialog'])];
+      return !active()&&!previewing&&!calibrationTest&&!pendingSaves&&!importingBackup&&!backupSaving&&(!song||song===savedSong)&&!dialogs.some(id=>$(id).open);
     },
     prepareReload(manual=false){
       if(!this.canReload(manual))return false;

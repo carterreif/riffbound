@@ -4,7 +4,7 @@ const E=require('../dist/engine.js');
 const html=fs.readFileSync(require.resolve('../dist/index.html'),'utf8');
 const game=fs.readFileSync(require.resolve('../dist/game.js'),'utf8');
 const workerCode=fs.readFileSync(require.resolve('../dist/autochart.js'),'utf8');
-function setup({mobile=false,chartFixture=null,chartResultExtras={},chartFailures={},preferences={},savedSongs=new Map(),storageFailure=false,libraryOverrides={},audioSamples=null,uploadBytes=null,resumeStorage=new Map()}={}){
+function setup({mobile=false,chartFixture=null,chartResultExtras={},chartFailures={},preferences={},savedSongs=new Map(),storageFailure=false,libraryOverrides={},audioSamples=null,uploadBytes=null,resumeStorage=new Map(),browserOverrides={},urlApi=URL}={}){
   const lines=[],noop=()=>{},gradient={addColorStop:noop},context=new Proxy({createLinearGradient:()=>gradient,createRadialGradient:()=>gradient,lineTo:(x,y)=>lines.push([x,y])},{get:(o,k)=>o[k]??noop});
   class Element{
     constructor(id=''){this.id=id;this.listeners={};this.style={setProperty:noop};this.dataset={};this.value='';this.textContent='';this.innerHTML='';this.open=false;this.disabled=false;this.hidden=false;this.children=[];this.classes=new Set();this.classList={add:(...v)=>v.forEach(s=>this.classes.add(s)),remove:(...v)=>v.forEach(s=>this.classes.delete(s)),contains:s=>this.classes.has(s),toggle:(s,on)=>{if(on??!this.classes.has(s))this.classes.add(s);else this.classes.delete(s);}};}
@@ -39,10 +39,10 @@ function setup({mobile=false,chartFixture=null,chartResultExtras={},chartFailure
     postMessage(data){requests.push(data.instrument);requestIds.push(data.audioId);setImmediate(()=>{if(this.dead)return;if(chartFailures[data.instrument]){this.onmessage({data:{type:'error',message:chartFailures[data.instrument]}});return;}const fixture=typeof chartFixture==='function'?chartFixture(data.instrument):chartFixture;if(chartFixture)this.onmessage({data:{type:'complete',result:{...(typeof chartResultExtras==='function'?chartResultExtras(data.instrument):chartResultExtras),charts:{[data.instrument]:Array.isArray(fixture)?{easy:fixture,normal:fixture,expert:fixture}:fixture},waveform:[0,.5,1,.5],bpm:120,beat:.5}}});else this.sandbox.onmessage({data});});}terminate(){this.dead=true;}
   }
   const libraryCode=require('../dist/song-library.js'),library={...libraryCode,list:async()=>[...savedSongs.values()],get:async id=>savedSongs.get(id),save:async song=>{if(storageFailure)throw Error('Quota exceeded');savedSongs.set(song.id,{...libraryCode.metadata(song),audioBlob:song.audioBlob});},remove:async id=>savedSongs.delete(id),...libraryOverrides};
-  const window={RiffReferenceUpdates:require('../dist/reference-updates.js'),RiffEngine:E,RiffChartExchange:require('../dist/chart-exchange.js'),RiffPlayback:require('../dist/playback-tools.js'),RiffLibrary:library,RiffMotion:require('../dist/performance-motion.js'),RiffAudioClock:require('../dist/audio-clock.js'),RiffStage:{create:()=>({resize:noop,draw:noop})},AudioContext,OfflineAudioContext,Worker,matchMedia:q=>({matches:mobile&&!q.includes('reduced-motion')}),devicePixelRatio:1,addEventListener:noop};
+  const window={RiffReferenceUpdates:require('../dist/reference-updates.js'),RiffEngine:E,RiffChartExchange:require('../dist/chart-exchange.js'),RiffPlayback:require('../dist/playback-tools.js'),RiffLibrary:library,RiffMotion:require('../dist/performance-motion.js'),RiffAudioClock:require('../dist/audio-clock.js'),RiffStage:{create:()=>({resize:noop,draw:noop})},AudioContext,OfflineAudioContext,Worker,matchMedia:q=>({matches:mobile&&!q.includes('reduced-motion')}),devicePixelRatio:1,addEventListener:noop,...browserOverrides};
   let resize=()=>{};
   let calibrationTimer=null;
-  const sandbox={window,document,sessionStorage:{getItem:key=>resumeStorage.get(key)||null,setItem:(key,value)=>resumeStorage.set(key,value),removeItem:key=>resumeStorage.delete(key)},Worker,Blob,URL,TextEncoder,performance:{now:()=>(audio?.currentTime||0)*1000},crypto:webcrypto,Float32Array,Uint8Array,HTMLInputElement:Input,HTMLButtonElement:Button,ResizeObserver:class{constructor(fn){resize=fn;}observe(){}},getComputedStyle:()=>({height:'58px',columnGap:'4px'}),localStorage:{getItem:key=>key==='riffbound-preferences-v1'?JSON.stringify(preferences):null,setItem:(...args)=>writes.push(args)},requestAnimationFrame:fn=>{raf=fn;},setTimeout:(fn,delay)=>{if(delay===6750){calibrationTimer=fn;return -1;}return setTimeout(fn,delay);},clearTimeout};
+  const sandbox={window,document,sessionStorage:{getItem:key=>resumeStorage.get(key)||null,setItem:(key,value)=>resumeStorage.set(key,value),removeItem:key=>resumeStorage.delete(key)},Worker,Blob,URL:urlApi,TextEncoder,performance:{now:()=>(audio?.currentTime||0)*1000},crypto:webcrypto,Float32Array,Uint8Array,HTMLInputElement:Input,HTMLButtonElement:Button,ResizeObserver:class{constructor(fn){resize=fn;}observe(){}},getComputedStyle:()=>({height:'58px',columnGap:'4px'}),localStorage:{getItem:key=>key==='riffbound-preferences-v1'?JSON.stringify(preferences):null,setItem:(...args)=>writes.push(args)},requestAnimationFrame:fn=>{raf=fn;},setTimeout:(fn,delay)=>{if(delay===6750){calibrationTimer=fn;return -1;}return setTimeout(fn,delay);},clearTimeout};
   vm.createContext(sandbox);vm.runInContext(game,sandbox);
   const upload=async(name='My original.wav',flag=1)=>{nodes.songFile.files=[{name,size:uploadBytes?.length||100,arrayBuffer:async()=>new Uint8Array(uploadBytes||[flag,1,2,3]).buffer}];await nodes.songFile.emit('change');};
   const tick=t=>{audio.currentTime=t;raf(t*1000);};
@@ -61,6 +61,69 @@ async function until(predicate){
   }while(Date.now()<deadline);
   assert.fail('UI did not reach its expected state');
 }
+
+function backupUrls(){
+  const blobs=new Map(),revoked=[];let serial=0;
+  return {blobs,revoked,api:{createObjectURL:blob=>{const url=`blob:backup-${++serial}`;blobs.set(url,blob);return url;},revokeObjectURL:url=>{revoked.push(url);blobs.delete(url);}}};
+}
+async function backupApp(options={}){
+  const urls=backupUrls(),app=setup({chartFixture:[{lane:0,time:1,duration:0},{lane:2,time:2,duration:0}],urlApi:urls.api,...options});
+  await app.upload('Franticmetdrumsonly.wav');await until(()=>app.nodes.saveStatus.textContent.includes('Added to your setlist')&&!app.nodes.saveCurrentButton.disabled);return {app,urls,n:app.nodes};
+}
+test('backup export: blocked automatic download leaves a usable link with exact audio and charts',async()=>{
+  const {app,urls,n}=await backupApp();await n.exportCurrentButton.click();
+  assert.equal(n.backupDialog.open,true);assert.equal(n.backupDownload.download,'Franticmetdrumsonly.riffpack');assert.equal(n.backupDownload.clicked,true);
+  assert.equal(n.backupSaveAs.hidden,true);assert.match(n.backupStatus.textContent,/Download requested/);
+  assert.doesNotMatch(n.libraryStatus.textContent,/Backup exported|Backup saved/);assert.deepEqual(urls.revoked,[]);
+  const L=require('../dist/song-library.js'),restored=await L.unpack(urls.blobs.get(n.backupDownload.href)),saved=[...app.savedSongs.values()][0];
+  assert.deepEqual(restored.charts,L.validate(saved).charts);assert.deepEqual(Buffer.from(await restored.audioBlob.arrayBuffer()),Buffer.from(await saved.audioBlob.arrayBuffer()));
+  n.backupDialog.close();assert.equal(urls.blobs.has(n.backupDownload.href),true,'Closing the panel must not invalidate a download in progress');
+  await n.backupDownload.click();assert.equal(urls.blobs.has(n.backupDownload.href),true,'The fallback can be clicked again');
+});
+test('backup export: Save as opens in the click turn and confirms only after the file closes',async()=>{
+  let picked=false,written=null,finish;const closed=new Promise(resolve=>finish=resolve);
+  const {app,urls,n}=await backupApp({browserOverrides:{showSaveFilePicker:options=>{picked=true;assert.equal(options.suggestedName,'Franticmetdrumsonly.riffpack');return Promise.resolve({name:'My drums.riffpack',createWritable:async()=>({write:async blob=>{written=blob;},close:()=>closed})});}}});
+  const pending=n.exportCurrentButton.click();assert.equal(picked,true,'Picker is invoked before yielding user activation');
+  await until(()=>written!==null);assert.equal(n.backupSaveAs.disabled,true);assert.match(n.backupStatus.textContent,/Saving/);assert.doesNotMatch(n.libraryStatus.textContent,/Backup saved/);
+  n.backupDialog.close();n.libraryDialog.close();assert.equal(app.updateSafety.canReload(),false,'Update cannot interrupt a file write');
+  finish();await pending;assert.match(n.backupStatus.textContent,/Backup saved: My drums.riffpack/);assert.equal(n.backupSaveAs.disabled,false);
+  assert.equal(written,urls.blobs.get(n.backupDownload.href));assert.equal(app.savedSongs.size,1);
+});
+test('backup export: canceling Save as keeps the backup ready for a fresh click',async()=>{
+  let attempts=0,written;
+  const {urls,n}=await backupApp({browserOverrides:{showSaveFilePicker:async()=>{if(++attempts===1)throw Object.assign(Error('Canceled'),{name:'AbortError'});return {createWritable:async()=>({write:async blob=>written=blob,close:async()=>{}})};}}});
+  await n.exportCurrentButton.click();assert.match(n.backupStatus.textContent,/Save canceled/);assert.doesNotMatch(n.libraryStatus.textContent,/Backup saved|Backup exported/);
+  assert.equal(urls.blobs.has(n.backupDownload.href),true);await n.backupSaveAs.click();assert.match(n.backupStatus.textContent,/Backup saved/);assert.equal(written,urls.blobs.get(n.backupDownload.href));
+});
+test('backup export: denied picker and write failure show recovery without losing the setlist',async()=>{
+  let attempts=0,aborted=false;
+  const {app,urls,n}=await backupApp({browserOverrides:{showSaveFilePicker:async()=>{if(++attempts===1)throw Object.assign(Error('Blocked'),{name:'SecurityError'});return {createWritable:async()=>({write:async()=>{throw Error('Disk full');},close:async()=>assert.fail('Failed write cannot be confirmed'),abort:async()=>{aborted=true;}})};}}});
+  await n.exportCurrentButton.click();assert.match(n.backupStatus.textContent,/could not save.*Download backup/);assert.equal(urls.blobs.has(n.backupDownload.href),true);
+  await n.backupSaveAs.click();assert.equal(aborted,true);assert.doesNotMatch(n.backupStatus.textContent,/Backup saved|Backup exported/);assert.equal(app.savedSongs.size,1);assert.equal(n.backupSaveAs.disabled,false);
+  await n.backupDownload.click();assert.match(n.backupStatus.textContent,/Download requested/);
+});
+test('backup export: saved-row and setlist-recovery exports expose the same durable fallback',async()=>{
+  const {app,urls,n}=await backupApp();await n.libraryButton.click();await until(()=>n.songList.children.length===1);
+  const row=n.songList.children[0],exportButton=row.children[2].children[1];await exportButton.click();
+  const first=n.backupDownload.href;assert.equal(urls.blobs.has(first),true);assert.equal(n.backupDialog.open,true);
+  n.backupDialog.close();n.libraryDialog.close();await n.setlistExportBackup.click();
+  assert.notEqual(n.backupDownload.href,first);assert.deepEqual(urls.revoked,[first]);assert.equal(urls.blobs.size,1);assert.match(n.backupStatus.textContent,/Download requested/);assert.equal(app.savedSongs.size,1);
+});
+test('backup export: a saved-row picker blocked after storage read can be retried with a fresh click',async()=>{
+  let attempts=0,written;
+  const {urls,n}=await backupApp({browserOverrides:{showSaveFilePicker:async()=>{if(++attempts===1)throw Object.assign(Error('No user activation'),{name:'NotAllowedError'});return {createWritable:async()=>({write:async blob=>written=blob,close:async()=>{}})};}}});
+  await n.libraryButton.click();await until(()=>n.songList.children.length===1);await n.songList.children[0].children[2].children[1].click();assert.match(n.backupStatus.textContent,/could not save/);
+  await n.backupSaveAs.click();assert.match(n.backupStatus.textContent,/Backup saved/);assert.equal(written,urls.blobs.get(n.backupDownload.href));
+});
+test('backup export: original large WAV reaches the fallback with every audio byte preserved',{skip:!process.env.RIFFBOUND_EXPORT_WAV},async t=>{
+  const bytes=fs.readFileSync(process.env.RIFFBOUND_EXPORT_WAV),{app,urls,n}=await backupApp({uploadBytes:bytes});
+  await n.exportCurrentButton.click();const restored=await require('../dist/song-library.js').unpack(urls.blobs.get(n.backupDownload.href));
+  const digest=value=>require('node:crypto').createHash('sha256').update(value).digest('hex');
+  assert.equal(restored.audioBlob.size,bytes.length);assert.equal(digest(Buffer.from(await restored.audioBlob.arrayBuffer())),digest(bytes));
+  assert.deepEqual(restored.charts,require('../dist/song-library.js').validate([...app.savedSongs.values()][0]).charts);
+  assert.match(n.backupStatus.textContent,/Download requested/);assert.doesNotMatch(n.backupStatus.textContent,/Backup saved/);
+  t.diagnostic(`${bytes.length} original audio bytes survive the UI backup export; file delivery still depends on browser permissions.`);
+});
 
 for(const [instrument,index] of [['guitar',0],['bass',2],['vocals',3]])test(`mobile ${instrument} upload keeps rare pitch colors through save, reopen and rebuild`,async()=>{
   const f=require('./fixtures/pitch-colors.cjs').fixture(instrument,{uneven:true}),storage=require('./helpers/song-storage.cjs').storage({rejectBlobs:true});

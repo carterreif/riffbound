@@ -1057,3 +1057,25 @@ Version 49 merged the second rare pitch into the first color in these recordings
 Five pads cannot assign a unique color to every pitch of a wider melody, and automatic analysis of a full mix can still misidentify a pitch or masked instrument. This mapping fix cannot recover completely buried notes or turn uncertain audio into a perfect transcription. Preserve those detection limits and require preview review. Mobile verification uses automated audio/DOM/storage adapters rather than a physical phone.
 
 Validation: all 13 new tonal color, repetition-invariance, backup and mobile save/reopen/rebuild scenarios passed. The initial focused 56-case color, tonal, named-drum, rapid-note and no-extra-attack checks passed. The broad 382-case run passed 369 with 12 optional private-media skips and one cancellation-test polling timeout. A subsequent 74-case upload run, including the original In Bloom recording, passed 73 and exposed a test wait that missed an intermediate batch state. The test adapter now uses a bounded elapsed wait while observing each immediate event-loop phase; all six relevant color/save, multipart and cancellation checks passed after that correction, with no unresolved failures. The entire broad suite was not repeated after this test-only wait correction. A separate 35-case original In Bloom/Roam reference run passed without failures or skips. Syntax and whitespace checks passed. These checks preserve the full-mix and physical-phone verification limits above.
+
+
+## Version 51 — Reliable backup export and truthful save status
+
+### Problem and goal
+
+A player exporting a saved 52.7 MB Frantic WAV saw “Backup exported” although no file appeared in Downloads. The old flow clicked a temporary anchor, removed it immediately, revoked its Blob URL after 30 seconds, and unconditionally claimed success. Browser download requests do not acknowledge completion. Give the player an explicit recovery path and confirm success only when the app actually completes a file write.
+
+### Requirements and implementation
+
+- Current-song, saved-row and failed-setlist-save backup actions open an Export backup panel showing the sanitized .riffpack filename, size and included audio/chart difficulties. Keep a visible Download backup anchor with its original Blob URL; closing the panel does not invalidate it. Release the previous URL when preparing a new backup and release the current one on non-persisted page exit.
+- Where available, invoke showSaveFilePicker from the original export click, write the complete Library.pack Blob, and await stream close before reporting “Backup saved.” The panel offers Save backup as… for another fresh click if a saved-row storage read consumed user activation. Show clear cancellation/error recovery; abort a failed write and retain the ready backup.
+- Browsers without the picker retain the usual download request, with the permanent anchor available for another click or browser Save link as. Say “Download requested” rather than “exported” or “saved,” because the page cannot observe browser download completion. Include a link to open the same game in its own tab when embedded download restrictions interfere.
+- Keep backup preparation local, preserve every original audio byte and all chart difficulties, and leave setlist records untouched by cancellation or download failure. Prevent automatic game reload while the export panel is open or a file write is pending. Ship game/offline version 51; detector versions and chart data are unchanged.
+
+### Acceptance and verification limits
+
+Exercise the real UI handlers with deterministic browser/DOM adapters: a blocked automatic download leaves a usable link and exact backup contents; the file picker is called before the original click yields; success waits for stream close; cancellation supports retry; denied permission and disk-write failure preserve the setlist and ready file; saved-row and setlist-recovery exports use the same panel; a saved-row activation failure can be retried on the visible Save as button. Run the original Frantic WAV through that UI export path and verify its 55,247,388 audio bytes by SHA-256 after unpacking the backup. Include existing upload, storage and offline/update regression checks.
+
+Actual device/browser download permission behavior cannot be verified with these adapters. A fallback download request is explicitly unconfirmed. Native Save as requires browser support and permission; an embedding sandbox may block downloads or the picker, so the standalone-tab recovery remains visible. No physical phone or live browser download was tested in this environment.
+
+Validation: all seven export scenarios passed, including the supplied Frantic WAV byte-for-byte check. The combined upload, storage and automatic-update run completed 111 cases: 109 passed, 0 failed, and 2 optional In Bloom-media cases skipped because their private paths were not provided for this export-focused run. Syntax and whitespace checks passed. Browser permissions and physical-device delivery retain the limits above.

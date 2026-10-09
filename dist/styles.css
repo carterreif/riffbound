@@ -156,3 +156,5 @@
 
 /* Four readable difficulty buttons in the existing sidebar and phone layout. */
 .difficulty-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.difficulty-row label>span{min-height:48px;font-size:14px}.difficulty-row small{font-size:12px;letter-spacing:0}
+
+.backup-download{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:12px 18px;border:1px solid var(--acid);border-radius:4px;background:#263019;color:var(--acid);font-weight:700;text-decoration:none}#backupDialog a:focus-visible{outline:3px solid var(--acid);outline-offset:3px}#backupFileInfo,#backupStatus{overflow-wrap:anywhere}#backupStatus{color:#d5e6b5}
