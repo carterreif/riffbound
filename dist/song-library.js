@@ -42,7 +42,8 @@
         const notes=data.charts[instrument][level];if(!Array.isArray(notes)||notes.length>25000)throw Error('The backup chart is invalid or too large.');
         charts[instrument][level]=notes.map((n,id)=>{
           if(!Number.isInteger(n.lane)||n.lane<0||n.lane>(instrument==='drums'?5:canonical&&level!=='normal'&&!data.quality?.imports?.[instrument]?.levels?.includes(level)?Difficulties.frets(instrument,level)-1:4)||!Number.isFinite(n.time)||n.time<0||n.time>data.musicEnd||!Number.isFinite(n.duration)||n.duration<0||n.time+n.duration>data.musicEnd+1)throw Error('The backup contains an invalid note.');
-          return {id,lane:n.lane,time:n.time,duration:n.duration,...(Number.isFinite(n.pitch)?{pitch:n.pitch}:{})};
+          if(n.ghost!==undefined&&typeof n.ghost!=='boolean'||n.velocity!==undefined&&(!Number.isFinite(n.velocity)||n.velocity<=0||n.velocity>1))throw Error('The backup contains invalid note dynamics.');
+          return {id,lane:n.lane,time:n.time,duration:n.duration,...(Number.isFinite(n.pitch)?{pitch:n.pitch}:{}),...(n.velocity!==undefined?{velocity:n.velocity}:{}),...(n.ghost!==undefined?{ghost:n.ghost}:{})};
         }).sort((a,b)=>a.time-b.time||a.lane-b.lane);
       }
       charts[instrument]=Difficulties.upgrade(charts[instrument],instrument,data.beat);

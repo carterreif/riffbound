@@ -155,6 +155,8 @@
       $('chartDetails').textContent=`Imported from ${authored.filename}. Authored timing and supplied difficulties retained. `+names.map((name,lane)=>`${name}: ${notes.filter(n=>n.lane===lane).length}`).join(' · ');
       $('chartMapping').textContent=instrument==='drums'?'Imported drum mapping: Red snare · Yellow hi-hat · Blue tom · Orange cymbal · Green floor tom · Purple kick. '+(authored.layout==='four'?'Standard four-lane charts cannot identify every drum voice.':authored.layout==='pro'?'Pro charts map yellow cymbals to hi-hat, other cymbals to orange, and toms to blue/green.':'Five-lane colors follow the authored chart.'):'Fret colors and holds follow the imported chart. Supplied difficulty arrangements are preserved, including any extra frets they use.';
     }
+    const ghosts=notes.filter(n=>n.ghost).length;
+    if(ghosts)$('chartDetails').textContent+=` ${ghosts} quiet notes. Hollow centers mark soft hits; play the same color.`;
     const canvas=$('chartOverview'),c=canvas.getContext('2d'),w=canvas.width,h=canvas.height;
     c.clearRect(0,0,w,h);c.fillStyle='#727f8b55';
     song.waveform.forEach((v,i)=>c.fillRect(i*w/song.waveform.length,h/2-v*h*.42,w/song.waveform.length-1,v*h*.84));
@@ -780,7 +782,7 @@
   function point(lane,z){const w=geo.topWidth+(geo.bottomWidth-geo.topWidth)*z;return{x:width/2+(lane-2)*w/5,y:geo.top+(geo.target-geo.top)*z,w:w/5};}
   function quad(lane,a,b,fill,inset=0){const p=point(lane,a),q=point(lane,b);ctx.beginPath();ctx.moveTo(p.x-p.w/2+inset,p.y);ctx.lineTo(p.x+p.w/2-inset,p.y);ctx.lineTo(q.x+q.w/2-inset,q.y);ctx.lineTo(q.x-q.w/2+inset,q.y);ctx.closePath();ctx.fillStyle=fill;ctx.fill();}
   function lineAt(z,alpha,thickness=1){const l=point(0,z),r=point(4,z);ctx.beginPath();ctx.moveTo(l.x-l.w/2,l.y);ctx.lineTo(r.x+r.w/2,r.y);ctx.strokeStyle=`rgba(197,212,214,${alpha})`;ctx.lineWidth=thickness;ctx.stroke();}
-  function noteHead(lane,z,color,opacity=1){
+  function noteHead(lane,z,color,opacity=1,ghost=false){
     const p=point(lane,z),rx=p.w*.36;
     const drums=instrument==='drums',cymbal=drums&&(lane===1||lane===3);
     // Low, raised gems on a silver oval rim, matching the reference's profile.
@@ -809,14 +811,17 @@
     ctx.beginPath();ctx.ellipse(0,-.025,.82,.205,0,.08,Math.PI-.08);ctx.strokeStyle=color;ctx.lineWidth=.06;ctx.stroke();
     ctx.beginPath();ctx.ellipse(0,.055,.96,.27,0,.12,Math.PI-.12);ctx.strokeStyle='#f0f6e4';ctx.lineWidth=.045;ctx.stroke();
     if(cymbal)oval(0,-.34,.12,.065,'#fff8da');
+    if(ghost){oval(0,-.3,.3,.105,'#101820');ctx.beginPath();ctx.ellipse(0,-.3,.3,.105,0,0,Math.PI*2);ctx.strokeStyle='#fff8de';ctx.lineWidth=.04;ctx.stroke();}
     ctx.restore();
   }
-  function kickNote(z,opacity=1){
+  function kickNote(z,opacity=1,ghost=false){
     const l=point(0,z),r=point(4,z),left=l.x-l.w*.43,right=r.x+r.w*.43,thickness=Math.max(2,7*z);
     ctx.save();ctx.globalAlpha=opacity;ctx.shadowColor=E.KICK_COLOR;ctx.shadowBlur=14*z;
     const g=ctx.createLinearGradient(0,l.y-thickness,0,l.y+thickness);g.addColorStop(0,'#efe0ff');g.addColorStop(.3,E.KICK_COLOR);g.addColorStop(1,'#5c257e');
     ctx.fillStyle=g;ctx.beginPath();ctx.roundRect(left,l.y-thickness/2,right-left,thickness,thickness/2);ctx.fill();
-    ctx.fillStyle='#fff0ff';ctx.beginPath();ctx.roundRect(left+thickness/2,l.y-thickness/2,right-left-thickness,Math.max(1,z),Math.max(.5,z/2));ctx.fill();ctx.restore();
+    ctx.fillStyle='#fff0ff';ctx.beginPath();ctx.roundRect(left+thickness/2,l.y-thickness/2,right-left-thickness,Math.max(1,z),Math.max(.5,z/2));ctx.fill();
+    if(ghost){ctx.shadowBlur=0;ctx.strokeStyle='#fff8de';ctx.lineWidth=Math.max(1,z);ctx.beginPath();ctx.ellipse((left+right)/2,l.y,Math.max(2,5*z),Math.max(1,2*z),0,0,Math.PI*2);ctx.fillStyle='#101820';ctx.fill();ctx.stroke();}
+    ctx.restore();
   }
   function draw(t,dt,now){
     ctx.clearRect(0,0,width,height);if(!width||!height)return;
@@ -849,12 +854,12 @@
       const n=notes[i];if(n.missed)continue;
       const p=1-(n.time-visualTime)/approach;if(p<0||p>1.13&&!n.held)continue;
       const z=Math.max(0,p*p),color=session.overdrive&&!drums?'#e8ff65':laneColor(n.lane);
-      if(drums&&n.lane===E.KICK_LANE){if(!n.hit)kickNote(z,isIdle?.8:1);continue;}
+      if(drums&&n.lane===E.KICK_LANE){if(!n.hit)kickNote(z,isIdle?.8:1,n.ghost);continue;}
       if(n.duration&&(!n.hit||n.held)){
         const endP=1-(n.time+n.duration-visualTime)/approach,startZ=n.hit?1:Math.min(1.14,z),endZ=Math.max(0,endP*endP);
         if(endP>=0&&endZ<startZ){const a=point(n.lane,startZ),b=point(n.lane,endZ);ctx.beginPath();ctx.moveTo(a.x-a.w*.085,a.y);ctx.lineTo(a.x+a.w*.085,a.y);ctx.lineTo(b.x+b.w*.085,b.y);ctx.lineTo(b.x-b.w*.085,b.y);ctx.closePath();ctx.fillStyle=color+'a0';ctx.fill();}
       }
-      if(n.hit)continue;noteHead(n.lane,z,color,isIdle?(drums?.85:.55):1);
+      if(n.hit)continue;noteHead(n.lane,z,color,isIdle?(drums?.85:.55):1,n.ghost);
     }
     lineAt(1,session.overdrive?.95:.55,2);
     const center=point(2,1);const glow=ctx.createRadialGradient(width/2,center.y,10,width/2,center.y,width*.48);glow.addColorStop(0,session.overdrive?'#e8ff6525':`rgba(194,221,162,${.06+beatPulse*.04})`);glow.addColorStop(1,'#e8ff6500');ctx.fillStyle=glow;ctx.fillRect(0,center.y-45,width,90);

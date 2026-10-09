@@ -32,7 +32,8 @@
   function build(expert,instrument,beat=.5){
     beat=Number.isFinite(beat)&&beat>0?beat:.5;
     const full=expert.map(n=>({...n})).sort((a,b)=>a.time-b.time||a.lane-b.lane);
-    const hard=reduce(full,instrument,beat,'hard'),medium=reduce(hard,instrument,beat,'medium'),easy=reduce(medium,instrument,beat,'easy');
+    // Soft attacks remain on Expert; accents carry the simpler arrangements.
+    const hard=reduce(full.filter(n=>!n.ghost),instrument,beat,'hard'),medium=reduce(hard,instrument,beat,'medium'),easy=reduce(medium,instrument,beat,'easy');
     const result={};
     for(const [level,source] of Object.entries({easy,medium,hard,expert:full})){
       const count=frets(instrument,level),notes=[],lastTimes=new Map();

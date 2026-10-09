@@ -312,7 +312,7 @@
     for(const attack of shortNoiseAttacks(samples,sampleRate,true)){
       const time=refineDrumTime(samples,attack.time,sampleRate,5);
       if(events.some(e=>[0,2,4,5].includes(e.lane)&&Math.abs(e.time-time)<.045))continue;
-      if(!kicks.some(e=>time-e.time>.055&&time-e.time<.22))continue;
+      if(!kicks.some(e=>time-e.time>.055&&time-e.time<.35))continue;
       const {before,early}=drumFeatures(samples,attack.time,sampleRate,plan,re,im);
       if(early.frequency<40||early.frequency>=68||early.bands[0]<early.total*.9)continue;
       const frequency=Math.abs(Math.log2(before.frequency/early.frequency))<.08?before.frequency:early.frequency;
@@ -471,13 +471,13 @@
     const bodies=[];
     for(const attack of [...attacks,...maskedHatBursts(samples,sampleRate)].sort((a,b)=>a.time-b.time)){
       const time=attack.time,noise=noiseEnvelope(samples,time,sampleRate);
-      if(noise.early<1e-9||noise.novel<.7||noise.decay>.08||noise.excess<.25||!freshStickAttack(samples,time,sampleRate))continue;
+      const repeat=events.some(e=>[2,4].includes(e.lane)&&time-e.time>.065&&time-e.time<.3);
+      if(noise.early<1e-11||noise.novel<(repeat?.4:.7)||noise.decay>.08||noise.excess<.25||!freshStickAttack(samples,time,sampleRate))continue;
       const {early,body}=drumFeatures(samples,time,sampleRate,plan,re,im);
       const low=early.bands[0]+early.bands[1]+early.bands[2];
       if(low<early.total*.94||early.frequency<68)continue;
       const kick=events.some(e=>e.lane===5&&Math.abs(e.time-time)<.035);
       if(kick&&(body.frequency<68||Math.abs(Math.log2(early.frequency/Math.max(1,body.frequency)))>.12))continue;
-      const repeat=events.some(e=>[2,4].includes(e.lane)&&time-e.time>.065&&time-e.time<.25);
       const resonance=tomResonance(samples,time,sampleRate,plan,re,im,repeat),frequency=resonance.frequency;
       if(!frequency)continue;
       const lane=frequency>=102?2:4;
@@ -705,6 +705,32 @@
     }
     return unique;
   }
+  function measureDynamics(events,samples,sampleRate,instrument){
+    // Dynamics annotate accepted attacks only; they never create note heads.
+    // Compare each voice locally, so a quiet recording is not all ghost notes.
+    const groups=new Map(),step=Math.max(1,Math.round(sampleRate*.002));
+    for(const event of events){const voice=instrument==='drums'?event.lane:0;if(!groups.has(voice))groups.set(voice,[]);groups.get(voice).push(event);}
+    for(const [voice,hits] of groups){
+      hits.sort((a,b)=>a.time-b.time);
+      const band=instrument==='drums'?[[400,3500],[2500,10000],[65,350],[2500,10000],[65,350],[25,90]][voice]:instrument==='bass'?[25,380]:instrument==='vocals'?[80,1800]:[100,4200];
+      const a=1-Math.exp(-2*Math.PI*band[1]/sampleRate),b=1-Math.exp(-2*Math.PI*band[0]/sampleRate),power=new Float64Array(Math.ceil(samples.length/step)+1);let lo=0,hi=0;
+      for(let f=0;f<power.length-1;f++){let sum=0;for(let i=f*step;i<Math.min(samples.length,(f+1)*step);i++){lo+=a*(samples[i]-lo);hi+=b*(samples[i]-hi);sum+=(lo-hi)**2;}power[f+1]=power[f]+sum;}
+      const level=(start,end)=>{const l=clamp(Math.floor(start*sampleRate/step),0,power.length-1),r=clamp(Math.ceil(end*sampleRate/step),l,power.length-1);return (power[r]-power[l])/Math.max(1,(r-l)*step);};
+      const levels=hits.map(e=>Math.sqrt(Math.max(0,level(e.time+.004,e.time+.026)-level(e.time-.034,e.time-.012)*.72)));
+      const overall=percentile(levels,.8);
+      let first=0,last=0;
+      hits.forEach((event,i)=>{
+        while(first<hits.length&&hits[first].time<event.time-4)first++;
+        while(last<hits.length&&hits[last].time<=event.time+4)last++;
+        const nearby=levels.slice(first,last);
+        const reference=nearby.length>=4?percentile(nearby,.8):overall;
+        const velocity=reference>1e-8?clamp(levels[i]/reference,.01,1):1;
+        event.velocity=Math.round(velocity*1000)/1000;
+        if(hits.length>=4&&velocity<.22)event.ghost=true;
+      });
+    }
+    return events;
+  }
   function buildFocusedCharts(events,instrument,beat,duration,energy,dt){
     // Expert is the audio master: never discard an accepted attack because
     // it is quiet or close to another one. Merge only detections explicitly
@@ -737,7 +763,8 @@
     for(const difficulty of ['expert','normal']){
       const selected=difficulty==='expert'||instrument==='drums'?events:thin(events,Math.max(.2,beat*.43),percentile(events.map(e=>e.strength),.25)*.75);
       const notes=selected.map((event,i)=>{
-        if(instrument==='drums')return {lane:event.lane,time:event.time,duration:0};
+        const dynamics={...(Number.isFinite(event.velocity)?{velocity:event.velocity}:{}),...(event.ghost?{ghost:true}:{})};
+        if(instrument==='drums')return {lane:event.lane,time:event.time,duration:0,...dynamics};
         const lane=laneFor(event.pitch),next=selected[i+1]?.time??duration;
         let tail=event.duration||0;
         if(instrument==='guitar'&&next-event.time>.65){
@@ -746,7 +773,7 @@
         }
         // One measured tonal attack becomes one note. Loudness does not invent chords.
         tail=Math.min(tail,Math.max(0,next-event.time-.015),duration-event.time);
-        return {time:event.time,lane,pitch:event.pitch,duration:tail>(instrument==='vocals'?.12:.5)?tail:0};
+        return {time:event.time,lane,pitch:event.pitch,duration:tail>(instrument==='vocals'?.12:.5)?tail:0,...dynamics};
       });
       charts[difficulty]=notes.sort((a,b)=>a.time-b.time||a.lane-b.lane).map((note,id)=>({...note,id,bar:Math.floor(note.time/beat/4)}));
     }
@@ -802,7 +829,7 @@
       pitches[f]=frequency?69+12*Math.log2(frequency/440):0;confidence[f]=concentration;
       if(f%300===0)progress(15+Math.round(f/frames*65),bass?'Tracking low bass notes…':'Tracking vocal melody and held pitches…');
     }
-    const floor=Math.max(.00008,percentile(energy,.9)*.045),stable=bass?.055:.045,events=[];
+    const floor=Math.max(.00008,percentile(energy,.9)*.018),stable=bass?.055:.045,events=[];
     let current=null,pending=null;
     const finish=end=>{
       if(current&&end-current.time>=stable)events.push({time:Math.max(0,current.time),pitch:current.pitch,duration:Math.max(0,end-current.time),strength:current.strength});
@@ -849,10 +876,11 @@
     }
     const accepted=split.filter(e=>e.duration>=stable&&e.time<duration-.05).sort((a,b)=>a.time-b.time);
     if(!accepted.length)throw Error(`No clear ${bass?'bass line':'vocal melody'} was detected. Try an isolated ${bass?'bass':'vocal'} track or a recording where the part is louder.`);
+    measureDynamics(accepted,samples,sampleRate,instrument);
     const timing=tempo(flux,dt),charts=buildFocusedCharts(accepted,instrument,timing.beat,duration,energy,dt),expert=charts[instrument].expert;
     const waveform=Array.from({length:160},(_,i)=>{let value=0;for(let f=Math.floor(i*frames/160);f<Math.ceil((i+1)*frames/160)&&f<frames;f++)value=Math.max(value,energy[f]);return value;});
     const peak=Math.max(...waveform)||1;
-    return {...timing,instrument,duration,charts,chartVersion:4,waveform:waveform.map(v=>v/peak),quality:{evidencePolicy:'audible-attacks-v2',counts:Array.from({length:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),method:bass?'Low fundamental and attack tracking':'Voiced pitch and phrase tracking'}};
+    return {...timing,instrument,duration,charts,chartVersion:5,waveform:waveform.map(v=>v/peak),quality:{ghostEvidencePolicy:'relative-attack-dynamics-v1',ghostHits:expert.filter(n=>n.ghost).length,evidencePolicy:'audible-attacks-v2',counts:Array.from({length:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),method:bass?'Low fundamental and attack tracking':'Voiced pitch and phrase tracking'}};
   }
   function analyze({samples,sampleRate,instrument='guitar',audioId},progress=()=>{}){
     if(!['guitar','drums','bass','vocals'].includes(instrument))throw Error('Choose Guitar, Drums, Bass or Vocals before charting.');
@@ -1018,12 +1046,13 @@
     events.sort((a,b)=>a.time-b.time);
     if(!events.length)throw Error(`Not enough clear ${instrument==='guitar'?'guitar-like tones':'drum hits'} were detected. Try a recording where that instrument is louder, or upload its isolated track.`);
     progress(92,`Building the ${instrument==='guitar'?'Guitar':'Drums'} chart…`);
+    measureDynamics(events,samples,sampleRate,instrument);
     const charts=buildFocusedCharts(events,instrument,timing.beat,duration,hEnergy,dt);
     const waveform=Array.from({length:160},(_,i)=>{const a=Math.floor(i*frames/160),b=Math.max(a+1,Math.floor((i+1)*frames/160));let max=0;for(let f=a;f<b&&f<frames;f++)max=Math.max(max,energy[f]);return max;});
     const peak=Math.max(...waveform)||1;
     const expert=charts[instrument].expert;
-    const quality={evidencePolicy:'audible-attacks-v2',...(instrument==='drums'?{tomEvidencePolicy:'measured-resonance-v1'}:{}),counts:Array.from({length:instrument==='drums'?6:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:instrument==='drums'&&events.some(e=>e.part!==undefined)?'Adaptive kit separation':'Attack and tone analysis'};
-    return {...timing,instrument,duration,charts,quality,chartVersion:instrument==='drums'?20:6,waveform:waveform.map(v=>v/peak)};
+    const quality={ghostEvidencePolicy:'relative-attack-dynamics-v1',ghostHits:expert.filter(n=>n.ghost).length,evidencePolicy:'audible-attacks-v2',...(instrument==='drums'?{tomEvidencePolicy:'measured-resonance-v1'}:{}),counts:Array.from({length:instrument==='drums'?6:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:instrument==='drums'&&events.some(e=>e.part!==undefined)?'Adaptive kit separation':'Attack and tone analysis'};
+    return {...timing,instrument,duration,charts,quality,chartVersion:instrument==='drums'?21:7,waveform:waveform.map(v=>v/peak)};
   }
   const api={analyze,buildFocusedCharts,buildMatchedCharts,filterSeparated};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
