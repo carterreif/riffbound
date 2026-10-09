@@ -277,6 +277,81 @@
     }
     return accepted;
   }
+  function verifyMetalIdentity(events,samples,sampleRate,plan,re,im){
+    // A longer release does not change a hi-hat into a crash. Learn a stable
+    // treble fingerprint from this recording's exposed closed hats, then check
+    // both the attack AND release of a sustained hit. A closed hat on top of a
+    // different cymbal has a different release and must keep the real chord.
+    const size=32,limit=Math.min(10000,sampleRate/2),cache=new Map();
+    if(limit<=2500)return {events,corrected:0};
+    const powers=(time,offset)=>{
+      spectrum(samples,Math.round((time+offset)*sampleRate)-re.length/2,re,im,plan);
+      const bins=new Float64Array(size);
+      for(let k=Math.ceil(2500*re.length/sampleRate);k<re.length/2;k++){
+        const hz=k*sampleRate/re.length;if(hz>=limit)break;
+        bins[Math.min(size-1,Math.floor((hz-2500)/(limit-2500)*size))]+=re[k]**2+im[k]**2;
+      }
+      return bins;
+    };
+    const signature=(time,offset)=>{
+      const key=`${time}:${offset}`;if(cache.has(key))return cache.get(key);
+      const bins=powers(time,offset),total=bins.reduce((a,b)=>a+b,0);
+      if(total<=1e-12)return null;
+      for(let b=0;b<size;b++)bins[b]/=total;
+      cache.set(key,bins);return bins;
+    };
+    const similarity=(a,b)=>{
+      if(!a||!b)return 0;let dot=0,x=0,y=0;
+      for(let i=0;i<size;i++){dot+=a[i]*b[i];x+=a[i]**2;y+=b[i]**2;}
+      return dot/Math.sqrt(x*y||1);
+    };
+    const concentration=a=>Array.from(a).sort((a,b)=>b-a).slice(0,4).reduce((a,b)=>a+b,0);
+    const snares=events.filter(e=>e.lane===0);
+    let lastClosed=-Infinity;
+    const hats=events.filter(e=>e.lane===1&&!snares.some(n=>Math.abs(n.time-e.time)<.03))
+      .filter(e=>{const noise=noiseEnvelope(samples,e.time,sampleRate);return noise.novel>.7&&noise.decay<.12&&noise.early>1e-9;})
+      .sort((a,b)=>a.time-b.time).filter(e=>{if(e.time-lastClosed<.025)return false;lastClosed=e.time;return true;})
+      .map(e=>signature(e.time,.025)).filter(a=>a&&concentration(a)>.35);
+    // Broadband noise shared by hats and crashes cannot identify the pad.
+    // Do not replace that ambiguity with a duration rule or a song beat grid.
+    if(hats.length<4)return {events,corrected:0};
+    const seeds=hats.filter((_,i)=>i%Math.max(1,Math.ceil(hats.length/32))===0);
+    let cluster=[];
+    for(const seed of seeds){const group=hats.filter(a=>similarity(a,seed)>.92);if(group.length>cluster.length)cluster=group;}
+    if(cluster.length<4)return {events,corrected:0};
+    const template=Float64Array.from({length:size},(_,b)=>cluster.reduce((sum,a)=>sum+a[b],0)/cluster.length);
+    if(concentration(template)<=.35)return {events,corrected:0};
+    const corrections=[];
+    for(const event of events){
+      if(![1,3].includes(event.lane)||corrections.some(e=>Math.abs(e.event.time-event.time)<.025))continue;
+      if(snares.some(e=>Math.abs(e.time-event.time)<.03))continue;
+      // Detector timestamps can sit a few milliseconds inside the attack. Do
+      // not let that initial energy masquerade as an old ringing background.
+      // Measure nearby fresh windows without moving the charted onset.
+      const measurement=[-.006,-.004,-.002,0,.002].map(offset=>({time:event.time+offset,noise:noiseEnvelope(samples,event.time+offset,sampleRate)}))
+        .filter(n=>n.noise.novel>.85).sort((a,b)=>b.noise.early-a.noise.early)[0];
+      if(!measurement)continue;
+      const {noise,time}=measurement;
+      if(noise.decay<.08||noise.early<1e-9)continue;
+      // The next stroke cannot supply the release's timbre evidence.
+      if(events.some(e=>e.time-event.time>.035&&e.time-event.time<.16))continue;
+      if(![-.008,0,.008].some(offset=>freshNoiseAttack(samples,event.time+offset,sampleRate)))continue;
+      const attack=signature(time,.025),release=signature(time,.11);
+      if(!attack||!release)continue;
+      const attackMatch=similarity(attack,template),releaseMatch=similarity(release,template);
+      if(attackMatch>=.93&&releaseMatch>=.9){corrections.push({event,lanes:[1]});continue;}
+      // A bright attack on one crash can decay in two stages. That alone does
+      // not prove a second hand hit. Its release must differ from the kit's
+      // hat, and a real hat/crash pair must also expose the hat's fast timbre.
+      if(noise.decay<=.08||noise.sustain<=.04||concentration(release)>=.3||releaseMatch>=.75)continue;
+      if(attackMatch>.72&&attackMatch-releaseMatch>.12)corrections.push({event,lanes:[1,3]});
+      else if(attackMatch<.7)corrections.push({event,lanes:[3]});
+    }
+    if(!corrections.length)return {events,corrected:0};
+    const corrected=events.filter(e=>[1,3].includes(e.lane)&&corrections.some(n=>Math.abs(n.event.time-e.time)<.025&&!n.lanes.includes(e.lane))).length;
+    return {events:events.filter(e=>![1,3].includes(e.lane)||!corrections.some(n=>Math.abs(n.event.time-e.time)<.025))
+      .concat(corrections.flatMap(n=>n.lanes.map(lane=>({...n.event,lane})))),corrected};
+  }
   function verifyBassMaskedNoise(events,attacks,samples,sampleRate,plan,re,im){
     // In a full mix, the loudest low peak can belong to bass/guitar or kick.
     // It must not supply the snare body for an independent metal attack.
@@ -1000,7 +1075,7 @@
     if(!energy.some(v=>v>=.00008))throw Error('This file is silent or too quiet to chart. Try a louder recording.');
     const scales=drumFlux.map(activeScale),floor=Math.max(...scales)*.06;
     for(let f=0;f<frames;f++)for(let band=0;band<3;band++){drumFlux[band][f]/=Math.max(scales[band],floor,1e-8);combined[f]+=drumFlux[band][f];}
-    progress(79,'Aligning detected attacks to the audio…');const timing=tempo(combined,dt),events=[];
+    progress(79,'Aligning detected attacks to the audio…');const timing=tempo(combined,dt),events=[];let metalCorrections=0;
     if(instrument==='guitar'){
       const freshTone=tonalAttacks(samples,sampleRate,instrument);
       for(const event of peaks(guitarFlux,dt,energy)){
@@ -1082,7 +1157,9 @@
       const rolls=verifySnareRolls(masked,hatAttacks,samples,sampleRate,plan,re,im,noiseAttacks);
       const colors=verifyBassMaskedNoise(rolls,trebleAttacks,samples,sampleRate,plan,re,im);
       const verified=rejectNoiseTails(verifyNoiseColors(colors,samples,sampleRate,plan,re,im),samples,sampleRate);
-      const toms=verifyTomStrikes(verified,trebleAttacks,samples,sampleRate,plan,re,im);
+      const identity=verifyMetalIdentity(verified,samples,sampleRate,plan,re,im);
+      metalCorrections=identity.corrected;
+      const toms=verifyTomStrikes(identity.events,trebleAttacks,samples,sampleRate,plan,re,im);
       const withKicks=alignKickAttacks(verifyKickRepeats(toms,samples,sampleRate,plan,re,im),samples,sampleRate,plan,re,im);events.length=0;events.push(...withKicks);
     }
     events.sort((a,b)=>a.time-b.time);
@@ -1098,8 +1175,8 @@
     const waveform=Array.from({length:160},(_,i)=>{const a=Math.floor(i*frames/160),b=Math.max(a+1,Math.floor((i+1)*frames/160));let max=0;for(let f=a;f<b&&f<frames;f++)max=Math.max(max,energy[f]);return max;});
     const peak=Math.max(...waveform)||1;
     const expert=charts[instrument].expert;
-    const quality={audioReviews:{[instrument]:{policy:instrument==='drums'?'ring-residual-v1':'audible-attacks-v2',checked:true,recovered}},ghostEvidencePolicy:'relative-attack-dynamics-v1',ghostHits:expert.filter(n=>n.ghost).length,evidencePolicy:'audible-attacks-v2',...(instrument==='drums'?{tomEvidencePolicy:'measured-resonance-v1'}:{}),counts:Array.from({length:instrument==='drums'?6:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:instrument==='drums'&&events.some(e=>e.part!==undefined)?'Adaptive kit separation':'Attack and tone analysis'};
-    return {...timing,instrument,duration,charts,quality,chartVersion:instrument==='drums'?22:7,waveform:waveform.map(v=>v/peak)};
+    const quality={audioReviews:{[instrument]:{policy:instrument==='drums'?'ring-residual-v1':'audible-attacks-v2',checked:true,recovered,...(instrument==='drums'?{metalIdentityPolicy:'attack-release-timbre-v1',metalCorrections}:{})}},ghostEvidencePolicy:'relative-attack-dynamics-v1',ghostHits:expert.filter(n=>n.ghost).length,evidencePolicy:'audible-attacks-v2',...(instrument==='drums'?{tomEvidencePolicy:'measured-resonance-v1'}:{}),counts:Array.from({length:instrument==='drums'?6:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:instrument==='drums'&&events.some(e=>e.part!==undefined)?'Adaptive kit separation':'Attack and tone analysis'};
+    return {...timing,instrument,duration,charts,quality,chartVersion:instrument==='drums'?23:7,waveform:waveform.map(v=>v/peak)};
   }
   const api={analyze,buildFocusedCharts,buildMatchedCharts,filterSeparated};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
