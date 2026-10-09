@@ -60,7 +60,7 @@ test('mobile upload and explicit rebuild keep open hats yellow and persist the t
   const id=(await storage.library.list())[0].id;
   const check=record=>{
     for(const m of require('./chart-metrics.cjs').measureChart(f.expected,record.charts.drums.expert)){assert.equal(m.matched,m.expected);assert.equal(m.extra,0);}
-    assert.equal(record.chartVersion,23);assert.equal(record.quality.audioReviews.drums.metalIdentityPolicy,'attack-release-timbre-v1');
+    assert.equal(record.chartVersion,24);assert.equal(record.quality.audioReviews.drums.metalIdentityPolicy,'attack-release-timbre-v2');
     assert.equal(record.quality.audioReviews.drums.metalCorrections,6);
   };
   check(await storage.library.get(id));assert.match(app.nodes.chartMapping.textContent,/Yellow: closed\/open hi-hat/);
@@ -69,6 +69,21 @@ test('mobile upload and explicit rebuild keep open hats yellow and persist the t
   assert.deepEqual(fresh.requests,[]);check(await storage.library.get(id));
   await fresh.nodes.rechartButton.click();await until(()=>fresh.nodes.saveStatus.textContent.includes('Added to your setlist'));
   assert.deepEqual(fresh.requests,['drums']);check(await storage.library.get(id));
+});
+
+test('mobile overlap upload keeps a ringing hat before its crash through chunked setlist reopen',async()=>{
+  const f=require('./fixtures/open-hat-identity.cjs').fixture({ringingHat:true,decay:4}),storage=require('./helpers/song-storage.cjs').storage({rejectBlobs:true});
+  const app=setup({mobile:true,audioSamples:f.samples,libraryOverrides:storage.library});
+  await app.radios.instrument[1].emit('change');await app.radios.difficulty[3].emit('change');await app.upload('Overlapping hi-hat and crash.wav');
+  await until(()=>app.nodes.saveStatus.textContent.includes('Added to your setlist'));
+  const id=(await storage.library.list())[0].id,record=await storage.library.get(id);
+  for(const m of require('./chart-metrics.cjs').measureChart(f.expected,record.charts.drums.expert)){assert.equal(m.matched,m.expected);assert.equal(m.extra,0);}
+  assert.equal(record.chartVersion,24);assert.equal(record.quality.audioReviews.drums.metalIdentityPolicy,'attack-release-timbre-v2');
+  const fresh=setup({mobile:true,audioSamples:f.samples,libraryOverrides:storage.fresh()});
+  await until(()=>fresh.nodes.setlistEntries.children.length===2);await fresh.nodes.setlistEntries.children[1].click();
+  await fresh.radios.difficulty[3].emit('change');assert.deepEqual(fresh.requests,[]);
+  const reopened=await storage.library.get(id);assert.deepEqual(reopened.charts,record.charts);assert.deepEqual(reopened.quality.audioReviews,record.quality.audioReviews);
+  assert.equal(fresh.nodes.playButton.disabled,false);
 });
 
 test('mobile quiet-note upload keeps markers through setlist reopen and opens for play',async()=>{
@@ -100,7 +115,7 @@ test('mobile upload automatically recovers buried blue hits and keeps its review
 
 test('every requested upload part keeps its own audio review, including after one-part rebuild',async()=>{
   const notes=[{lane:0,time:1,duration:0},{lane:0,time:2,duration:0}];
-  const extras=part=>({quality:{audioReviews:{[part]:{checked:true,policy:part==='drums'?'ring-residual-v1':'audible-attacks-v2',recovered:part==='drums'?1:0,...(part==='drums'?{metalIdentityPolicy:'attack-release-timbre-v1',metalCorrections:6}:{})}}}});
+  const extras=part=>({quality:{audioReviews:{[part]:{checked:true,policy:part==='drums'?'ring-residual-v1':'audible-attacks-v2',recovered:part==='drums'?1:0,...(part==='drums'?{metalIdentityPolicy:'attack-release-timbre-v2',metalCorrections:6}:{})}}}});
   const app=setup({mobile:true,chartFixture:notes,chartResultExtras:extras}),n=app.nodes;
   n.chartScope.value='whole';await n.chartScope.emit('change');await app.upload();await until(()=>app.savedSongs.size===1);
   let record=[...app.savedSongs.values()][0];assert.deepEqual(Object.keys(record.quality.audioReviews).sort(),['bass','drums','guitar','vocals']);
@@ -110,7 +125,7 @@ test('every requested upload part keeps its own audio review, including after on
   record=[...app.savedSongs.values()][0];assert.deepEqual(Object.keys(record.quality.audioReviews).sort(),['bass','drums','guitar','vocals']);
   assert.equal(record.quality.audioReviews.drums.recovered,1);
   assert.equal(record.quality.audioReviews.drums.metalCorrections,6);
-  assert.equal(record.quality.audioReviews.drums.metalIdentityPolicy,'attack-release-timbre-v1');
+  assert.equal(record.quality.audioReviews.drums.metalIdentityPolicy,'attack-release-timbre-v2');
 });
 
 test('empty Manage songs explains disabled Save and uploads drums into the real setlist without Blob writes',async()=>{

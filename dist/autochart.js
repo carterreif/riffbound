@@ -277,7 +277,7 @@
     }
     return accepted;
   }
-  function verifyMetalIdentity(events,samples,sampleRate,plan,re,im){
+  function verifyMetalIdentity(events,samples,sampleRate,plan,re,im,attacks=[]){
     // A longer release does not change a hi-hat into a crash. Learn a stable
     // treble fingerprint from this recording's exposed closed hats, then check
     // both the attack AND release of a sustained hit. A closed hat on top of a
@@ -311,44 +311,100 @@
     const hats=events.filter(e=>e.lane===1&&!snares.some(n=>Math.abs(n.time-e.time)<.03))
       .filter(e=>{const noise=noiseEnvelope(samples,e.time,sampleRate);return noise.novel>.7&&noise.decay<.12&&noise.early>1e-9;})
       .sort((a,b)=>a.time-b.time).filter(e=>{if(e.time-lastClosed<.025)return false;lastClosed=e.time;return true;})
-      .map(e=>signature(e.time,.025)).filter(a=>a&&concentration(a)>.35);
+      .map(e=>({time:e.time,profile:signature(e.time,.025)})).filter(a=>a.profile&&concentration(a.profile)>.35);
     // Broadband noise shared by hats and crashes cannot identify the pad.
     // Do not replace that ambiguity with a duration rule or a song beat grid.
     if(hats.length<4)return {events,corrected:0};
     const seeds=hats.filter((_,i)=>i%Math.max(1,Math.ceil(hats.length/32))===0);
     let cluster=[];
-    for(const seed of seeds){const group=hats.filter(a=>similarity(a,seed)>.92);if(group.length>cluster.length)cluster=group;}
+    for(const seed of seeds){const group=hats.filter(a=>similarity(a.profile,seed.profile)>.92);if(group.length>cluster.length)cluster=group;}
     if(cluster.length<4)return {events,corrected:0};
-    const template=Float64Array.from({length:size},(_,b)=>cluster.reduce((sum,a)=>sum+a[b],0)/cluster.length);
+    const template=Float64Array.from({length:size},(_,b)=>cluster.reduce((sum,a)=>sum+a.profile[b],0)/cluster.length);
     if(concentration(template)<=.35)return {events,corrected:0};
+    // Broad bands can hide a closed hat beneath a sharp crash. Learn exposed
+    // metal resonances too, without assuming any particular kit's frequencies.
+    // Three separate resonances must reappear in two attack windows and grow
+    // above the pre-hit sound before one attack can supply two hand colors.
+    const lo=Math.ceil(2500*re.length/sampleRate),hi=Math.floor(limit*re.length/sampleRate);
+    const finePowers=(time,offset)=>{
+      spectrum(samples,Math.round((time+offset)*sampleRate)-re.length/2,re,im,plan);
+      return Float64Array.from({length:re.length/2},(_,k)=>re[k]**2+im[k]**2);
+    };
+    const contrast=(values,k)=>{
+      const background=[];
+      for(let j=k-12;j<=k+12;j++)if(j>=lo&&j<hi&&Math.abs(j-k)>3)background.push(values[j]);
+      return values[k]/(percentile(background,.5)+1e-15);
+    };
+    const fineTemplate=new Float64Array(re.length/2);
+    const calibration=cluster.filter((_,i)=>i%Math.max(1,Math.ceil(cluster.length/32))===0);
+    for(const example of calibration){
+      const values=finePowers(example.time,.025),total=values.subarray(lo,hi).reduce((a,b)=>a+b,0);
+      if(total>1e-12)for(let k=lo;k<hi;k++)fineTemplate[k]+=values[k]/total/calibration.length;
+    }
+    const metalPeaks=[];
+    for(let k=lo+12;k<hi-12;k++){
+      if(fineTemplate[k]<=fineTemplate[k-1]||fineTemplate[k]<fineTemplate[k+1]||fineTemplate[k]<.002||contrast(fineTemplate,k)<=8)continue;
+      if(!metalPeaks.some(p=>Math.abs(p-k)<12))metalPeaks.push(k);
+    }
+    const distinctHatAttack=time=>{
+      if(metalPeaks.length<3)return null;
+      const early=finePowers(time,.025),attack=finePowers(time,.005),before=finePowers(time,-.055);
+      let supported=0;
+      for(const k of metalPeaks){
+        let a=k,b=k,prior=0;
+        for(let j=k-1;j<=k+1;j++){if(early[j]>early[a])a=j;if(attack[j]>attack[b])b=j;prior=Math.max(prior,before[j]);}
+        if(contrast(early,a)>4&&contrast(attack,b)>3.5&&early[a]>prior*1.5&&attack[b]>prior*1.5)supported++;
+      }
+      return supported>=3;
+    };
     const corrections=[];
-    for(const event of events){
+    const candidates=events.filter(e=>[1,3].includes(e.lane)).concat(attacks
+      .filter(e=>!events.some(n=>[0,1,3].includes(n.lane)&&Math.abs(n.time-e.time)<.025))
+      .map(e=>({...e,lane:3,metalCandidate:true}))).sort((a,b)=>a.time-b.time);
+    for(const event of candidates){
       if(![1,3].includes(event.lane)||corrections.some(e=>Math.abs(e.event.time-event.time)<.025))continue;
       if(snares.some(e=>Math.abs(e.time-event.time)<.03))continue;
       // Detector timestamps can sit a few milliseconds inside the attack. Do
       // not let that initial energy masquerade as an old ringing background.
       // Measure nearby fresh windows without moving the charted onset.
       const measurement=[-.006,-.004,-.002,0,.002].map(offset=>({time:event.time+offset,noise:noiseEnvelope(samples,event.time+offset,sampleRate)}))
-        .filter(n=>n.noise.novel>.85).sort((a,b)=>b.noise.early-a.noise.early)[0];
-      if(!measurement)continue;
-      const {noise,time}=measurement;
-      if(noise.decay<.08||noise.early<1e-9)continue;
-      // The next stroke cannot supply the release's timbre evidence.
-      if(events.some(e=>e.time-event.time>.035&&e.time-event.time<.16))continue;
-      if(![-.008,0,.008].some(offset=>freshNoiseAttack(samples,event.time+offset,sampleRate)))continue;
+        .filter(n=>n.noise.novel>.65).sort((a,b)=>b.noise.early-a.noise.early)[0];
+      const {noise,time}=measurement||{time:event.time,noise:noiseEnvelope(samples,event.time,sampleRate)};
+      if(noise.early<1e-9)continue;
+      if(event.metalCandidate){
+        const {early}=drumFeatures(samples,time,sampleRate,plan,re,im);
+        if(early.bands[4]<early.total*.002||!freshStickAttack(samples,time,sampleRate))continue;
+      }
       const attack=signature(time,.025),release=signature(time,.11);
       if(!attack||!release)continue;
       const attackMatch=similarity(attack,template),releaseMatch=similarity(release,template);
-      if(attackMatch>=.93&&releaseMatch>=.9){corrections.push({event,lanes:[1]});continue;}
+      const partialAttack=distinctHatAttack(time);
+      // Wash flutter may pass a short-envelope test, but it must still expose
+      // this kit's hat sound. Do not retain a speculative yellow tail head.
+      if(event.lane===1&&!event.metalCandidate&&partialAttack===false&&attackMatch<.75&&
+        events.some(e=>e.lane===3&&event.time-e.time>.05&&event.time-e.time<1.2)){
+        const cymbal=events.find(e=>e.lane===3&&Math.abs(e.time-event.time)<.025);
+        corrections.push({event:cymbal||event,lanes:cymbal?[3]:[]});continue;
+      }
+      if(![-.008,0,.008].some(offset=>freshNoiseAttack(samples,event.time+offset,sampleRate)))continue;
+      if(!measurement||noise.decay<.08)continue;
+      // A later measured hit contaminates the release. Strong fresh hat
+      // identity can label the earlier stroke, but cannot supply a crash there.
+      if(candidates.some(e=>e.time-event.time>.035&&e.time-event.time<.16)){
+        if(attackMatch>=.93&&partialAttack===true)corrections.push({event,lanes:[1]});
+        continue;
+      }
+      if(attackMatch>=.93&&releaseMatch>=.9&&partialAttack!==false){corrections.push({event,lanes:[1]});continue;}
       // A bright attack on one crash can decay in two stages. That alone does
       // not prove a second hand hit. Its release must differ from the kit's
       // hat, and a real hat/crash pair must also expose the hat's fast timbre.
       if(noise.decay<=.08||noise.sustain<=.04||concentration(release)>=.3||releaseMatch>=.75)continue;
-      if(attackMatch>.72&&attackMatch-releaseMatch>.12)corrections.push({event,lanes:[1,3]});
-      else if(attackMatch<.7)corrections.push({event,lanes:[3]});
+      const hatAttack=partialAttack===true&&attackMatch>.6&&attackMatch-releaseMatch>.06;
+      if(hatAttack||(partialAttack===null&&attackMatch>.72&&attackMatch-releaseMatch>.12))corrections.push({event,lanes:[1,3]});
+      else if(partialAttack===false||attackMatch<.7)corrections.push({event,lanes:[3]});
     }
     if(!corrections.length)return {events,corrected:0};
-    const corrected=events.filter(e=>[1,3].includes(e.lane)&&corrections.some(n=>Math.abs(n.event.time-e.time)<.025&&!n.lanes.includes(e.lane))).length;
+    const corrected=corrections.reduce((sum,n)=>sum+new Set(events.filter(e=>[1,3].includes(e.lane)&&Math.abs(n.event.time-e.time)<.025&&!n.lanes.includes(e.lane)).map(e=>e.lane)).size,0);
     return {events:events.filter(e=>![1,3].includes(e.lane)||!corrections.some(n=>Math.abs(n.event.time-e.time)<.025))
       .concat(corrections.flatMap(n=>n.lanes.map(lane=>({...n.event,lane})))),corrected};
   }
@@ -1156,10 +1212,9 @@
       const masked=verifyMaskedHats(cymbals,samples,sampleRate,plan,re,im);
       const rolls=verifySnareRolls(masked,hatAttacks,samples,sampleRate,plan,re,im,noiseAttacks);
       const colors=verifyBassMaskedNoise(rolls,trebleAttacks,samples,sampleRate,plan,re,im);
-      const verified=rejectNoiseTails(verifyNoiseColors(colors,samples,sampleRate,plan,re,im),samples,sampleRate);
-      const identity=verifyMetalIdentity(verified,samples,sampleRate,plan,re,im);
+      const identity=verifyMetalIdentity(verifyNoiseColors(colors,samples,sampleRate,plan,re,im),samples,sampleRate,plan,re,im,trebleAttacks);
       metalCorrections=identity.corrected;
-      const toms=verifyTomStrikes(identity.events,trebleAttacks,samples,sampleRate,plan,re,im);
+      const toms=verifyTomStrikes(rejectNoiseTails(identity.events,samples,sampleRate),trebleAttacks,samples,sampleRate,plan,re,im);
       const withKicks=alignKickAttacks(verifyKickRepeats(toms,samples,sampleRate,plan,re,im),samples,sampleRate,plan,re,im);events.length=0;events.push(...withKicks);
     }
     events.sort((a,b)=>a.time-b.time);
@@ -1175,8 +1230,8 @@
     const waveform=Array.from({length:160},(_,i)=>{const a=Math.floor(i*frames/160),b=Math.max(a+1,Math.floor((i+1)*frames/160));let max=0;for(let f=a;f<b&&f<frames;f++)max=Math.max(max,energy[f]);return max;});
     const peak=Math.max(...waveform)||1;
     const expert=charts[instrument].expert;
-    const quality={audioReviews:{[instrument]:{policy:instrument==='drums'?'ring-residual-v1':'audible-attacks-v2',checked:true,recovered,...(instrument==='drums'?{metalIdentityPolicy:'attack-release-timbre-v1',metalCorrections}:{})}},ghostEvidencePolicy:'relative-attack-dynamics-v1',ghostHits:expert.filter(n=>n.ghost).length,evidencePolicy:'audible-attacks-v2',...(instrument==='drums'?{tomEvidencePolicy:'measured-resonance-v1'}:{}),counts:Array.from({length:instrument==='drums'?6:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:instrument==='drums'&&events.some(e=>e.part!==undefined)?'Adaptive kit separation':'Attack and tone analysis'};
-    return {...timing,instrument,duration,charts,quality,chartVersion:instrument==='drums'?23:7,waveform:waveform.map(v=>v/peak)};
+    const quality={audioReviews:{[instrument]:{policy:instrument==='drums'?'ring-residual-v1':'audible-attacks-v2',checked:true,recovered,...(instrument==='drums'?{metalIdentityPolicy:'attack-release-timbre-v2',metalCorrections}:{})}},ghostEvidencePolicy:'relative-attack-dynamics-v1',ghostHits:expert.filter(n=>n.ghost).length,evidencePolicy:'audible-attacks-v2',...(instrument==='drums'?{tomEvidencePolicy:'measured-resonance-v1'}:{}),counts:Array.from({length:instrument==='drums'?6:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:instrument==='drums'&&events.some(e=>e.part!==undefined)?'Adaptive kit separation':'Attack and tone analysis'};
+    return {...timing,instrument,duration,charts,quality,chartVersion:instrument==='drums'?24:7,waveform:waveform.map(v=>v/peak)};
   }
   const api={analyze,buildFocusedCharts,buildMatchedCharts,filterSeparated};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
