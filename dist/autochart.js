@@ -9,6 +9,10 @@
   const References=typeof module!=='undefined'&&module.exports?require('./reference-charts.js'):root.RiffReferenceCharts;
   const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
   function percentile(values,q){const a=Array.from(values).sort((x,y)=>x-y);return a[Math.min(a.length-1,Math.floor(a.length*q))]||0;}
+  function activeScale(values){
+    const scale=percentile(values,.95);
+    return scale>1e-8?scale:percentile(values.filter(v=>v>1e-8),.95);
+  }
   function fftPlan(n){
     const bits=Math.log2(n),reverse=new Uint16Array(n),window=new Float32Array(n),cos=new Float32Array(n/2),sin=new Float32Array(n/2);
     for(let i=0;i<n;i++){let x=i,r=0;for(let b=0;b<bits;b++){r=(r<<1)|(x&1);x>>=1;}reverse[i]=r;window[i]=.5-.5*Math.cos(2*Math.PI*i/(n-1));}
@@ -26,7 +30,7 @@
     }
   }
   function peaks(values,dt,rms,minGap=.075,quiet=false){
-    const scale=percentile(values,.95);if(scale<1e-8)return [];
+    const scale=activeScale(values);if(scale<1e-8)return [];
     const radius=Math.max(2,Math.round(.2/dt)),sum=new Float64Array(values.length+1),out=[];
     for(let i=0;i<values.length;i++)sum[i+1]=sum[i]+values[i];
     for(let i=1;i<values.length-1;i++){
@@ -79,7 +83,7 @@
     const size=Math.round((bass?.024:.012)/dt),level=new Float32Array(frames);
     for(let f=0;f<frames;f++){const a=Math.max(0,f-size);level[f]=Math.sqrt((power[f]-power[a])/Math.max(1,f-a));}
     const at=t=>level[clamp(Math.round(t/dt),0,level.length-1)];
-    return time=>{
+    const fresh=time=>{
       let peak=0,base=Infinity,best=0;
       for(let t=time-.08;t<=time+.10;t+=dt){const v=at(t);peak=Math.max(peak,v);base=Math.min(base,v);}
       for(let t=time-.035;t<=time+.045;t+=dt){
@@ -88,6 +92,10 @@
       }
       return peak>.00008&&best>Math.max(.00003,(peak-base)*.5,peak*.18);
     };
+    const rise=new Float32Array(frames);
+    for(let f=2;f<frames;f++)rise[f]=Math.max(0,level[f]-level[f-2]);
+    fresh.anchors=peaks(rise,dt,level,bass?.055:.065).filter(e=>fresh(e.frame*dt)).map(e=>({time:Math.max(0,e.frame*dt-size*dt*.5),strength:e.strength}));
+    return fresh;
   }
   function refineTime(samples,time,sampleRate){
     const step=Math.max(1,Math.round(sampleRate*.003)),start=Math.max(0,Math.floor((time-.065)*sampleRate));
@@ -315,6 +323,32 @@
     }
     return events;
   }
+  function alignKickAttacks(events,samples,sampleRate,plan,re,im){
+    // The loudest low cycle can arrive after a kick's actual strike. A
+    // simultaneous measured hand onset can anchor it, but a later kick must
+    // remain separate: require low-band growth in the first 12 ms of that hit.
+    const hand=events.filter(e=>e.lane!==5),kicks=events.filter(e=>e.lane===5);
+    const lowRise=time=>{
+      const at=Math.round(time*sampleRate),window=Math.round(sampleRate*.012),alpha=1-Math.exp(-2*Math.PI*180/sampleRate);
+      let low=0,before=0,after=0;
+      for(let i=Math.max(0,at-window*4);i<Math.min(samples.length,at+window);i++){
+        low+=alpha*(samples[i]-low);
+        if(i>=at)after+=low*low;else if(i>=at-window)before+=low*low;
+      }
+      return after>Math.max(1e-9,before*2);
+    };
+    return events.map(event=>{
+      if(event.lane!==5||freshBodyAttack(samples,event.time,sampleRate))return event;
+      for(const head of hand){
+        if(event.time-head.time<.015||event.time-head.time>.06||!lowRise(head.time))continue;
+        const {early,body}=drumFeatures(samples,head.time,sampleRate,plan,re,im);
+        if(early.bands[0]+early.bands[1]<early.total*.65||body.frequency>=68)continue;
+        if(kicks.some(e=>e!==event&&Math.abs(e.time-head.time)<.012))return null;
+        return {...event,time:head.time,attack:head.attack||head};
+      }
+      return event;
+    }).filter(Boolean);
+  }
   function verifyCymbalAttacks(events,attacks,samples,sampleRate,plan,re,im){
     const clearHats=events.filter(e=>e.lane===1&&noiseEnvelope(samples,e.time,sampleRate).decay<.12);
     for(const attack of attacks){
@@ -386,7 +420,7 @@
     }
     // Select the peak before checking its shape. Otherwise the declining edge
     // of a rejected cymbal swell can slip through as a different candidate.
-    return thin(candidates,.045).filter(e=>e.steady&&e.strength>.3&&e.rise>1.25&&e.fall>1.8&&e.tail<.42);
+    return thin(candidates,.045).filter(e=>(e.steady||(e.strength>.5&&e.rise>1.65&&e.fall>2.5))&&e.strength>.3&&e.rise>1.25&&e.fall>1.8&&e.tail<.42);
   }
   function verifyMaskedHats(events,samples,sampleRate,plan,re,im){
     const cymbals=events.filter(e=>e.lane===3);if(!cymbals.length)return events;
@@ -396,6 +430,9 @@
     if(hats.length<2)return events;
     for(const attack of maskedHatBursts(samples,sampleRate)){
       if(!cymbals.some(e=>attack.time-e.time>.06&&attack.time-e.time<1.2))continue;
+      // Strong brief bursts can remain visible immediately after a crash even
+      // while its background is settling. Later flutter still needs stability.
+      if(!attack.steady&&!cymbals.some(e=>attack.time-e.time>.06&&attack.time-e.time<.18))continue;
       if(events.some(e=>[0,1,3].includes(e.lane)&&Math.abs(e.time-attack.time)<.035))continue;
       // A following strike must not supply this burst's decay evidence.
       if(events.some(e=>e.time-attack.time>.035&&e.time-attack.time<.105))continue;
@@ -536,10 +573,13 @@
     });
     // A learned part can absorb a differently tuned tom. Verify clean pitched
     // attacks directly instead of treating the template number as its color.
-    const knownToms=verified.filter(e=>[2,4].includes(e.lane));
-    const weakAttacks=[...model.events.filter(e=>[0,2,4].includes(e.lane)&&e.strength>=.15),...shortNoiseAttacks(samples,sampleRate,true)].filter(e=>!bodyAttacks.some(a=>Math.abs(a.time-e.time)<.04)&&knownToms.some(t=>Math.abs(t.time-e.time)>.055&&Math.abs(t.time-e.time)<.25));
+    const weakAttacks=[...model.events.filter(e=>[0,2,4].includes(e.lane)&&e.strength>=.15),...shortNoiseAttacks(samples,sampleRate,true),...maskedHatBursts(samples,sampleRate).map(e=>({...e,stickAttack:true}))].filter(e=>!bodyAttacks.some(a=>Math.abs(a.time-e.time)<.04));
     for(const attack of [...bodyAttacks,...weakAttacks]){
-      const weak=weakAttacks.includes(attack),time=refineDrumTime(samples,attack.time,sampleRate,2);
+      const weak=weakAttacks.includes(attack),time=attack.stickAttack?attack.time:refineDrumTime(samples,attack.time,sampleRate,2);
+      // A strong body recovered earlier in this pass also supplies a real
+      // neighboring tom. Do not freeze the kit before processing its fill.
+      const knownToms=verified.filter(e=>[2,4].includes(e.lane));
+      if(weak&&!knownToms.some(t=>Math.abs(t.time-attack.time)>.055&&Math.abs(t.time-attack.time)<.25))continue;
       const features=drumFeatures(samples,attack.time,sampleRate,plan,re,im),{before,early,body}=features;
       const low=early.bands[0]+early.bands[1]+early.bands[2],previous=before.bands[0]+before.bands[1]+before.bands[2];
       if(low<early.total*.94||early.bands[4]>low*.003)continue;
@@ -664,7 +704,7 @@
       pitches[f]=frequency?69+12*Math.log2(frequency/440):0;confidence[f]=concentration;
       if(f%300===0)progress(15+Math.round(f/frames*65),bass?'Tracking low bass notes…':'Tracking vocal melody and held pitches…');
     }
-    const floor=Math.max(.00008,percentile(energy,.9)*.045),stable=bass?.055:.07,events=[];
+    const floor=Math.max(.00008,percentile(energy,.9)*.045),stable=bass?.055:.045,events=[];
     let current=null,pending=null;
     const finish=end=>{
       if(current&&end-current.time>=stable)events.push({time:Math.max(0,current.time),pitch:current.pitch,duration:Math.max(0,end-current.time),strength:current.strength});
@@ -683,14 +723,19 @@
     finish(duration);
     // Re-articulations of the same pitch need a fresh energy attack. Pitch
     // continuity alone must neither omit repeated bass notes nor split vibrato.
-    const attacks=peaks(flux,dt,energy,bass?.085:.12);
+    const attacks=freshTone.anchors.map(e=>({...e}));
+    for(const event of peaks(flux,dt,energy,bass?.055:.07)){
+      const time=event.frame*dt;
+      if(freshTone(time)&&!attacks.some(e=>Math.abs(e.time-time)<.075))attacks.push({time,strength:event.strength});
+    }
+    attacks.sort((a,b)=>a.time-b.time);
     const split=[];
     for(const event of events){
       const end=event.time+event.duration,cuts=[event.time];
       for(const attack of attacks){
-        const t=attack.frame*dt;
-        if(t<event.time+.10||t>end-.09)continue;
-        if(t-cuts[cuts.length-1]>.1&&freshTone(t))cuts.push(t);
+        const t=attack.time;
+        if(t<event.time+stable||t>end-stable)continue;
+        if(t-cuts[cuts.length-1]>=stable)cuts.push(t);
       }
       cuts.forEach((time,i)=>split.push({...event,time,duration:(cuts[i+1]??end)-time}));
     }
@@ -709,7 +754,7 @@
     const timing=tempo(flux,dt),charts=buildFocusedCharts(accepted,instrument,timing.beat,duration,energy,dt),expert=charts[instrument].expert;
     const waveform=Array.from({length:160},(_,i)=>{let value=0;for(let f=Math.floor(i*frames/160);f<Math.ceil((i+1)*frames/160)&&f<frames;f++)value=Math.max(value,energy[f]);return value;});
     const peak=Math.max(...waveform)||1;
-    return {...timing,instrument,duration,charts,chartVersion:3,waveform:waveform.map(v=>v/peak),quality:{evidencePolicy:'audible-attacks-v1',counts:Array.from({length:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),method:bass?'Low fundamental and attack tracking':'Voiced pitch and phrase tracking'}};
+    return {...timing,instrument,duration,charts,chartVersion:4,waveform:waveform.map(v=>v/peak),quality:{evidencePolicy:'audible-attacks-v2',counts:Array.from({length:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),method:bass?'Low fundamental and attack tracking':'Voiced pitch and phrase tracking'}};
   }
   function analyze({samples,sampleRate,instrument='guitar',audioId},progress=()=>{}){
     if(!['guitar','drums','bass','vocals'].includes(instrument))throw Error('Choose Guitar, Drums, Bass or Vocals before charting.');
@@ -733,6 +778,7 @@
     const hatFlux=new Float32Array(frames),hatEnergy=new Float32Array(frames),hatPrevious=new Float32Array(bins);
     const bodyFlux=new Float32Array(frames),bodyPrevious=new Float32Array(bins);
     const energy=new Float32Array(frames),hEnergy=new Float32Array(frames),pEnergy=new Float32Array(frames),pitch=new Float32Array(frames),tonality=new Float32Array(frames),combined=new Float32Array(frames);
+    const rawPitch=instrument==='guitar'?new Float32Array(frames):null,rawConfidence=instrument==='guitar'?new Float32Array(frames):null;
     for(let f=0;f<frames+8;f++){
       if(f<frames){spectrum(samples,f*hop-n/2,re,im,plan);const row=rows[f%17];for(let k=0;k<bins;k++)row[k]=Math.hypot(re[k],im[k])/n;}
       const center=f-8;if(center<0)continue;const current=rows[center%17];
@@ -766,11 +812,25 @@
           if(score>best&&a>score*.25){best=score;midi=Math.round(69+12*Math.log2(hz/440));fundamental=a;}
         }
         pitch[center]=midi;tonality[center]=fundamental/(hEnergy[center]+1e-9);
+        // Brief picked notes can disappear from the time-median harmonic mask.
+        // Keep a second measurement of actual integer-spaced harmonics. A lone
+        // ringing drum fundamental or broadband attack cannot supply this.
+        const rawAmplitude=hz=>{const k=Math.round(hz*n/sampleRate);return k>1&&k<bins-1?Math.max(current[k-1],current[k],current[k+1]):0;};
+        let rawBest=0;
+        for(let k=Math.ceil(78*n/sampleRate);k<Math.min(bins-1,Math.ceil(1400*n/sampleRate));k++){
+          const a=current[k];if(a<=current[k-1]||a<current[k+1])continue;
+          const left=Math.log(current[k-1]+1e-15),mid=Math.log(a+1e-15),right=Math.log(current[k+1]+1e-15);
+          const hz=(k+clamp(.5*(left-right)/(left-2*mid+right||1),-.5,.5))*sampleRate/n;
+          const h2=rawAmplitude(hz*2),h3=rawAmplitude(hz*3),score=a+.55*h2+.3*h3;
+          const concentration=(a*a+h2*h2+h3*h3)/(rawPower+1e-20);
+          if(score<=rawBest||a<score*.35||Math.max(h2,h3)<a*.12||concentration<.4)continue;
+          rawBest=score;rawPitch[center]=Math.round(69+12*Math.log2(hz/440));rawConfidence[center]=concentration;
+        }
       }
       if(center%300===0)progress(15+Math.round(center/frames*60),instrument==='guitar'?'Focusing on tonal guitar attacks…':'Focusing on percussion attacks…');
     }
-    if(percentile(energy,.9)<.00008)throw Error('This file is silent or too quiet to chart. Try a louder recording.');
-    const scales=drumFlux.map(a=>percentile(a,.95)),floor=Math.max(...scales)*.06;
+    if(!energy.some(v=>v>=.00008))throw Error('This file is silent or too quiet to chart. Try a louder recording.');
+    const scales=drumFlux.map(activeScale),floor=Math.max(...scales)*.06;
     for(let f=0;f<frames;f++)for(let band=0;band<3;band++){drumFlux[band][f]/=Math.max(scales[band],floor,1e-8);combined[f]+=drumFlux[band][f];}
     progress(79,'Aligning detected attacks to the audio…');const timing=tempo(combined,dt),events=[];
     if(instrument==='guitar'){
@@ -785,6 +845,22 @@
         if(after<before*1.08||after<rawPeak*.06)continue; // Fading tones and drum noise are not new guitar attacks.
         const note=[...votes.entries()].sort((a,b)=>b[1]-a[1])[0][0];
         if(time<duration-.08)events.push({...event,time,pitch:note});
+      }
+      for(let i=0;i<freshTone.anchors.length;i++){
+        const attack=freshTone.anchors[i];
+        if(attack.time>=duration-.08)continue;
+        const existing=events.find(e=>Math.abs(e.time-attack.time)<.025);
+        const next=freshTone.anchors[i+1]?.time??duration;
+        const votes=new Map();let total=0;
+        for(let j=1;j<=6;j++){
+          const f=Math.min(frames-1,Math.round(attack.time/dt)+j),weight=rawConfidence[f];
+          if(f*dt>next-.015)break;
+          if(!rawPitch[f])continue;votes.set(rawPitch[f],(votes.get(rawPitch[f])||0)+weight);total+=weight;
+        }
+        const dominant=[...votes.entries()].sort((a,b)=>b[1]-a[1])[0];
+        if(!dominant||total<1.1||dominant[1]<total*.7)continue;
+        if(existing){if(next-attack.time<.14)existing.pitch=dominant[0];}
+        else events.push({...attack,pitch:dominant[0]});
       }
     }else{
       const candidates=[],hatAttacks=[];
@@ -838,17 +914,17 @@
       const rolls=verifySnareRolls(masked,hatAttacks,samples,sampleRate,plan,re,im,noiseAttacks);
       const colors=verifyBassMaskedNoise(rolls,trebleAttacks,samples,sampleRate,plan,re,im);
       const verified=rejectNoiseTails(verifyNoiseColors(colors,samples,sampleRate,plan,re,im),samples,sampleRate);
-      const withKicks=verifyKickRepeats(verified,samples,sampleRate,plan,re,im);events.length=0;events.push(...withKicks);
+      const withKicks=alignKickAttacks(verifyKickRepeats(verified,samples,sampleRate,plan,re,im),samples,sampleRate,plan,re,im);events.length=0;events.push(...withKicks);
     }
     events.sort((a,b)=>a.time-b.time);
-    if(events.length<4)throw Error(`Not enough clear ${instrument==='guitar'?'guitar-like tones':'drum hits'} were detected. Try a recording where that instrument is louder, or upload its isolated track.`);
+    if(!events.length)throw Error(`Not enough clear ${instrument==='guitar'?'guitar-like tones':'drum hits'} were detected. Try a recording where that instrument is louder, or upload its isolated track.`);
     progress(92,`Building the ${instrument==='guitar'?'Guitar':'Drums'} chart…`);
     const charts=buildFocusedCharts(events,instrument,timing.beat,duration,hEnergy,dt);
     const waveform=Array.from({length:160},(_,i)=>{const a=Math.floor(i*frames/160),b=Math.max(a+1,Math.floor((i+1)*frames/160));let max=0;for(let f=a;f<b&&f<frames;f++)max=Math.max(max,energy[f]);return max;});
     const peak=Math.max(...waveform)||1;
     const expert=charts[instrument].expert;
-    const quality={evidencePolicy:'audible-attacks-v1',counts:Array.from({length:instrument==='drums'?6:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:instrument==='drums'&&events.some(e=>e.part!==undefined)?'Adaptive kit separation':'Attack and tone analysis'};
-    return {...timing,instrument,duration,charts,quality,chartVersion:instrument==='drums'?18:5,waveform:waveform.map(v=>v/peak)};
+    const quality={evidencePolicy:'audible-attacks-v2',counts:Array.from({length:instrument==='drums'?6:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:instrument==='drums'&&events.some(e=>e.part!==undefined)?'Adaptive kit separation':'Attack and tone analysis'};
+    return {...timing,instrument,duration,charts,quality,chartVersion:instrument==='drums'?19:6,waveform:waveform.map(v=>v/peak)};
   }
   const api={analyze,buildFocusedCharts,buildMatchedCharts,filterSeparated};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;

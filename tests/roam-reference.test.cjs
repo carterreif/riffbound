@@ -43,7 +43,7 @@ test('only the fingerprinted older curated Roam import upgrades; edited/current/
 });
 test('Roam reference is available in browser, worker and offline asset loading paths',()=>{
  const html=fs.readFileSync(require.resolve('../dist/index.html'),'utf8'),worker=fs.readFileSync(require.resolve('../dist/reference-charts.js'),'utf8'),offline=fs.readFileSync(require.resolve('../dist/offline-assets.js'),'utf8');
- assert.ok(html.indexOf('src="roam-reference.js"')<html.indexOf('src="reference-charts.js"'));assert.match(worker,/importScripts\('roam-reference\.js'\)/);assert.match(offline,/'roam-reference\.js'/);assert.match(offline,/riffbound-offline-v43-1/);assert.match(html,/Game version 43/);
+ assert.ok(html.indexOf('src="roam-reference.js"')<html.indexOf('src="reference-charts.js"'));assert.match(worker,/importScripts\('roam-reference\.js'\)/);assert.match(offline,/'roam-reference\.js'/);const version=Number(html.match(/Game version (\d+)/)?.[1]);assert.ok(version>=42);assert.ok(offline.includes(`riffbound-offline-v${version}-`),'Game and cached asset versions must agree');
 });
 
 const privateAudio=Boolean(process.env.RIFFBOUND_ROAM_WAV&&process.env.RIFFBOUND_ROAM_PCM);

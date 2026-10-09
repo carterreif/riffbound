@@ -1,12 +1,20 @@
 # Riffbound
 
-Browser rhythm game, version 43. Play Guitar, Bass, Drums or pitch-pad Vocals with automatic charting and Easy, Medium, Hard and Expert arrangements.
+Browser rhythm game, version 44. Play Guitar, Bass, Drums or pitch-pad Vocals with automatic charting and Easy, Medium, Hard and Expert arrangements.
 
 [Play Riffbound](https://riffbound.aaronreifschneider.chatgpt.site)
 
 Expert keeps every distinct note accepted by the audio analysis. Hard, Medium and Easy progressively reduce that chart while preserving retained timing and drum colors. The preview shows the note totals for all four difficulties. Exact duplicate detections of one physical hit are merged; quiet or closely spaced independent hits remain in Expert.
 
 The matched In Bloom drum chart includes score-and-audio reviews for Expert and Hard: separate same-color flam strokes, open hi-hat overlaps, removal of two yellow kick-click artifacts, and 36 additional hi-hats guided by supplied video screenshots. Easy and Medium retain their previous arrangements.
+
+## Expert note recovery (version 44)
+
+Expert now follows fast repeated Bass/Vocal attacks through their measured band envelopes. Short Guitar attacks can use coherent raw harmonics when the sustained-tone detector masks them; nearby picked notes are checked within their own onset boundaries to preserve pitch colors. Sparse recordings with one clear note or hit are accepted without manufacturing extra notes.
+
+Drums recover strong short hi-hat bursts directly after a crash and verify quieter tom repeats against bodies recovered earlier in the same fill. A delayed kick body can return to a simultaneous measured hand strike only when low-frequency energy rises within its first 12 ms. Later independent kicks retain their own timing. Existing quiet-hat, red-only roll, blue/green tom and cymbal-tail checks continue to apply.
+
+These changes improve recall without completing a rhythm grid or forcing every color into every song. The independent fast-note and single-hit fixtures contain no missed or added notes; dense overlapping kits still have known errors. Reviewed In Bloom/Roam charts remain protected. For existing automatic charts, select the instrument and **Rebuild this instrument’s chart**.
 
 ## Follow audible notes on every upload
 

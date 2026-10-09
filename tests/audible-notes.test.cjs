@@ -10,7 +10,7 @@ for(const instrument of ['guitar','bass','vocals'])for(const rate of [1.5,2,3]){
    assert.equal(notes[i].pitch,f.truth[i].pitch);
    assert.ok(Math.abs(notes[i].time-f.truth[i].time)<.03,'Retain the audible start');
   }
-  assert.equal(result.quality.evidencePolicy,'audible-attacks-v1');
+  assert.equal(result.quality.evidencePolicy,'audible-attacks-v2');
   for(const level of ['hard','medium','easy'])for(const n of result.charts[instrument][level]){
    assert.ok(notes.some(e=>e.time===n.time&&e.pitch===n.pitch),'Difficulty reduction cannot add or retime notes');
   }
