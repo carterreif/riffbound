@@ -17,10 +17,14 @@
   let pendingSaves=0,reconnectingAudio=false,savedSong=null,saveSerial=0,importingBackup=false;
   let chartDraft=null,chartReviewGeneration=0;
   let backupExport=null,backupSaving=false,backupTransfer=null;
-  let timingOffset=0,highwaySpeed=1;
-  try{const saved=JSON.parse(localStorage.getItem('riffbound-preferences-v1')||'{}');timingOffset=Math.max(-250,Math.min(250,Number(saved.timingOffset)||0));highwaySpeed=Math.max(.7,Math.min(1.6,Number(saved.highwaySpeed)||1));}catch{}
+  let timingOffset=0,highwaySpeed=1,volume=.7,muted=false,preMute=.7;
+  try{const saved=JSON.parse(localStorage.getItem('riffbound-preferences-v1')||'{}');timingOffset=Math.max(-250,Math.min(250,Number(saved.timingOffset)||0));highwaySpeed=Math.max(.7,Math.min(1.6,Number(saved.highwaySpeed)||1));
+    if(typeof saved.volume==='number'&&Number.isFinite(saved.volume))volume=Math.max(0,Math.min(1,saved.volume));
+    if(typeof saved.preMute==='number'&&Number.isFinite(saved.preMute)&&saved.preMute>0)preMute=Math.min(1,saved.preMute);else if(volume>0)preMute=volume;
+    muted=saved.muted===true||volume===0;
+  }catch{}
   const countNodes=[];
-  let width=0,height=0,lastFrame=0,lastUi=0,volume=.7,muted=false,preMute=.7;
+  let width=0,height=0,lastFrame=0,lastUi=0;
   const particles=[],flashes=[0,0,0,0,0,0],inputOwners=new Map();
   const mobileViewport=window.matchMedia('(max-width: 850px), (pointer: coarse) and (max-width: 1180px)');
   let padTarget=0,padWidth=0;
@@ -537,7 +541,7 @@
     }catch(error){$('libraryStatus').textContent=error.message;}
     finally{importingBackup=false;$('backupFile').value='';}
   }
-  function preferences(){try{localStorage.setItem('riffbound-preferences-v1',JSON.stringify({timingOffset,highwaySpeed}));return true;}catch{return false;}}
+  function preferences(){try{localStorage.setItem('riffbound-preferences-v1',JSON.stringify({timingOffset,highwaySpeed,volume,muted,preMute}));return true;}catch{return false;}}
   function stopCalibration(){
     clearTimeout(calibrationTimer);calibrationTimer=null;
     if(calibrationTest)for(const node of calibrationTest.nodes||[]){try{node.stop();node.disconnect();}catch{}}
@@ -771,10 +775,11 @@
   function drive(){if(!previewing&&running()&&currentTime()>=0&&session.activate()){
     const el=$('streakCallout');el.textContent='OVERDRIVE ENGAGED';el.classList.remove('show');void el.offsetWidth;el.classList.add('show');updateUi(currentTime());
   }}
+  const editingInput=target=>target instanceof HTMLInputElement||target?.tagName==='SELECT'||target?.tagName==='TEXTAREA'||target?.isContentEditable;
   document.addEventListener('keydown',event=>{
     if($('timingDialog').open){if(event.code==='Space'){event.preventDefault();if(!event.repeat)calibrationTap();}return;}
     if($('helpDialog').open||$('resultDialog').open||$('libraryDialog').open||$('practiceDialog').open||$('offlineDialog').open||$('chartFilesDialog').open||$('addSongDialog').open)return;
-    if(event.target?.tagName==='SELECT')return;
+    if(editingInput(event.target))return;
     const lane=E.KEYS.indexOf(event.code);
     if(lane>=0){event.preventDefault();if(!event.repeat)pressInput(`key:${event.code}`,lane);return;}
     if(event.code==='Escape'){event.preventDefault();if(!event.repeat)togglePause();return;}
@@ -783,7 +788,7 @@
     if(instrument==='drums'&&['ShiftLeft','ShiftRight'].includes(event.code)){event.preventDefault();if(!event.repeat)drive();}
     if(event.code==='Enter'){event.preventDefault();if(!event.repeat){if(state==='idle'||state==='finished')play();else if(state==='paused')resume();else if(instrument==='drums')pressInput('key:Enter',E.KICK_LANE);else strum();}}
   });
-  document.addEventListener('keyup',event=>{if(E.KEYS.includes(event.code)||event.code==='Enter'||event.code==='Space'){event.preventDefault();releaseInput(`key:${event.code}`);}});
+  document.addEventListener('keyup',event=>{if(E.KEYS.includes(event.code)||event.code==='Enter'||event.code==='Space'){releaseInput(`key:${event.code}`);if(!editingInput(event.target))event.preventDefault();}});
   [...fretButtons,$('kickButton')].forEach((button,lane)=>{
     button.addEventListener('pointerdown',event=>{event.preventDefault();if(event.button>0)return;button.setPointerCapture(event.pointerId);pressInput(`pointer:${event.pointerId}`,lane);});
     const release=event=>releaseInput(`pointer:${event.pointerId}`);
@@ -821,8 +826,9 @@
   for(const part of PARTS)$('part'+partName(part)).addEventListener('change',refreshChartScope);
   $('buildPartsButton').addEventListener('click',buildSelectedParts);
   function setVolume(){if(master)master.gain.setTargetAtTime(muted?0:volume,audioContext.currentTime,.02);$('volume').value=Math.round((muted?0:volume)*100);$('muteButton').textContent=muted||volume===0?'♪':'♫';$('muteButton').setAttribute('aria-label',muted||volume===0?'Unmute sound':'Mute sound');}
-  $('volume').addEventListener('input',event=>{volume=Number(event.target.value)/100;muted=volume===0;setVolume();});
-  $('muteButton').addEventListener('click',()=>{if(muted||volume===0){muted=false;volume=preMute||.7;}else{preMute=volume;muted=true;}setVolume();});
+  $('volume').addEventListener('input',event=>{const next=Math.max(0,Math.min(1,Number(event.target.value)/100));if(!Number.isFinite(next))return;if(volume>0)preMute=volume;volume=next;if(volume>0)preMute=volume;muted=volume===0;setVolume();preferences();});
+  $('muteButton').addEventListener('click',()=>{if(muted||volume===0){muted=false;volume=preMute||.7;}else{preMute=volume;muted=true;}setVolume();preferences();});
+  setVolume();
   document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
   window.addEventListener('blur',()=>{pause();clearHeld();});
 

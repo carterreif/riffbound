@@ -1,6 +1,8 @@
 # Riffbound
 
-Browser rhythm game, version 54. Play Guitar, Bass, Drums or pitch-pad Vocals with automatic charting and Easy, Medium, Hard and Expert arrangements.
+Browser rhythm game, version 55. Play Guitar, Bass, Drums or pitch-pad Vocals with automatic charting and Easy, Medium, Hard and Expert arrangements.
+
+Version 55 prevents instrument shortcuts from intercepting typing in search or settings fields. Volume and mute now persist alongside timing adjustment and highway speed; unmuting after dragging the slider to zero restores the last audible level. Saved charts retain their notes and arrangements.
 
 [Play Riffbound](https://riffbound.aaronreifschneider.chatgpt.site)
 

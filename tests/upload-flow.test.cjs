@@ -46,7 +46,7 @@ function setup({mobile=false,chartFixture=null,chartResultExtras={},chartFailure
   vm.createContext(sandbox);vm.runInContext(game,sandbox);
   const upload=async(name='My original.wav',flag=1)=>{nodes.songFile.files=[{name,size:uploadBytes?.length||100,arrayBuffer:async()=>new Uint8Array(uploadBytes||[flag,1,2,3]).buffer}];await nodes.songFile.emit('change');};
   const tick=t=>{audio.currentTime=t;raf(t*1000);};
-  const key=async(type,code)=>Promise.all((document.listeners[type]||[]).map(fn=>fn({code,repeat:false,target:document.body,preventDefault:noop})));
+  const key=async(type,code,options={})=>Promise.all((document.listeners[type]||[]).map(fn=>fn({code,repeat:false,target:document.body,preventDefault:noop,...options})));
   return {updateSafety:window.RiffUpdateSafety,resumeStorage,nodes,radios,frets,smalls,sources,writes,requests,requestIds,savedSongs,runCalibrationTimer:()=>calibrationTimer?.(),body:document.body,lines,key,resize:()=>resize(),get decodes(){return decodes;},upload,tick,get audio(){return audio;},defer:()=>{deferDecode={};return deferDecode;},clearDefer:()=>{deferDecode=null;}};
 }
 const settle=()=>new Promise(resolve=>setImmediate(resolve));
@@ -402,6 +402,36 @@ test('practice uses one looping audio source, scales time with speed, and never 
   assert.equal(n.resultDialog.open,false);assert.equal(app.writes.length,0);await n.mobileBackButton.click();assert.ok(source.stopped);assert.equal(app.body.classList.contains('practicing'),false);
 });
 
+test('settings: typing in search and form fields never activates instrument shortcuts',async()=>{
+  const app=setup();let prevented=0;
+  for(const target of [app.nodes.setlistSearch,app.nodes.highwaySpeed,{tagName:'TEXTAREA'},{tagName:'SELECT'},{isContentEditable:true}]){
+    for(const code of ['KeyD','KeyF','KeyJ','KeyK','KeyL','Space','Enter','ShiftLeft']){
+      await app.key('keydown',code,{target,preventDefault:()=>prevented++});await app.key('keyup',code,{target,preventDefault:()=>prevented++});
+    }
+  }
+  assert.equal(prevented,0);assert.ok(app.frets.every(f=>!f.classList.contains('active')));assert.equal(app.sources.length,0);
+  await app.key('keydown','KeyD');assert.ok(app.frets[0].classList.contains('active'));await app.key('keyup','KeyD');assert.ok(!app.frets[0].classList.contains('active'));
+});
+test('settings: releasing a held fret after focusing search clears the hold without blocking typing',async()=>{
+  const app=setup();await app.key('keydown','KeyD');assert.ok(app.frets[0].classList.contains('active'));let prevented=false;
+  await app.key('keyup','KeyD',{target:app.nodes.setlistSearch,preventDefault:()=>{prevented=true;}});assert.equal(prevented,false);assert.ok(!app.frets[0].classList.contains('active'));
+  await app.key('keydown','KeyD');assert.ok(app.frets[0].classList.contains('active'));await app.key('keyup','KeyD');
+});
+test('settings: volume and mute survive reopening, including slider-to-zero and other setting changes',async()=>{
+  const app=setup(),n=app.nodes;assert.equal(Number(n.volume.value),70);
+  n.volume.value='37';await n.volume.emit('input');n.volume.value='0';await n.volume.emit('input');assert.equal(n.muteButton['aria-label'],'Unmute sound');
+  n.highwaySpeed.value='1.3';await n.highwaySpeed.emit('input');await n.timingButton.click();n.timingOffset.value='60';await n.calibrationSave.click();
+  const preferences=JSON.parse(app.writes.at(-1)[1]),fresh=setup({preferences});assert.equal(Number(fresh.nodes.volume.value),0);assert.equal(Number(fresh.nodes.highwaySpeed.value),1.3);
+  await fresh.nodes.muteButton.click();assert.equal(Number(fresh.nodes.volume.value),37);assert.equal(fresh.nodes.muteButton['aria-label'],'Mute sound');
+  const restored=setup({preferences:JSON.parse(fresh.writes.at(-1)[1])});assert.equal(Number(restored.nodes.volume.value),37);await restored.nodes.timingButton.click();assert.equal(Number(restored.nodes.timingOffset.value),60);
+  await restored.nodes.muteButton.click();await restored.nodes.muteButton.click();assert.equal(Number(restored.nodes.volume.value),37);
+  const bounded=setup({preferences:{volume:4,preMute:2,timingOffset:900,highwaySpeed:.1}});assert.equal(Number(bounded.nodes.volume.value),100);assert.equal(Number(bounded.nodes.highwaySpeed.value),.7);await bounded.nodes.timingButton.click();assert.equal(Number(bounded.nodes.timingOffset.value),250);
+});
+test('settings: highway speed changes spacing without changing the song or its chart',async()=>{
+  const fixture=[{lane:0,time:1,duration:0},{lane:2,time:2,duration:0}],app=setup({chartFixture:fixture});await app.upload();const saved=[...app.savedSongs.values()][0];
+  app.nodes.highwaySpeed.value='1.6';await app.nodes.highwaySpeed.emit('input');await app.nodes.playButton.click();await until(()=>app.nodes.playText.textContent==='RESTART TRACK');
+  assert.equal(app.sources.at(-1).playbackRate.value,1);assert.equal(app.nodes.highwaySpeedValue.textContent,'1.6×');assert.equal([...app.savedSongs.values()][0],saved);assert.equal(app.requests.length,1);
+});
 test('tap calibration saves the measured delay and applies it to scored input',async()=>{
   const app=setup({chartFixture:[{lane:0,time:1,duration:0}]}),n=app.nodes;await app.upload();await n.timingButton.click();await n.calibrationStart.click();
   for(let i=2;i<12;i++){app.tick(.75+i*.5+.12);await n.calibrationTap.emit('pointerdown',{pointerId:1});}
