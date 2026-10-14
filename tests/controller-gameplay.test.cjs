@@ -1,0 +1,54 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),{createRequire}=require('node:module');
+const API=require('../dist/controller-input.js'),E=require('../dist/engine.js'),D=E.Difficulties,L=require('../dist/song-library.js');
+const adapter=require.resolve('./upload-flow.test.cjs'),code=fs.readFileSync(adapter,'utf8').split('\ntest(')[0],{setup,until}=new Function('require',code+'\nreturn {setup,until};')(createRequire(adapter));
+function appRig({layout='five',part='drums',mobile=false,notes,storage=new Map()}={}){
+ let hub;const pad={index:0,id:'Physical test controller',connected:true,buttons:Array.from({length:16},()=>({pressed:false,value:0})),axes:[0,0]},ports=new Map(),midi={inputs:ports};let pads=[pad],midiFailure=null;
+ const browserEvents=new Map();
+ class Hub extends API.Hub{constructor(options){super({...options,storage:{getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v)}});hub=this;}}
+ const record=L.validate({id:'d'.repeat(64),title:'Controller soundcheck',artist:'Test',instrument:part,musicEnd:16,bpm:120,beat:.5,charts:{[part]:D.build(notes||[{time:1,lane:0,duration:0}],part,.5)},audioBlob:new Blob([new Uint8Array([1,2,3])]),quality:{drumLayout:layout}});
+ record.audioBlob=new Blob([new Uint8Array([1,2,3])]);const savedSongs=new Map([[record.id,record]]);
+ const app=setup({mobile,savedSongs,chartFixture:[],browserOverrides:{RiffControllerInput:{...API,Hub},navigator:{getGamepads:()=>pads,requestMIDIAccess:async()=>{if(midiFailure)throw midiFailure;return midi;}},addEventListener:(event,fn)=>{const listeners=browserEvents.get(event)||[];listeners.push(fn);browserEvents.set(event,listeners);}}});
+ const button=(i,down)=>pad.buttons[i]={pressed:down,value:down?1:0};
+ const open=async()=>{await until(()=>app.nodes.setlistEntries.children.length===2);await app.nodes.setlistEntries.children[1].click();assert.equal(app.nodes.trackTitle.textContent,record.title,app.nodes.statusMessage.textContent);};
+ const row=a=>app.nodes.controllerMappings.children.find(n=>n.dataset.action===a);
+ const learn=async(action,index,t)=>{await row(action).children[2].children[0].click();button(index,true);app.tick(t);button(index,false);app.tick(t+.02);};
+ return {app,pad,hub,ports,midi,storage,record,button,row,learn,open,disconnect:()=>pads=[],midiFail:error=>midiFailure=error,emit:event=>(browserEvents.get(event)||[]).forEach(fn=>fn())};
+}
+for(const layout of ['four','five'])for(const mobile of [false,true])test(`${mobile?'mobile':'desktop'} ${layout}-lane controller setup learns all pads and scores the actual saved chart`,async()=>{
+ const count=layout==='four'?4:5,notes=[...Array.from({length:count},(_,lane)=>({time:1,lane,duration:0})),{time:1,lane:5,duration:0},{time:1.09,lane:5,duration:0}],r=appRig({layout,mobile,notes}),{app}=r,n=app.nodes;
+ await r.open();const original=JSON.stringify([...app.savedSongs.values()][0]);await n.controllerButton.click();assert.equal(n.controllerDialog.open,true);assert.equal(n.controllerContext.value,'drums-'+layout);assert.equal(r.hub.list().length,1);
+ for(let i=0;i<count;i++)await r.learn('lane'+i,i,.1+i*.1);await r.learn('kick',5,.8);assert.match(n.controllerStatus.textContent,/assigned.*Saved/);assert.equal(app.updateSafety.canReload(),false);
+ assert.equal(r.row('lane0').children[0].textContent,'Red '+(layout==='four'?'pad':'snare'));assert.equal(r.row('lane4')===undefined,layout==='four');
+ r.button(0,true);app.tick(.9);assert.match(n.controllerLastInput.textContent,/Button 1.*Red/);assert.equal(r.row('lane0').classList.contains('controller-hit'),true);assert.equal(n.score.textContent,'000,000');r.button(0,false);app.tick(.95);
+ n.controllerDialog.close();await app.radios.difficulty.find(x=>x.value==='expert').emit('change');await n.playButton.click();await until(()=>n.playText.textContent==='RESTART TRACK');const start=app.sources.at(-1).when;app.tick(start+.5);
+ for(let i=0;i<count;i++)r.button(i,true);r.button(5,true);app.tick(start+1);r.button(5,false);app.tick(start+1.04);r.button(5,true);app.tick(start+1.09);app.tick(start+18);
+ assert.match(n.resultNotes.textContent,new RegExp(`${count+2} of ${count+2} notes hit`));assert.equal(n.resultAccuracy.textContent,'100%');assert.equal(JSON.stringify([...app.savedSongs.values()][0]),original,'mapping never rewrites song charts or audio');
+ const fresh=appRig({layout,storage:r.storage});await fresh.open();await fresh.app.nodes.controllerButton.click();assert.match(fresh.row('kick').children[1].textContent,/Button 6/);
+});
+test('MIDI setup permission, learning, preset and real scoring include repeated kick note-ons without note-offs',async()=>{
+ const r=appRig({layout:'four',notes:[{time:1,lane:0,duration:0},{time:1,lane:5,duration:0},{time:1.09,lane:5,duration:0}]}),{app}=r,n=app.nodes;await r.open();await n.controllerButton.click();assert.equal(r.hub.midi,null);
+ r.midiFail(Object.assign(Error('Denied'),{name:'NotAllowedError'}));await n.controllerEnableMidi.click();assert.match(n.controllerStatus.textContent,/permission was blocked/);assert.equal(n.controllerEnableMidi.disabled,false);r.midiFail(null);
+ const port={id:'usb-kit',name:'USB test drums',manufacturer:'Test',state:'connected'};r.ports.set(port.id,port);await n.controllerEnableMidi.click();assert.equal(n.controllerDevice.value,'midi:usb-kit');await n.controllerPreset.click();
+ await r.row('lane0').children[2].children[0].click();port.onmidimessage({data:[0x99,39,90]});assert.match(n.controllerStatus.textContent,/assigned.*Note 39/);assert.match(r.row('lane0').children[1].textContent,/Note 39/);port.onmidimessage({data:[0x99,39,80]});assert.equal(r.row('lane0').classList.contains('controller-hit'),true);assert.equal(n.score.textContent,'000,000');
+ n.controllerDialog.close();await app.radios.difficulty.find(x=>x.value==='expert').emit('change');await n.playButton.click();await until(()=>n.playText.textContent==='RESTART TRACK');const start=app.sources.at(-1).when;app.tick(start+.5);app.tick(start+1);
+ port.onmidimessage({data:[0x99,39,90]});port.onmidimessage({data:[0x99,36,90]});app.tick(start+1.09);port.onmidimessage({data:[0x99,36,90]});app.tick(start+18);assert.match(n.resultNotes.textContent,/3 of 3 notes hit/);assert.equal(n.resultAccuracy.textContent,'100%');
+});
+test('guitar controller holds and simultaneous strum use existing sustain scoring; blur releases inputs',async()=>{
+ const r=appRig({part:'guitar',notes:[{time:1,lane:0,duration:1}]}),{app}=r,n=app.nodes;await r.open();await n.controllerButton.click();assert.equal(n.controllerContext.value,'frets');await r.learn('strum',8,.1);await r.learn('lane0',0,.2);n.controllerDialog.close();
+ await app.radios.mode.find(x=>x.value==='strum').emit('change');await n.playButton.click();await until(()=>n.playText.textContent==='RESTART TRACK');const start=app.sources.at(-1).when;app.tick(start+.5);r.button(0,true);r.button(8,true);app.tick(start+1);r.button(8,false);app.tick(start+1.5);assert.equal(app.frets[0].classList.contains('active'),true);assert.ok(Number(n.score.textContent.replaceAll(',',''))>100);
+ r.emit('blur');assert.equal(n.playText.textContent,'RESUME TRACK');assert.equal(app.frets[0].classList.contains('active'),false);r.emit('focus');await n.pauseButton.click();app.tick(start+1.6);assert.equal(app.frets[0].classList.contains('active'),false,'held inputs cannot relatch after resume until released');r.button(0,false);app.tick(start+1.7);
+});
+test('mapping dialog pauses a run, blocks keyboard scoring, cancels capture on close and suppresses held controls',async()=>{
+ const r=appRig(),{app}=r,n=app.nodes;await r.open();await n.playButton.click();await until(()=>n.playText.textContent==='RESTART TRACK');app.tick(app.sources.at(-1).when+.5);await n.controllerButton.click();assert.equal(n.playText.textContent,'RESUME TRACK');
+ await app.key('keydown','KeyD');assert.equal(app.frets[0].classList.contains('active'),false);await r.row('lane0').children[2].children[0].click();assert.ok(r.hub.learning);n.controllerDialog.close();await n.controllerDialog.emit('close');assert.equal(r.hub.learning,null);assert.equal(n.playText.textContent,'RESUME TRACK');
+});
+test('mapped pause/resume is edge-triggered and controller disconnect cannot release a keyboard-owned fret',async()=>{
+ const r=appRig({part:'guitar',notes:[{time:1,lane:0,duration:2}]}),{app}=r,n=app.nodes;await r.open();await n.controllerButton.click();await r.learn('pause',9,.1);await r.learn('lane0',0,.2);n.controllerDialog.close();await n.playButton.click();await until(()=>n.playText.textContent==='RESTART TRACK');const start=app.sources.at(-1).when;app.tick(start+.5);
+ r.button(9,true);app.tick(start+.6);assert.equal(n.playText.textContent,'RESUME TRACK');app.tick(start+.61);assert.equal(n.playText.textContent,'RESUME TRACK');r.button(9,false);app.tick(start+.62);r.button(9,true);app.tick(start+.63);await until(()=>n.playText.textContent==='RESTART TRACK');r.button(9,false);app.tick(start+.64);
+ await app.key('keydown','KeyD');r.button(0,true);app.tick(start+1);assert.equal(app.frets[0].classList.contains('active'),true);r.disconnect();app.tick(start+1.01);assert.equal(app.frets[0].classList.contains('active'),true);await app.key('keyup','KeyD');assert.equal(app.frets[0].classList.contains('active'),false);
+});
+test('device/layout selectors, clear and enable controls edit only the selected profile',async()=>{
+ const r=appRig(),{app}=r,n=app.nodes;await r.open();await n.controllerButton.click();await n.controllerPreset.click();assert.ok(r.hub.mapping('gamepad:0','drums-five').lane4.length);
+ n.controllerContext.value='drums-four';await n.controllerContext.emit('change');assert.equal(r.row('lane4'),undefined);await n.controllerPreset.click();assert.ok(r.hub.mapping('gamepad:0','drums-four').lane3.length);await r.row('lane3').children[2].children[1].click();assert.equal(r.hub.mapping('gamepad:0','drums-four').lane3,undefined);assert.ok(r.hub.mapping('gamepad:0','drums-five').lane4.length);
+ await n.controllerClear.click();assert.equal(Object.keys(r.hub.mapping('gamepad:0','drums-four')).length,0);n.controllerEnabled.checked=false;await n.controllerEnabled.emit('change');assert.equal(r.hub.enabled,false);assert.equal(JSON.parse(r.storage.get(API.STORAGE_KEY)).enabled,false);
+});

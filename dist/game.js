@@ -18,6 +18,7 @@
   let song=null,uploadGeneration=0,playbackGeneration=0,cancelAnalysis=null,cancelLookup=null,previewing=false;
   let transportSeek=0,playRate=1,practiceLoop=null,loopCycle=0,practicePass=1,frozenInputTime=0;
   let calibrationTest=null,calibrationTimer=null;
+  let controllerInput=null,controllerFocused=true;
   let setlistSongs=[],setlistGeneration=0,setlistError='';
   let pendingSaves=0,reconnectingAudio=false,savedSong=null,saveSerial=0,importingBackup=false;
   let chartDraft=null,chartReviewGeneration=0;
@@ -128,7 +129,7 @@
     $('startHint').textContent=running()?(instrument==='drums'?'Space / Enter: kick. Shift: Overdrive. Escape: pause.':'Escape to pause. Space for Overdrive.'):state==='paused'?'Your place in the song is saved.':'Sound on. Headphones recommended.';
     resize();
   }
-  function clearHeld(){held.clear();inputOwners.clear();fretButtons.forEach(b=>b.classList.remove('active'));$('kickButton').classList.remove('active');session.notes.forEach(n=>n.held=false);}
+  function clearHeld(){controllerInput?.reset();held.clear();inputOwners.clear();fretButtons.forEach(b=>b.classList.remove('active'));$('kickButton').classList.remove('active');session.notes.forEach(n=>n.held=false);}
   function refreshInstrument(){
     const drums=instrument==='drums',vocals=instrument==='vocals',four=fourLaneDrums();
     if(!uploadTargetExplicit)uploadInstrument=instrument;
@@ -166,6 +167,7 @@
     }
   }
   function newSession(){
+    if(controllerInput)controllerInput.setContext(controllerContext());
     session=new E.Session(difficulty,mode,instrument,{drumLayout:D.drumLayout(song?.quality),notes:T.segment(chartNotes(),practiceLoop),musicEnd:practiceLoop?.end??song?.musicEnd??E.MUSIC_END});session.onJudge=judge;session.onMilestone=n=>{
       const el=$('streakCallout');el.textContent=`${n} NOTE STREAK`;el.classList.remove('show');void el.offsetWidth;el.classList.add('show');
     };
@@ -1150,7 +1152,23 @@
     const el=$('streakCallout');el.textContent='OVERDRIVE ENGAGED';el.classList.remove('show');void el.offsetWidth;el.classList.add('show');updateUi(currentTime());
   }}
   const editingInput=target=>target instanceof HTMLInputElement||target?.tagName==='SELECT'||target?.tagName==='TEXTAREA'||target?.isContentEditable;
+  const controllerContext=()=>instrument==='drums'?(fourLaneDrums()?'drums-four':'drums-five'):'frets';
+  const controllerModalOpen=()=>['controllerDialog','timingDialog','helpDialog','resultDialog','libraryDialog','practiceDialog','offlineDialog','chartFilesDialog','addSongDialog','backupDialog'].some(id=>$(id)?.open);
+  if(window.RiffControllerInput&&window.RiffControllerSetup&&$('controllerDialog')){
+    controllerInput=new window.RiffControllerInput.Hub({navigator:window.navigator,storage:localStorage,onAction:(action,down,owner)=>{
+      const id='controller:'+owner;
+      if(!down){releaseInput(id);return;}
+      if(controllerModalOpen()||editingInput(document.activeElement)||!controllerFocused||document.hidden||busy())return;
+      if(action==='pause'){if(running()||state==='paused')togglePause();return;}
+      if(!running()||previewing)return;
+      if(action.startsWith('lane'))pressInput(id,Number(action.slice(4)));
+      else if(action==='kick'&&instrument==='drums')pressInput(id,E.KICK_LANE);
+      else if(action==='strum')strum();else if(action==='overdrive')drive();
+    }});
+    window.RiffControllerSetup({document,hub:controllerInput,getContext:controllerContext,beforeOpen:()=>{if(running())pause();clearHeld();}});
+  }
   document.addEventListener('keydown',event=>{
+    if($('controllerDialog')?.open)return;
     if($('timingDialog').open){if(event.code==='Space'){event.preventDefault();if(!event.repeat)calibrationTap();}return;}
     if($('helpDialog').open||$('resultDialog').open||$('libraryDialog').open||$('practiceDialog').open||$('offlineDialog').open||$('chartFilesDialog').open||$('addSongDialog').open)return;
     if(editingInput(event.target))return;
@@ -1214,8 +1232,9 @@
   $('volume').addEventListener('input',event=>{const next=Math.max(0,Math.min(1,Number(event.target.value)/100));if(!Number.isFinite(next))return;if(volume>0)preMute=volume;volume=next;if(volume>0)preMute=volume;muted=volume===0;setVolume();preferences();});
   $('muteButton').addEventListener('click',()=>{if(muted||volume===0){muted=false;volume=preMute||.7;}else{preMute=volume;muted=true;}setVolume();preferences();});
   setVolume();
-  document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
-  window.addEventListener('blur',()=>{pause();clearHeld();});
+  document.addEventListener('visibilitychange',()=>{if(document.hidden){pause();clearHeld();}});
+  window.addEventListener('blur',()=>{controllerFocused=false;pause();clearHeld();});
+  window.addEventListener('focus',()=>{controllerFocused=true;});
 
   function updateUi(t){
     $('score').textContent=Math.floor(session.score).toLocaleString('en-US',{minimumIntegerDigits:6});$('streak').textContent=session.streak;
@@ -1332,6 +1351,7 @@
     const fog=ctx.createLinearGradient(0,geo.top-7,0,geo.top+35);fog.addColorStop(0,'#080a1077');fog.addColorStop(1,'#080a1000');ctx.fillStyle=fog;ctx.fillRect(width/2-geo.topWidth*.6,geo.top-7,geo.topWidth*1.2,42);
   }
   function frame(now){
+    if(controllerInput){controllerInput.setContext(controllerContext());controllerInput.setBlocked(controllerModalOpen()||busy()||!!document.hidden||!controllerFocused||!!editingInput(document.activeElement));controllerInput.poll(now);}
     const dt=Math.min(.06,(now-lastFrame)/1000||.016);lastFrame=now;const t=currentTime();
     if(running()){
       if(state==='countin'&&t<transportSeek&&!previewing){setAnnouncement('COUNT IT IN',String(Math.min(4,Math.ceil((transportSeek-t)/trackBeat()))),true,true);}
@@ -1349,8 +1369,8 @@
   const resumeKey='riffbound-update-resume-v1';
   window.RiffUpdateSafety={
     canReload(manual=false){
-      const dialogs=['libraryDialog','backupDialog','addSongDialog','chartFilesDialog','practiceDialog','timingDialog','helpDialog','resultDialog',...(manual?[]:['offlineDialog'])];
-      return !active()&&!previewing&&!calibrationTest&&!pendingSaves&&!importingBackup&&!backupSaving&&(!song||song===savedSong)&&!dialogs.some(id=>$(id).open);
+      const dialogs=['libraryDialog','backupDialog','addSongDialog','chartFilesDialog','practiceDialog','timingDialog','helpDialog','resultDialog','controllerDialog',...(manual?[]:['offlineDialog'])];
+      return !active()&&!previewing&&!calibrationTest&&!pendingSaves&&!importingBackup&&!backupSaving&&(!song||song===savedSong)&&!dialogs.some(id=>$(id)?.open);
     },
     prepareReload(manual=false){
       if(!this.canReload(manual))return false;

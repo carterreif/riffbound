@@ -1,0 +1,124 @@
+/* Live controller/MIDI input. No device permissions are requested on page load. */
+(function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;else root.RiffControllerInput=api;})(typeof window==='object'?window:globalThis,()=>{
+  'use strict';
+  const STORAGE_KEY='riffbound-controller-mappings-v1';
+  const CONTEXTS=['drums-four','drums-five','frets'];
+  const ACTIONS=['lane0','lane1','lane2','lane3','lane4','kick','strum','overdrive','pause'];
+  const actions=context=>ACTIONS.filter(a=>context==='frets'?!['kick'].includes(a):a!=='strum'&&(context!=='drums-four'||a!=='lane4'));
+  const labels=context=>context==='frets'?['Green fret / low pitch','Red fret','Yellow fret','Blue fret','Orange fret / high pitch']:context==='drums-four'?['Red pad','Yellow pad / cymbal','Blue pad / cymbal','Green pad / cymbal']:['Red snare','Yellow hi-hat','Blue tom','Orange cymbal','Green floor tom'];
+  function cleanBinding(binding){
+    if(!Array.isArray(binding)||!binding.length||binding.length>12)return null;
+    const result=[...new Set(binding)];
+    if(!result.every(v=>typeof v==='string'&&(/^(b:(?:\d|[1-9]\d|1[01]\d|12[0-7])|a:(?:\d|[12]\d|3[01]):[+-])$/.test(v)||/^n:(\*|\d|1[0-5]):(\d|[1-9]\d|1[01]\d|12[0-7])$/.test(v))))return null;
+    if(result.some(v=>v.startsWith('n:'))&&result.length!==1)return null;
+    return result.sort();
+  }
+  const signature=b=>b.join('|');
+  const overlap=(a,b)=>signature(a)===signature(b)||(a.length===1&&b.length===1&&a[0].startsWith('n:')&&b[0].startsWith('n:')&&a[0].split(':')[2]===b[0].split(':')[2]&&(a[0].split(':')[1]==='*'||b[0].split(':')[1]==='*'));
+  const bindingLabel=b=>b.map(token=>{const [type,n,direction]=token.split(':');return type==='b'?`Button ${Number(n)+1}`:type==='a'?`Axis ${Number(n)+1} ${direction}`:`Note ${direction} · ${n==='*'?'any channel':'channel '+(Number(n)+1)}`;}).join(' + ');
+  function matches(map,tokens){
+    const candidates=[];
+    for(const [action,bindings] of Object.entries(map))for(const b of bindings)if(b.every(t=>tokens.has(t)))candidates.push({action,b});
+    // A kit can encode one pad as A + bumper. Do not also fire its A-only pad.
+    return [...new Set(candidates.filter(x=>!candidates.some(y=>y.b.length>x.b.length&&x.b.every(t=>y.b.includes(t)))).map(x=>x.action))];
+  }
+  function preset(kind,context){
+    const map={};const add=(a,...tokens)=>map[a]=tokens.map(t=>[t]);
+    if(kind==='gamepad'){
+      [context==='frets'?0:1,context==='frets'?1:3,context==='frets'?3:2,context==='frets'?2:context==='drums-four'?0:4,context==='frets'?4:0].forEach((b,i)=>{if(actions(context).includes('lane'+i))add('lane'+i,'b:'+b);});
+      if(context==='frets')add('strum','b:12','b:13');else add('kick','b:5');
+      add('overdrive','b:8');add('pause','b:9');
+    }else if(context!=='frets'){
+      add('lane0','n:*:38','n:*:40');add('lane1','n:*:42','n:*:44','n:*:46');
+      add('lane2','n:*:48','n:*:50',...(context==='drums-four'?['n:*:51','n:*:59']:[]));
+      add(context==='drums-four'?'lane3':'lane4','n:*:41','n:*:43','n:*:45','n:*:47');
+      for(const note of [49,55,57])(map.lane3??=[]).push(['n:*:'+note]);
+      if(context==='drums-five')(map.lane3??=[]).push(['n:*:51'],['n:*:59']);
+      add('kick','n:*:35','n:*:36');
+    }
+    return map;
+  }
+  class Hub{
+    constructor({navigator={},storage=null,onAction=()=>{},onChange=()=>{},onSignal=()=>{},onLearn=()=>{}}={}){
+      Object.assign(this,{navigator,storage,onAction,onChange,onSignal,onLearn});
+      this.context='drums-five';this.enabled=true;this.blocked=true;this.devices=new Map();this.profiles=new Map();this.learning=null;this.midi=null;this.midiPending=null;this.storageError='';this.gamepadError='';
+      try{const data=JSON.parse(storage?.getItem(STORAGE_KEY)||'null');if(data?.version===1){this.enabled=data.enabled!==false;for(const [key,contexts] of Object.entries(data.profiles||{}).slice(0,100)){const safe={};for(const c of CONTEXTS){const map={};for(const a of actions(c)){const bindings=contexts?.[c]?.[a];if(Array.isArray(bindings))map[a]=bindings.map(cleanBinding).filter(Boolean).slice(0,8);}safe[c]=map;}this.profiles.set(key,safe);}}}catch{}
+    }
+    save(){try{this.storage?.setItem(STORAGE_KEY,JSON.stringify({version:1,enabled:this.enabled,profiles:Object.fromEntries(this.profiles)}));this.storageError='';}catch{this.storageError='Mapping works for this visit, but the browser could not save it. Allow site storage to keep it.';}this.onChange();}
+    list(){return [...this.devices.values()].map(({id,key,name,kind})=>({id,key,name,kind}));}
+    mapping(id,context=this.context){const d=this.devices.get(id);return d?this.profiles.get(d.key)?.[context]||{}:{};}
+    release(d){for(const a of d.active)this.onAction(a,false,`${d.id}:${a}`);d.active.clear();}
+    reset(){for(const d of this.devices.values()){this.release(d);d.ready=false;if(d.kind==='midi')d.tokens.clear();}this.cancelLearn();}
+    setContext(context){if(!CONTEXTS.includes(context)||context===this.context)return;this.reset();this.context=context;this.onChange();}
+    setBlocked(blocked){if(this.blocked===blocked)return;this.blocked=blocked;for(const d of this.devices.values()){this.release(d);d.ready=false;if(d.kind==='midi')d.tokens.clear();}}
+    setEnabled(enabled){this.reset();this.enabled=!!enabled;this.save();}
+    addDevice(id,key,name,kind,extra={}){const d={id,key,name,kind,active:new Set(),tokens:new Set(),ready:false,...extra};this.devices.set(id,d);this.onChange();return d;}
+    removeDevice(id){const d=this.devices.get(id);if(!d)return;this.release(d);if(this.learning?.id===id)this.cancelLearn();if(d.port)d.port.onmidimessage=null;this.devices.delete(id);this.onChange();}
+    assign(id,context,action,binding){
+      const d=this.devices.get(id),b=cleanBinding(binding);if(!d||!b||!actions(context).includes(action))return false;
+      const profiles=this.profiles.get(d.key)||{},map=profiles[context]||{};let moved=false;
+      for(const a of actions(context)){if(a!==action&&map[a]?.some(old=>overlap(old,b)))moved=true;if(map[a])map[a]=map[a].filter(old=>!overlap(old,b));}
+      map[action]=[...(map[action]||[]),b].slice(-8);profiles[context]=map;this.profiles.set(d.key,profiles);this.release(d);d.ready=false;this.save();return moved;
+    }
+    clear(id,context,action){const d=this.devices.get(id);if(!d)return;const p=this.profiles.get(d.key);if(p?.[context])delete p[context][action];this.release(d);d.ready=false;this.save();}
+    usePreset(id,context){const d=this.devices.get(id);if(!d)return;this.cancelLearn();const p=this.profiles.get(d.key)||{};p[context]=preset(d.kind,context);this.profiles.set(d.key,p);this.release(d);d.ready=false;this.save();}
+    clearProfile(id,context){const d=this.devices.get(id);if(!d)return;this.cancelLearn();const p=this.profiles.get(d.key);if(p)p[context]={};this.release(d);d.ready=false;this.save();}
+    learn(id,context,action,now=0){this.cancelLearn();const d=this.devices.get(id);if(!d||!actions(context).includes(action))return false;this.release(d);this.learning={id,context,action,expires:now+10000,ready:d.kind==='midi'||d.tokens.size===0,candidate:[],changed:now};this.onChange();return true;}
+    cancelLearn(){if(!this.learning)return;this.learning=null;this.onChange();}
+    finishLearn(binding){const l=this.learning;if(!l)return;this.learning=null;const moved=this.assign(l.id,l.context,l.action,binding);this.onLearn({...l,binding,moved});}
+    updateActions(d,next){const desired=new Set(next);for(const a of [...d.active])if(!desired.has(a)){d.active.delete(a);this.onAction(a,false,`${d.id}:${a}`);}for(const a of ACTIONS)if(desired.has(a)&&!d.active.has(a)){d.active.add(a);this.onAction(a,true,`${d.id}:${a}`);}}
+    poll(now=0){
+      if(this.learning&&now>=this.learning.expires){this.learning=null;this.onLearn({timeout:true});this.onChange();}
+      const previousError=this.gamepadError;let pads;
+      try{pads=Array.from(this.navigator.getGamepads?.()||[]);this.gamepadError=typeof this.navigator.getGamepads==='function'?'':'This browser cannot read game controllers. Try desktop Chrome or Edge. MIDI is enabled separately below.';}
+      catch{pads=[];this.gamepadError='Controller access is blocked. Open Riffbound directly in a browser tab and allow controller access.';}
+      if(previousError!==this.gamepadError)this.onChange();
+      const connected=new Set();
+      for(const pad of pads){if(!pad||pad.connected===false)continue;const id='gamepad:'+pad.index,key=`gamepad:${pad.id}:${pad.buttons.length}:${pad.axes.length}`;connected.add(id);let d=this.devices.get(id);
+        if(d&&d.key!==key){this.removeDevice(id);d=null;}
+        if(!d)d=this.addDevice(id,key,pad.id||'Game controller','gamepad',{baseline:Array.from(pad.axes).map(x=>Number(x)||0)});
+        const tokens=new Set();Array.from(pad.buttons).slice(0,128).forEach((b,i)=>{if(typeof b==='number'?b>.5:b?.pressed||b?.value>.5)tokens.add('b:'+i);});
+        Array.from(pad.axes).slice(0,32).forEach((v,i)=>{const delta=v-d.baseline[i];for(const sign of ['+','-']){const token=`a:${i}:${sign}`,n=delta*(sign==='+'?1:-1);if(n>(d.tokens.has(token) ? .35 : .65))tokens.add(token);}});
+        const changed=signature([...tokens].sort())!==signature([...d.tokens].sort());d.tokens=tokens;
+        if(!d.ready){if(!tokens.size)d.ready=true;this.release(d);}
+        const l=this.learning;
+        if(l?.id===id){
+          if(!l.ready){if(!tokens.size)l.ready=true;}
+          else if(tokens.size){const candidate=[...tokens].sort();if(signature(candidate)!==signature(l.candidate)){l.candidate=candidate;l.changed=now;}if(now-l.changed>=65)this.finishLearn(l.candidate);}
+          else if(l.candidate.length)this.finishLearn(l.candidate);
+        }
+        const next=matches(this.mapping(id),tokens);
+        if(changed&&tokens.size)this.onSignal({id,label:bindingLabel([...tokens].sort()),actions:next,tokens:[...tokens]});
+        if(this.enabled&&!this.blocked&&!this.learning&&d.ready)this.updateActions(d,next);else this.release(d);
+      }
+      for(const d of [...this.devices.values()])if(d.kind==='gamepad'&&!connected.has(d.id))this.removeDevice(d.id);
+    }
+    async enableMidi(){
+      if(this.midi){this.syncMidi();return this.midi;}
+      if(!this.navigator.requestMIDIAccess)throw Error('Live MIDI is unavailable in this browser. Try desktop Chrome or Edge and open Riffbound directly.');
+      if(this.midiPending)return this.midiPending;
+      this.midiPending=(async()=>{try{this.midi=await this.navigator.requestMIDIAccess({sysex:false});this.midi.onstatechange=()=>this.syncMidi();this.syncMidi();return this.midi;}catch(error){throw Error(error?.name==='NotAllowedError'||error?.name==='SecurityError'?'MIDI permission was blocked. Open Riffbound directly in Chrome or Edge, allow MIDI in site permissions, and try again.':'Could not open MIDI devices. Check the USB connection and close other MIDI apps, then try again.');}finally{this.midiPending=null;}})();return this.midiPending;
+    }
+    syncMidi(){const connected=new Set();for(const port of this.midi?.inputs.values()||[]){if(port.state==='disconnected')continue;const id='midi:'+port.id;connected.add(id);let d=this.devices.get(id);if(!d)d=this.addDevice(id,`midi:${port.manufacturer||''}:${port.name||''}:${port.id}`,port.name||'MIDI input','midi',{port});if(d.port!==port){d.port.onmidimessage=null;d.port=port;}port.onmidimessage=e=>this.midiMessage(id,e.data);}
+      for(const d of [...this.devices.values()])if(d.kind==='midi'&&!connected.has(d.id))this.removeDevice(d.id);this.onChange();}
+    midiMessage(id,data){
+      const d=this.devices.get(id);if(!d||!data||data.length<3)return;const type=data[0]&240,channel=data[0]&15,note=data[1],velocity=data[2];if(note>127||velocity>127)return;
+      if(type===176&&[120,123].includes(note)){this.release(d);d.tokens.clear();return;}
+      if(type!==144&&type!==128)return;const token=`n:${channel}:${note}`,down=type===144&&velocity>0;
+      if(down)d.tokens.add(token);else d.tokens.delete(token);
+      const l=this.learning;
+      if(down&&l?.id===id&&l.ready){this.finishLearn([token]);this.onSignal({id,label:bindingLabel([token])+` · velocity ${velocity}`,actions:[],tokens:[token,`n:*:${note}`]});return;}
+      if(l?.id===id&&!d.tokens.size)l.ready=true;
+      const map=this.mapping(id),next=Object.entries(map).filter(([,bs])=>bs.some(b=>b.length===1&&(b[0]===token||b[0]===`n:*:${note}`))).map(([a])=>a);
+      if(down)this.onSignal({id,label:bindingLabel([token])+` · velocity ${velocity}`,actions:next,tokens:[token,`n:*:${note}`]});
+      if(!this.enabled||this.blocked||this.learning)return;
+      // Drum note-offs are often delayed or omitted. Every positive note-on is a hit.
+      if(this.context.startsWith('drums')){if(down)for(const a of next){const owner=`${id}:${token}:${a}`;this.onAction(a,true,owner);this.onAction(a,false,owner);}return;}
+      const all=new Set([...d.tokens].flatMap(t=>Object.entries(map).filter(([,bs])=>bs.some(b=>b[0]===t||b[0]===`n:*:${t.split(':')[2]}`)).map(([a])=>a)));
+      // A repeated note-on also retriggers a tapped fret before its note-off.
+      if(down)for(const a of next)if(d.active.has(a)){d.active.delete(a);this.onAction(a,false,`${id}:${a}`);}
+      this.updateActions(d,all);
+    }
+  }
+  return {Hub,STORAGE_KEY,CONTEXTS,actions,labels,bindingLabel,preset,matches};
+});

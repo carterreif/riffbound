@@ -44,9 +44,9 @@ function setup({mobile=false,chartFixture=null,chartResultExtras={},chartFailure
   let resize=()=>{};
   let calibrationTimer=null;
   const sandbox={window,document,sessionStorage:{getItem:key=>resumeStorage.get(key)||null,setItem:(key,value)=>resumeStorage.set(key,value),removeItem:key=>resumeStorage.delete(key)},Worker,Blob,URL:urlApi,TextEncoder,AbortController,performance:{now:()=>(audio?.currentTime||0)*1000},crypto:webcrypto,Float32Array,Uint8Array,HTMLInputElement:Input,HTMLButtonElement:Button,ResizeObserver:class{constructor(fn){resize=fn;}observe(){}},getComputedStyle:()=>({height:'58px',columnGap:'4px'}),localStorage:{getItem:key=>key==='riffbound-preferences-v1'?JSON.stringify(preferences):null,setItem:(...args)=>writes.push(args)},requestAnimationFrame:fn=>{raf=fn;},setTimeout:(fn,delay)=>{if(delay===6750){calibrationTimer=fn;return -1;}return setTimeout(fn,delay);},clearTimeout};
-  vm.createContext(sandbox);vm.runInContext(game,sandbox);
+  vm.createContext(sandbox);if(window.RiffControllerInput)vm.runInContext(fs.readFileSync(require.resolve('../dist/controller-setup.js'),'utf8'),sandbox);vm.runInContext(game,sandbox);
   const upload=async(name='My original.wav',flag=1)=>{nodes.songFile.files=[{name,size:uploadBytes?.length||100,arrayBuffer:async()=>new Uint8Array(uploadBytes||[flag,1,2,3]).buffer}];await nodes.songFile.emit('change');};
-  const tick=t=>{audio.currentTime=t;raf(t*1000);};
+  const tick=t=>{if(audio)audio.currentTime=t;raf(t*1000);};
   const key=async(type,code,options={})=>Promise.all((document.listeners[type]||[]).map(fn=>fn({code,repeat:false,target:document.body,preventDefault:noop,...options})));
   return {updateSafety:window.RiffUpdateSafety,resumeStorage,nodes,radios,frets,smalls,sources,writes,requests,requestIds,requestModes,savedSongs,runCalibrationTimer:()=>calibrationTimer?.(),body:document.body,lines,translations,key,resize:()=>resize(),get decodes(){return decodes;},upload,tick,get audio(){return audio;},defer:()=>{deferDecode={};return deferDecode;},clearDefer:()=>{deferDecode=null;}};
 }

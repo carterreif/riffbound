@@ -1,5 +1,7 @@
 # Riffbound
 
+Version 101 adds live gamepad and MIDI input with **Controllers / drums** setup, a live input test, learned pad/button/axis combinations and saved mappings for four-lane Drums, five-lane Drums and Guitar/Bass/pitch pads. Multiple cymbals/kicks and strum directions can share actions. Setup pauses playback; disconnects and focus changes release held controls. Existing charts, audio and setlists retain their contents. Physical Stage Tour/Xbox kit compatibility still requires device testing. See docs/controller-input.md.
+
 Version 100 sends exact title-only Stinkfist / Tool / Drums searches directly to the reviewed Clone Hero package, without depending on main-catalog queries. A found source that cannot download now reports its actual failure instead of looking like a missing song. See docs/direct-stinkfist-search.md.
 
 Version 99 finds Stinkfist by Tool in a verified supplemental Clone Hero community pack when the main index supplies Guitar only. Bounded ZIP ranges retrieve its actual Drum chart and matching full audio. Regular MIDI activation fills retain authored notes, while true freestyle endings stay gated. Clone Hero uses four drum pads and Guitar Hero retains five. See docs/stinkfist-community-pack.md.
