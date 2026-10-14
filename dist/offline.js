@@ -6,6 +6,10 @@
   let lastCheck=0,activationAt=0,retryTimer=null;
   let checking=false,checked=false,checkError='',statusGeneration=0;
   let downloading=false,downloadMessage='';
+  // The runtime asset manifest identifies the loaded game, including cached copies.
+  // Never copy a hard-coded HTML label that can survive several releases.
+  const release=/(?:^|-)v(\d+)(?:-\d+)?$/.exec(config?.version||'');
+  $('gameVersion').textContent=release?'Game version '+Number(release[1]):'Game version unavailable';
   $('offlineVersion').textContent=$('gameVersion').textContent;
   $('reloadGameButton').hidden=false;
   const ready=async()=>{if(!('caches' in window))return false;const cache=await caches.open(config.version);return (await Promise.all(config.files.map(file=>cache.match(new URL(file,location.href).href)))).every(Boolean);};

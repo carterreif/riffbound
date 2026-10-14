@@ -1,10 +1,10 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const source=fs.readFileSync(require.resolve('../dist/offline.js'),'utf8');
 const flush=async()=>{for(let i=0;i<8;i++)await new Promise(resolve=>setImmediate(resolve));};
-function setup({waiting=true,online=true,registerError=false,firstInstall=false,cacheReady=false,saveError=null,silentSave=false}={}){
+function setup({waiting=true,online=true,registerError=false,firstInstall=false,cacheReady=false,saveError=null,silentSave=false,version='v37',label='Game version 39'}={}){
   const events=()=>({listeners:{},addEventListener(type,fn){(this.listeners[type]??=[]).push(fn);},removeEventListener(type,fn){this.listeners[type]=(this.listeners[type]||[]).filter(f=>f!==fn);},emit(type,data={}){return Promise.all((this.listeners[type]||[]).map(fn=>fn(data)));}});
   const nodes={};for(const id of ['gameVersion','offlineVersion','reloadGameButton','offlineStatus','downloadGameButton','offlineButton','installAppButton','installInstructions','offlineDialog'])nodes[id]={...events(),hidden:true,disabled:false,close(){this.open=false;}};
-  nodes.gameVersion.textContent='Game version 39';
+  nodes.gameVersion.textContent=label;
   let now=100000,allowed=true,prepare=true,reloads=0,registers=0,updates=0,prepared=0;
   const messages=[],timers=new Map(),intervals=[];
   const worker={...events(),state:'installed',postMessage:message=>messages.push(message)};
@@ -13,7 +13,7 @@ function setup({waiting=true,online=true,registerError=false,firstInstall=false,
   if(firstInstall)worker.state='installing';
   const sw={...events(),controller:{postMessage:message=>messages.push(message)},register:async()=>{registers++;if(registerError)throw Error('Network');return reg;}};
   const navigator={onLine:online,serviceWorker:sw};
-  const window={...events(),isSecureContext:true,RiffOfflineAssets:{version:'v37',files:['index.html']},RiffUpdateSafety:{canReload:()=>allowed,prepareReload:()=>{prepared++;return prepare;}}};
+  const window={...events(),isSecureContext:true,RiffOfflineAssets:{version,files:['index.html']},RiffUpdateSafety:{canReload:()=>allowed,prepareReload:()=>{prepared++;return prepare;}}};
   const document={...events(),hidden:false,getElementById:id=>nodes[id]};
   class MessageChannel{constructor(){const a={closed:false,close(){this.closed=true;}},b={close(){}};a.postMessage=data=>queueMicrotask(()=>b.onmessage?.({data}));b.postMessage=data=>queueMicrotask(()=>{if(!a.closed)a.onmessage?.({data});});this.port1=a;this.port2=b;}}
   const caches={open:async()=>({match:async()=>cacheReady?{ok:true}:undefined})};window.caches=caches;
@@ -59,10 +59,22 @@ test('an unrelated message cannot force a reload',async()=>{
 test('update button stays visible, reports the installed version, and checks again on demand',async()=>{
   const s=setup({waiting:false});await flush();
   assert.equal(s.nodes.reloadGameButton.hidden,false);assert.equal(s.nodes.reloadGameButton.textContent,'Check for updates');
-  assert.equal(s.nodes.offlineVersion.textContent,'Game version 39');assert.match(s.nodes.offlineStatus.textContent,/No new update found.*Game version 39/);
+  assert.equal(s.nodes.offlineVersion.textContent,'Game version 37');assert.match(s.nodes.offlineStatus.textContent,/No new update found.*Game version 37/);
   const before=s.updates;s.nodes.reloadGameButton.emit('click');await flush();assert.equal(s.updates,before+1);assert.equal(s.reloads,0);
   s.allow(false);s.reg.waiting=s.worker;s.nodes.reloadGameButton.emit('click');await flush();
   assert.equal(s.nodes.reloadGameButton.textContent,'Use updated game');assert.equal(s.reloads,0);
+});
+test('stale version-100 HTML reports the loaded release from the real offline manifest',async()=>{
+ const sandbox={self:{}};vm.runInNewContext(fs.readFileSync(require.resolve('../dist/offline-assets.js'),'utf8'),sandbox);
+ const s=setup({waiting:false,cacheReady:true,version:sandbox.self.RiffOfflineAssets.version,label:'Game version 100'});await flush();assert.equal(s.nodes.gameVersion.textContent,'Game version 103');assert.equal(s.nodes.offlineVersion.textContent,'Game version 103');assert.match(s.nodes.offlineStatus.textContent,/No new update found.*Game version 103/);assert.equal(s.reloads,0);
+});
+test('future releases update both version labels without HTML edits; invalid versions do not claim an old release',async()=>{
+ for(const version of ['riffbound-offline-v104-1','v104']){const s=setup({waiting:false,version,label:'Game version 100'});await flush();assert.equal(s.nodes.offlineVersion.textContent,'Game version 104');assert.equal(s.nodes.gameVersion.textContent,'Game version 104');}
+ const s=setup({waiting:false,version:'bad-config',label:'Game version 100'});await flush();assert.equal(s.nodes.gameVersion.textContent,'Game version unavailable');assert.doesNotMatch(s.nodes.offlineStatus.textContent,/version 100/);
+});
+test('version 103 patch activation refreshes an older version 103 page once and never downgrades it',async()=>{
+ const s=setup({waiting:false,version:'riffbound-offline-v103-1'});await flush();s.version('riffbound-offline-v103-2');assert.equal(s.reloads,1);assert.equal(s.prepared,1);s.version('riffbound-offline-v103-2');assert.equal(s.reloads,1);
+ const current=setup({waiting:false,version:'riffbound-offline-v103-2'});await flush();current.version('riffbound-offline-v100-1');assert.equal(current.reloads,0);
 });
 
 test('checking during a download shows progress, then offers the ready update without claiming current',async()=>{

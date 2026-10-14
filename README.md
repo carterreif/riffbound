@@ -1,5 +1,7 @@
 # Riffbound
 
+The version 103 display patch reads the loaded game version from its asset manifest instead of a stale HTML label. Manage songs and Install / offline now show the same actual release, including after future updates; the offline cache revision is 103-2. Saved songs and controller mappings are retained.
+
 Version 103 makes supported controller mappings built in and active on connection. Browser-standard gamepads are ready for Guitar, Bass, vocal pitch pads and four/five-lane Drums. Recognized standard-mapped Guitar Hero drum kits and guitars receive instrument-specific defaults; generically named Xbox devices need only a saved instrument-type choice. MIDI drums receive General MIDI mappings after permission, with a separate built-in MIDI pitch-pad option. Custom and explicitly cleared layouts remain authoritative; Restore built-in layout is explicit. Alternate drum controls retrigger independently when their input states overlap. See docs/controller-input.md for profiles and hardware limits.
 
 Version 102 adds an explicit **World Tour Xbox 360** controller preset for five-lane Drums exposed with browser-standard button mapping: Red B, Yellow Y, Blue X, Orange RB, Green A, Kick LB. It keeps orange and kick separate and retains other device/layout mappings. Xbox 360 wireless drums still require a working PC receiver connection. See docs/controller-input.md for the mapping and hardware test limits.
