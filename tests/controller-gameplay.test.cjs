@@ -1,8 +1,8 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),{createRequire}=require('node:module');
 const API=require('../dist/controller-input.js'),E=require('../dist/engine.js'),D=E.Difficulties,L=require('../dist/song-library.js');
 const adapter=require.resolve('./upload-flow.test.cjs'),code=fs.readFileSync(adapter,'utf8').split('\ntest(')[0],{setup,until}=new Function('require',code+'\nreturn {setup,until};')(createRequire(adapter));
-function appRig({layout='five',part='drums',mobile=false,notes,storage=new Map(),missingControls=[]}={}){
- let hub;const pad={index:0,id:'Physical test controller',mapping:'standard',connected:true,buttons:Array.from({length:16},()=>({pressed:false,value:0})),axes:[0,0]},ports=new Map(),midi={inputs:ports};let pads=[pad],midiFailure=null;
+function appRig({layout='five',part='drums',mobile=false,notes,storage=new Map(),missingControls=[],deviceName='Physical test controller'}={}){
+ let hub;const pad={index:0,id:deviceName,mapping:'standard',connected:true,buttons:Array.from({length:16},()=>({pressed:false,value:0})),axes:[0,0]},ports=new Map(),midi={inputs:ports};let pads=[pad],midiFailure=null;
  const browserEvents=new Map();
  class Hub extends API.Hub{constructor(options){super({...options,storage:{getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v)}});hub=this;}}
  const record=L.validate({id:'d'.repeat(64),title:'Controller soundcheck',artist:'Test',instrument:part,musicEnd:16,bpm:120,beat:.5,charts:{[part]:D.build(notes||[{time:1,lane:0,duration:0}],part,.5)},audioBlob:new Blob([new Uint8Array([1,2,3])]),quality:{drumLayout:layout}});
@@ -59,4 +59,19 @@ test('World Tour preset button scores orange cymbal and kick separately on the f
 });
 test('cached version 101 HTML without the new preset button still opens setup and learns inputs',async()=>{
  const r=appRig({missingControls:['controllerWorldTourPreset']});await r.open();await r.app.nodes.controllerButton.click();await r.learn('kick',4,.1);assert.match(r.row('kick').children[1].textContent,/Button 5/);
+});
+for(const part of ['guitar','bass','vocals'])test(`built-in standard controller mapping plays ${part} without opening setup or assigning controls`,async()=>{
+ const notes=[0,1,2,3,4].map(lane=>({time:1,lane,duration:0})),r=appRig({part,notes}),{app}=r,n=app.nodes;await r.open();await app.radios.difficulty.find(x=>x.value==='expert').emit('change');await n.playButton.click();await until(()=>n.playText.textContent==='RESTART TRACK');const start=app.sources.at(-1).when;app.tick(start+.5);assert.equal(n.controllerDialog.open,false);
+ for(const button of [0,1,3,2,4])r.button(button,true);app.tick(start+1);app.tick(start+18);assert.match(n.resultNotes.textContent,/5 of 5 notes hit/);assert.equal(n.resultAccuracy.textContent,'100%');assert.equal(r.storage.size,0,'built-in mappings need no saved custom data');
+});
+for(const layout of ['four','five'])test(`recognized Guitar Hero drums play ${layout}-lane chart with automatic built-ins`,async()=>{
+ const count=layout==='four'?4:5,notes=[...Array.from({length:count},(_,lane)=>({time:1,lane,duration:0})),{time:1,lane:5,duration:0}],r=appRig({layout,deviceName:'Guitar Hero Wireless Drum Kit',notes}),{app}=r,n=app.nodes;await r.open();await app.radios.difficulty.find(x=>x.value==='expert').emit('change');await n.playButton.click();await until(()=>n.playText.textContent==='RESTART TRACK');const start=app.sources.at(-1).when;app.tick(start+.5);for(const button of layout==='four'?[1,3,2,0,4]:[1,3,2,5,0,4])r.button(button,true);app.tick(start+1);app.tick(start+18);assert.match(n.resultNotes.textContent,new RegExp(`${count+1} of ${count+1} notes hit`));assert.equal(n.resultAccuracy.textContent,'100%');
+});
+test('generic Xbox kit needs only one instrument choice; switching layouts loads built-ins and restore preserves other custom layouts',async()=>{
+ const r=appRig({deviceName:'Xbox 360 Controller'}),n=r.app.nodes;await r.open();await n.controllerButton.click();assert.match(n.controllerMappingMode.textContent,/Built-in Standard gamepad setup is active/);n.controllerProfile.value='gh-drums';await n.controllerProfile.emit('change');assert.match(n.controllerMappingMode.textContent,/Guitar Hero Xbox 360 drums setup is active/);assert.match(r.row('kick').children[1].textContent,/Button 5/);
+ await r.learn('kick',7,.1);assert.match(n.controllerMappingMode.textContent,/saved custom/);assert.equal(n.controllerRestoreBuiltins.disabled,false);n.controllerContext.value='drums-four';await n.controllerContext.emit('change');assert.match(r.row('kick').children[1].textContent,/Button 5/);assert.equal(n.controllerRestoreBuiltins.disabled,true);n.controllerContext.value='drums-five';await n.controllerContext.emit('change');await n.controllerRestoreBuiltins.click();assert.equal(n.controllerRestoreBuiltins.disabled,true);assert.doesNotMatch(r.row('kick').children[1].textContent,/Button 8/);
+ const fresh=appRig({storage:r.storage,deviceName:'Xbox 360 Controller'});await fresh.open();await fresh.app.nodes.controllerButton.click();assert.equal(fresh.app.nodes.controllerProfile.value,'gh-drums');
+});
+test('cached page without built-in setup controls still runs default input and existing mapping UI',async()=>{
+ const r=appRig({missingControls:['controllerProfile','controllerMappingMode','controllerRestoreBuiltins']});await r.open();await r.app.nodes.controllerButton.click();assert.match(r.row('kick').children[1].textContent,/Button 6/);await r.learn('kick',7,.1);assert.match(r.row('kick').children[1].textContent,/Button 8/);
 });

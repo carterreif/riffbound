@@ -1,4 +1,51 @@
-# Controllers and drum mapping — version 101
+# Controllers and drum mapping
+
+## Built-in setup — version 103
+
+Supported devices now have mappings without assigning each control or clicking a
+preset button. On discovery, a browser-standard gamepad has ready controls for
+Guitar, Bass, vocal pitch pads and four-/five-lane Drums. The current instrument
+and song layout choose the applicable map. Keyboard/touch keep their existing
+built-in controls. Vocal play remains pitch-pad play, without microphone scoring.
+
+Standard-mapped devices with explicit Guitar Hero/Band Hero drum names or the
+documented 1430:02a8 / 1430:0805 IDs select the Guitar Hero drum profile. Named
+standard-mapped guitars select the five-fret Guitar/Bass profile. These profiles
+are instrument-specific: a drum kit does not automatically control Guitar.
+Identification uses browser-reported names/IDs and is not a physical-device test.
+
+Some Xbox receivers expose only a generic Xbox controller name. Riffbound cannot
+deduce the attached instrument from that name. In Controllers / drums, choose
+**Built-in instrument setup → Guitar Hero Xbox 360 drums** or **Five-fret guitar /
+bass** once. This selects complete ready-made maps and saves the choice by device
+identity. Unknown raw/nonstandard controller layouts remain custom-only; a
+standard button order is not guessed for them.
+
+The Guitar Hero drum profile keeps five distinct colors and kick in five-lane
+charts. For four-lane charts, both physical Green and Orange play the Green lane;
+the chart remains four lanes. Alternative controls mapped to one drum action
+retrigger on their independent press edges, including overlapping pedal/pad
+states, without scoring continuously while a control is held.
+
+MIDI remains opt-in through Enable MIDI inputs. Once permission is granted,
+General MIDI drum mappings are active by default. Select **MIDI pitch pads** for
+five white-key inputs C4/D4/E4/F4/G4 (notes 60/62/64/65/67), plus C5 strum, D5
+Overdrive and E5 Pause. This is a built-in pad layout, not audio transcription.
+
+Saved custom layouts, including intentionally cleared layouts, override automatic
+defaults exactly. Editing an automatic layout first copies its current map, so
+other built-in actions remain usable. Changing instrument type keeps custom
+layouts; **Restore built-in layout** explicitly removes only the selected
+layout's override. Other layouts and devices retain their custom assignments.
+Version-101/102 saved maps remain readable; defaults fill only layouts never
+configured. Automatic defaults are derived rather than written over player data.
+
+These changes are verified with production input/scoring/game handlers and
+deterministic browser/device adapters. Physical kits and browser rendering still
+need testing; Stage Tour has no verified device-specific auto-profile. An actual
+Windows USB/receiver/MIDI connection is still required.
+
+## World Tour preset — version 102
 
 Version 102 adds **Use World Tour Xbox 360 preset**. It is available for the
 five-lane Drum layout when the browser exposes a controller with standard button
@@ -29,6 +76,8 @@ Tour's executable, install its drivers, or bypass the receiver requirement. A
 physical Xbox 360 drum kit was not available; tests exercise documented input
 states, separate orange/kick scoring, simultaneous hits and preset gating.
 
+## Custom mapping and input behavior — version 101
+
 Open **Controllers / drums** at Soundcheck. Connect the controller to Windows with
 its supported USB connection or receiver, then press a button so the browser can
 expose it. Choose the device and mapping layout. Beside each color, kick, strum or
@@ -52,8 +101,8 @@ Clear this layout affects only the selected device/layout. An identical assignme
 moves from its previous action to prevent accidental double scoring. Several
 mapped devices can play together and retain independent hold ownership.
 
-The optional standard gamepad preset is a starting point for conventional
-controllers, not a claim of a particular drum kit's button numbering. Unknown
+The standard gamepad preset is a starting point for conventional controllers,
+not a claim of a particular drum kit's button numbering. Unknown raw/nonstandard
 hardware starts with no assigned controls. Button combinations are learned as a
 single binding; a matched combination takes precedence over its component
 bindings. Axis directions use a neutral baseline and a dead zone. Connect with

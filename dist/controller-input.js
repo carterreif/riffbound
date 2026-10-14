@@ -4,6 +4,29 @@
   const STORAGE_KEY='riffbound-controller-mappings-v1';
   const CONTEXTS=['drums-four','drums-five','frets'];
   const ACTIONS=['lane0','lane1','lane2','lane3','lane4','kick','strum','overdrive','pause'];
+  const PROFILES={auto:'Automatic',standard:'Standard gamepad','gh-drums':'Guitar Hero Xbox 360 drums',guitar:'Five-fret guitar / bass','midi-drums':'General MIDI drums','midi-pads':'MIDI pitch pads',none:'Custom only'};
+  function detectProfile(device){
+    if(device.kind==='midi')return 'midi-drums';
+    if(!device.standard)return 'none';
+    const name=device.name.toLowerCase();
+    if(/1430.*(?:02a8|0805)/.test(name)||/(?:guitar\s*hero|band\s*hero|ghwt|warriors of rock|redoctane).*(?:drum|kit)/.test(name))return 'gh-drums';
+    if(/guitar/.test(name)&&!/drum/.test(name))return 'guitar';
+    return 'standard';
+  }
+  const profileChoices=device=>['auto',...(device.kind==='midi'?['midi-drums','midi-pads']:device.standard?['standard','gh-drums','guitar']:[]),'none'];
+  function builtin(device,context,profile){
+    if(profile==='auto')profile=detectProfile(device);
+    if(profile==='none')return {};
+    if(profile==='midi-drums')return context==='frets'?{}:preset('midi',context);
+    if(profile==='midi-pads')return context==='frets'?{...Object.fromEntries([60,62,64,65,67].map((note,i)=>['lane'+i,[[`n:*:${note}`]]])),strum:[['n:*:72']],overdrive:[['n:*:74']],pause:[['n:*:76']]}:{};
+    if(profile==='guitar')return context==='frets'?preset('gamepad','frets'):{};
+    if(profile==='gh-drums'){
+      if(context==='frets')return {};
+      const map=preset('gamepad','drums-five','ghwt-xbox360');
+      if(context==='drums-four'){map.lane3=[...map.lane3,...map.lane4];delete map.lane4;}return map;
+    }
+    return preset('gamepad',context);
+  }
   const actions=context=>ACTIONS.filter(a=>context==='frets'?!['kick'].includes(a):a!=='strum'&&(context!=='drums-four'||a!=='lane4'));
   const labels=context=>context==='frets'?['Green fret / low pitch','Red fret','Yellow fret','Blue fret','Orange fret / high pitch']:context==='drums-four'?['Red pad','Yellow pad / cymbal','Blue pad / cymbal','Green pad / cymbal']:['Red snare','Yellow hi-hat','Blue tom','Orange cymbal','Green floor tom'];
   function cleanBinding(binding){
@@ -48,12 +71,15 @@
   class Hub{
     constructor({navigator={},storage=null,onAction=()=>{},onChange=()=>{},onSignal=()=>{},onLearn=()=>{}}={}){
       Object.assign(this,{navigator,storage,onAction,onChange,onSignal,onLearn});
-      this.context='drums-five';this.enabled=true;this.blocked=true;this.devices=new Map();this.profiles=new Map();this.learning=null;this.midi=null;this.midiPending=null;this.storageError='';this.gamepadError='';
-      try{const data=JSON.parse(storage?.getItem(STORAGE_KEY)||'null');if(data?.version===1){this.enabled=data.enabled!==false;for(const [key,contexts] of Object.entries(data.profiles||{}).slice(0,100)){const safe={};for(const c of CONTEXTS){const map={};for(const a of actions(c)){const bindings=contexts?.[c]?.[a];if(Array.isArray(bindings))map[a]=bindings.map(cleanBinding).filter(Boolean).slice(0,8);}safe[c]=map;}this.profiles.set(key,safe);}}}catch{}
+      this.context='drums-five';this.enabled=true;this.blocked=true;this.devices=new Map();this.profiles=new Map();this.deviceProfiles=new Map();this.learning=null;this.midi=null;this.midiPending=null;this.storageError='';this.gamepadError='';
+      try{const data=JSON.parse(storage?.getItem(STORAGE_KEY)||'null');if(data?.version===1){this.enabled=data.enabled!==false;for(const [key,choice] of Object.entries(data.deviceProfiles||{}).slice(0,100))if(Object.hasOwn(PROFILES,choice))this.deviceProfiles.set(key,choice);for(const [key,contexts] of Object.entries(data.profiles||{}).slice(0,100)){const safe={};for(const c of CONTEXTS){if(!Object.hasOwn(contexts||{},c))continue;const map={};for(const a of actions(c)){const bindings=contexts?.[c]?.[a];if(Array.isArray(bindings))map[a]=bindings.map(cleanBinding).filter(Boolean).slice(0,8);}safe[c]=map;}this.profiles.set(key,safe);}}}catch{}
     }
-    save(){try{this.storage?.setItem(STORAGE_KEY,JSON.stringify({version:1,enabled:this.enabled,profiles:Object.fromEntries(this.profiles)}));this.storageError='';}catch{this.storageError='Mapping works for this visit, but the browser could not save it. Allow site storage to keep it.';}this.onChange();}
-    list(){return [...this.devices.values()].map(({id,key,name,kind,standard})=>({id,key,name,kind,standard:!!standard}));}
-    mapping(id,context=this.context){const d=this.devices.get(id);return d?this.profiles.get(d.key)?.[context]||{}:{};}
+    save(){try{this.storage?.setItem(STORAGE_KEY,JSON.stringify({version:1,enabled:this.enabled,profiles:Object.fromEntries(this.profiles),deviceProfiles:Object.fromEntries(this.deviceProfiles)}));this.storageError='';}catch{this.storageError='Mapping works for this visit, but the browser could not save it. Allow site storage to keep it.';}this.onChange();}
+    list(){return [...this.devices.values()].map(({id,key,name,kind,standard})=>({id,key,name,kind,standard:!!standard,...this.profileInfo(id)}));}
+    profileInfo(id,context=this.context){const d=this.devices.get(id);if(!d)return {};let choice=this.deviceProfiles.get(d.key)||'auto';if(!profileChoices(d).includes(choice))choice='auto';const effective=choice==='auto'?detectProfile(d):choice;return {profile:choice,profileLabel:PROFILES[effective],custom:Object.hasOwn(this.profiles.get(d.key)||{},context)};}
+    mapping(id,context=this.context){const d=this.devices.get(id);if(!d)return {};const stored=this.profiles.get(d.key);return Object.hasOwn(stored||{},context)?stored[context]:builtin(d,context,this.profileInfo(id).profile);}
+    selectProfile(id,choice){const d=this.devices.get(id);if(!d||!profileChoices(d).includes(choice))return false;this.cancelLearn();this.release(d);d.ready=false;this.deviceProfiles.set(d.key,choice);this.save();return true;}
+    restoreBuiltin(id,context){const d=this.devices.get(id);if(!d)return;this.cancelLearn();this.release(d);d.ready=false;const p=this.profiles.get(d.key);if(p)delete p[context];this.save();}
     release(d){for(const a of d.active)this.onAction(a,false,`${d.id}:${a}`);d.active.clear();}
     reset(){for(const d of this.devices.values()){this.release(d);d.ready=false;if(d.kind==='midi')d.tokens.clear();}this.cancelLearn();}
     setContext(context){if(!CONTEXTS.includes(context)||context===this.context)return;this.reset();this.context=context;this.onChange();}
@@ -63,13 +89,13 @@
     removeDevice(id){const d=this.devices.get(id);if(!d)return;this.release(d);if(this.learning?.id===id)this.cancelLearn();if(d.port)d.port.onmidimessage=null;this.devices.delete(id);this.onChange();}
     assign(id,context,action,binding){
       const d=this.devices.get(id),b=cleanBinding(binding);if(!d||!b||!actions(context).includes(action))return false;
-      const profiles=this.profiles.get(d.key)||{},map=profiles[context]||{};let moved=false;
+      const profiles=this.profiles.get(d.key)||{},map=structuredClone(this.mapping(id,context));let moved=false;
       for(const a of actions(context)){if(a!==action&&map[a]?.some(old=>overlap(old,b)))moved=true;if(map[a])map[a]=map[a].filter(old=>!overlap(old,b));}
       map[action]=[...(map[action]||[]),b].slice(-8);profiles[context]=map;this.profiles.set(d.key,profiles);this.release(d);d.ready=false;this.save();return moved;
     }
-    clear(id,context,action){const d=this.devices.get(id);if(!d)return;const p=this.profiles.get(d.key);if(p?.[context])delete p[context][action];this.release(d);d.ready=false;this.save();}
+    clear(id,context,action){const d=this.devices.get(id);if(!d)return;const p=this.profiles.get(d.key)||{},map=structuredClone(this.mapping(id,context));delete map[action];p[context]=map;this.profiles.set(d.key,p);this.release(d);d.ready=false;this.save();}
     usePreset(id,context,name='standard'){const d=this.devices.get(id);if(!d||name==='ghwt-xbox360'&&!d.standard)return false;const map=preset(d.kind,context,name);if(!map)return false;this.cancelLearn();const p=this.profiles.get(d.key)||{};p[context]=map;this.profiles.set(d.key,p);this.release(d);d.ready=false;this.save();return true;}
-    clearProfile(id,context){const d=this.devices.get(id);if(!d)return;this.cancelLearn();const p=this.profiles.get(d.key);if(p)p[context]={};this.release(d);d.ready=false;this.save();}
+    clearProfile(id,context){const d=this.devices.get(id);if(!d)return;this.cancelLearn();const p=this.profiles.get(d.key)||{};p[context]={};this.profiles.set(d.key,p);this.release(d);d.ready=false;this.save();}
     learn(id,context,action,now=0){this.cancelLearn();const d=this.devices.get(id);if(!d||!actions(context).includes(action))return false;this.release(d);this.learning={id,context,action,expires:now+10000,ready:d.kind==='midi'||d.tokens.size===0,candidate:[],changed:now};this.onChange();return true;}
     cancelLearn(){if(!this.learning)return;this.learning=null;this.onChange();}
     finishLearn(binding){const l=this.learning;if(!l)return;this.learning=null;const moved=this.assign(l.id,l.context,l.action,binding);this.onLearn({...l,binding,moved});}
@@ -86,7 +112,7 @@
         if(!d)d=this.addDevice(id,key,pad.id||'Game controller','gamepad',{baseline:Array.from(pad.axes).map(x=>Number(x)||0),standard:pad.mapping==='standard'});
         const tokens=new Set();Array.from(pad.buttons).slice(0,128).forEach((b,i)=>{if(typeof b==='number'?b>.5:b?.pressed||b?.value>.5)tokens.add('b:'+i);});
         Array.from(pad.axes).slice(0,32).forEach((v,i)=>{const delta=v-d.baseline[i];for(const sign of ['+','-']){const token=`a:${i}:${sign}`,n=delta*(sign==='+'?1:-1);if(n>(d.tokens.has(token) ? .35 : .65))tokens.add(token);}});
-        const changed=signature([...tokens].sort())!==signature([...d.tokens].sort());d.tokens=tokens;
+        const previousTokens=d.tokens,changed=signature([...tokens].sort())!==signature([...previousTokens].sort());d.tokens=tokens;
         if(!d.ready){if(!tokens.size)d.ready=true;this.release(d);}
         const l=this.learning;
         if(l?.id===id){
@@ -96,7 +122,10 @@
         }
         const next=matches(this.mapping(id),tokens);
         if(changed&&tokens.size)this.onSignal({id,label:bindingLabel([...tokens].sort()),actions:next,tokens:[...tokens]});
-        if(this.enabled&&!this.blocked&&!this.learning&&d.ready)this.updateActions(d,next);else this.release(d);
+        if(this.enabled&&!this.blocked&&!this.learning&&d.ready){
+          if(this.context.startsWith('drums'))for(const action of next)if(d.active.has(action)&&this.mapping(id)[action].some(b=>b.every(t=>tokens.has(t))&&!b.every(t=>previousTokens.has(t)))){d.active.delete(action);this.onAction(action,false,`${id}:${action}`);}
+          this.updateActions(d,next);
+        }else this.release(d);
       }
       for(const d of [...this.devices.values()])if(d.kind==='gamepad'&&!connected.has(d.id))this.removeDevice(d.id);
     }
@@ -127,5 +156,5 @@
       this.updateActions(d,all);
     }
   }
-  return {Hub,STORAGE_KEY,CONTEXTS,actions,labels,bindingLabel,preset,matches};
+  return {Hub,STORAGE_KEY,CONTEXTS,PROFILES,profileChoices,detectProfile,builtin,actions,labels,bindingLabel,preset,matches};
 });

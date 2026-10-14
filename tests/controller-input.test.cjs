@@ -15,8 +15,8 @@ test('World Tour Xbox 360 preset separates every drum color, orange cymbal and k
  r.events.length=0;for(const b of [1,3,2,5,0,4])r.button(p,b,true);r.hub.poll(5);assert.deepEqual(downs(r),expected);assert.equal(r.hub.usePreset('gamepad:0','drums-four','ghwt-xbox360'),false);
  const previous=JSON.stringify(r.hub.mapping('gamepad:0'));r.hub.devices.get('gamepad:0').standard=false;assert.equal(r.hub.usePreset('gamepad:0','drums-five','ghwt-xbox360'),false);assert.equal(JSON.stringify(r.hub.mapping('gamepad:0')),previous);assert.equal(API.preset('midi','drums-five','ghwt-xbox360'),null);
 });
-test('discovery is passive, blank mappings are safe, button edges do not repeat and disconnect releases holds',()=>{
- const r=rig(),p=r.connect();assert.equal(r.hub.midi,null);assert.equal(r.hub.list().length,1);r.button(p,0,true);r.hub.poll(10);assert.deepEqual(downs(r),[]);
+test('discovery is passive, standard mappings are built in, button edges do not repeat and disconnect releases holds',()=>{
+ const r=rig(),p=r.connect();assert.equal(r.hub.midi,null);assert.equal(r.hub.list().length,1);r.button(p,0,true);r.hub.poll(10);assert.deepEqual(downs(r),['lane4']);r.events.length=0;
  r.button(p,0,false);r.hub.poll(11);r.hub.assign('gamepad:0','drums-five','lane0',['b:0']);r.hub.poll(12);r.button(p,0,true);r.hub.poll(13);r.hub.poll(14);assert.deepEqual(downs(r),['lane0']);r.setPads([]);r.hub.poll(15);assert.equal(r.events.at(-1)[1],false);assert.equal(r.hub.list().length,0);
 });
 test('all four/five drum colors, simultaneous pads and fast separate kicks reach real scoring',()=>{
@@ -32,7 +32,7 @@ test('all four/five drum colors, simultaneous pads and fast separate kicks reach
 });
 test('kit button combinations learn together and take precedence over component buttons',()=>{
  const r=rig(),p=r.connect();r.hub.assign('gamepad:0','drums-five','lane0',['b:0']);r.hub.poll(2);r.hub.learn('gamepad:0','drums-five','lane1',10);
- r.button(p,0,true);r.hub.poll(11);r.button(p,4,true);r.hub.poll(20);r.hub.poll(90);assert.deepEqual(r.hub.mapping('gamepad:0').lane1,[['b:0','b:4']]);assert.deepEqual(downs(r),[]);
+ r.button(p,0,true);r.hub.poll(11);r.button(p,4,true);r.hub.poll(20);r.hub.poll(90);assert.deepEqual(r.hub.mapping('gamepad:0').lane1,[['b:3'],['b:0','b:4']]);assert.deepEqual(downs(r),[]);
  r.button(p,0,false);r.button(p,4,false);r.hub.poll(91);r.button(p,0,true);r.button(p,4,true);r.hub.poll(92);assert.deepEqual(downs(r),['lane1']);
 });
 test('axes use a neutral baseline and hysteresis; both strum directions can share an action',()=>{
@@ -45,8 +45,8 @@ test('frets are pressed before a simultaneous strum regardless of assignment ord
 });
 test('device/layout mappings persist across browser reload and controller index changes',()=>{
  const r=rig(),p=r.connect();r.hub.assign('gamepad:0','drums-four','lane3',['b:0']);r.hub.assign('gamepad:0','drums-five','lane4',['b:1']);r.hub.assign('gamepad:0','frets','lane0',['b:2']);
- const fresh=rig({data:r.data}),p2=fresh.pad(3,p.id);fresh.setPads([p2]);fresh.hub.poll(0);assert.deepEqual(fresh.hub.mapping('gamepad:3','drums-four').lane3,[['b:0']]);assert.deepEqual(fresh.hub.mapping('gamepad:3','drums-five').lane4,[['b:1']]);assert.deepEqual(fresh.hub.mapping('gamepad:3','frets').lane0,[['b:2']]);
- fresh.hub.clear('gamepad:3','drums-four','lane3');assert.equal(fresh.hub.mapping('gamepad:3','drums-five').lane4.length,1);
+ const fresh=rig({data:r.data}),p2=fresh.pad(3,p.id);fresh.setPads([p2]);fresh.hub.poll(0);assert.deepEqual(fresh.hub.mapping('gamepad:3','drums-four').lane3,[['b:0']]);assert.deepEqual(fresh.hub.mapping('gamepad:3','drums-five').lane4,[['b:0'],['b:1']]);assert.deepEqual(fresh.hub.mapping('gamepad:3','frets').lane0,[['b:0'],['b:2']]);
+ fresh.hub.clear('gamepad:3','drums-four','lane3');assert.equal(fresh.hub.mapping('gamepad:3','drums-five').lane4.length,2);
 });
 test('modal/focus blocking, disable, context changes and reset require neutral before firing again',()=>{
  const r=rig(),p=r.connect();r.hub.assign('gamepad:0','drums-five','lane0',['b:0']);r.hub.poll(2);r.button(p,0,true);r.hub.poll(3);assert.equal(downs(r).length,1);
@@ -54,16 +54,16 @@ test('modal/focus blocking, disable, context changes and reset require neutral b
  r.hub.setEnabled(false);r.hub.poll(8);assert.equal(r.events.at(-1)[1],false);r.hub.setEnabled(true);r.hub.poll(9);assert.equal(downs(r).length,2);r.hub.setContext('drums-four');r.hub.poll(10);assert.equal(downs(r).length,2);
 });
 test('learning can cancel, time out and reassign conflicts without duplicate actions',()=>{
- const r=rig(),p=r.connect();r.hub.assign('gamepad:0','drums-five','lane0',['b:0']);r.hub.learn('gamepad:0','drums-five','lane1',5);r.hub.cancelLearn();assert.equal(r.hub.mapping('gamepad:0').lane1,undefined);
- r.hub.learn('gamepad:0','drums-five','lane1',5);r.hub.poll(10006);assert.equal(r.learned.at(-1).timeout,true);r.hub.learn('gamepad:0','drums-five','lane1',10010);r.button(p,0,true);r.hub.poll(10011);r.button(p,0,false);r.hub.poll(10012);assert.equal(r.learned.at(-1).moved,true);assert.deepEqual(r.hub.mapping('gamepad:0').lane0,[]);
+ const r=rig(),p=r.connect();r.hub.assign('gamepad:0','drums-five','lane0',['b:0']);r.hub.learn('gamepad:0','drums-five','lane1',5);r.hub.cancelLearn();assert.deepEqual(r.hub.mapping('gamepad:0').lane1,[['b:3']]);
+ r.hub.learn('gamepad:0','drums-five','lane1',5);r.hub.poll(10006);assert.equal(r.learned.at(-1).timeout,true);r.hub.learn('gamepad:0','drums-five','lane1',10010);r.button(p,0,true);r.hub.poll(10011);r.button(p,0,false);r.hub.poll(10012);assert.equal(r.learned.at(-1).moved,true);assert.deepEqual(r.hub.mapping('gamepad:0').lane0,[['b:1']]);
 });
 test('bad saved data and storage failures leave input usable with an explicit save notice',()=>{
- const r=rig({storage:{getItem:()=>'{invalid',setItem:()=>{throw Error('Quota');}}});r.connect();r.hub.assign('gamepad:0','drums-five','kick',['b:0']);assert.match(r.hub.storageError,/could not save/);assert.deepEqual(r.hub.mapping('gamepad:0').kick,[['b:0']]);assert.equal(r.hub.assign('gamepad:0','drums-five','lane99',['b:200']),false);
+ const r=rig({storage:{getItem:()=>'{invalid',setItem:()=>{throw Error('Quota');}}});r.connect();r.hub.assign('gamepad:0','drums-five','kick',['b:0']);assert.match(r.hub.storageError,/could not save/);assert.deepEqual(r.hub.mapping('gamepad:0').kick,[['b:5'],['b:0']]);assert.equal(r.hub.assign('gamepad:0','drums-five','lane99',['b:200']),false);
  const bad=rig({data:new Map([[API.STORAGE_KEY,JSON.stringify({version:1,profiles:{'gamepad:Test kit:16:2':{'drums-five':{lane0:[['b:999'],['n:99:38'],['b:0']]}}}})]])});bad.connect();assert.deepEqual(bad.hub.mapping('gamepad:0').lane0,[['b:0']]);
 });
 test('MIDI is explicit, hotplugged inputs learn channel/note, velocity-zero and note-offs do not score',async()=>{
  const r=rig();r.hub.setBlocked(false);await r.hub.enableMidi();const port={id:'kit',name:'USB MIDI',manufacturer:'Test',state:'connected'};r.inputs.set(port.id,port);r.midi.onstatechange();const id='midi:kit';assert.equal(typeof port.onmidimessage,'function');
- r.hub.learn(id,'drums-five','lane0',0);port.onmidimessage({data:[0x99,38,70]});assert.deepEqual(r.hub.mapping(id).lane0,[['n:9:38']]);assert.deepEqual(downs(r),[]);
+ r.hub.learn(id,'drums-five','lane0',0);port.onmidimessage({data:[0x99,38,70]});assert.deepEqual(r.hub.mapping(id).lane0,[['n:*:40'],['n:9:38']]);assert.deepEqual(downs(r),[]);
  port.onmidimessage({data:[0x99,38,0]});port.onmidimessage({data:[0x89,38,70]});assert.deepEqual(downs(r),[]);
  port.onmidimessage({data:[0x98,38,70]});assert.deepEqual(downs(r),[]);port.onmidimessage({data:[0x99,38,70]});port.onmidimessage({data:[0x99,38,100]});assert.deepEqual(downs(r),['lane0','lane0']);assert.equal(r.events.at(-1)[1],false);
  port.state='disconnected';r.midi.onstatechange();assert.equal(port.onmidimessage,null);assert.equal(r.hub.list().length,0);
@@ -83,4 +83,29 @@ test('MIDI permission/unsupported browser and gamepad policy errors are recovera
  const h=new API.Hub();await assert.rejects(h.enableMidi(),/unavailable/);
  h.navigator={requestMIDIAccess:async()=>{throw Object.assign(Error('Denied'),{name:'NotAllowedError'});},getGamepads:()=>{throw Error('Policy');}};await assert.rejects(h.enableMidi(),/permission was blocked/);h.poll(0);assert.match(h.gamepadError,/blocked/);
  h.navigator.requestMIDIAccess=async()=>({inputs:new Map()});await h.enableMidi();assert.ok(h.midi);h.navigator.getGamepads=()=>[];h.poll(1);assert.equal(h.gamepadError,'');
+});
+test('recognized Guitar Hero kits and guitars get their own built-in instrument maps; unknown raw devices stay unassigned',()=>{
+ for(const [name,expected] of [['Guitar Hero Wireless Drum Kit','gh-drums'],['Band Hero Wireless Drum Kit','gh-drums'],['Device (Vendor: 1430 Product: 0805)','gh-drums'],['Guitar Hero Guitar','guitar'],['Xbox 360 Controller','standard']]){
+  const r=rig(),p=r.pad(0,name);r.setPads([p]);r.hub.poll(0);assert.equal(r.hub.profileInfo('gamepad:0').profileLabel,API.PROFILES[expected]);
+  if(expected==='gh-drums'){assert.deepEqual(r.hub.mapping('gamepad:0','drums-five').kick,[['b:4']]);assert.deepEqual(r.hub.mapping('gamepad:0','drums-five').lane3,[['b:5']]);assert.deepEqual(r.hub.mapping('gamepad:0','drums-four').lane3,[['b:5'],['b:0']]);assert.deepEqual(r.hub.mapping('gamepad:0','frets'),{});}
+  if(expected==='guitar'){assert.deepEqual(r.hub.mapping('gamepad:0','frets').strum,[['b:12'],['b:13']]);assert.deepEqual(r.hub.mapping('gamepad:0','drums-five'),{});}
+ }
+ const r=rig(),p=r.pad(0,'Unrecognized raw drum controller');p.mapping='';r.setPads([p]);r.hub.poll(0);r.hub.setBlocked(false);r.hub.poll(1);r.button(p,0,true);r.hub.poll(2);assert.deepEqual(downs(r),[]);assert.equal(r.hub.selectProfile('gamepad:0','gh-drums'),false);assert.deepEqual(r.hub.mapping('gamepad:0'),{});
+});
+test('choosing an instrument type once persists and custom/cleared layouts never get overwritten by built-ins',()=>{
+ const r=rig();r.connect();assert.equal(r.hub.selectProfile('gamepad:0','gh-drums'),true);assert.deepEqual(r.hub.mapping('gamepad:0').kick,[['b:4']]);
+ r.hub.assign('gamepad:0','drums-five','kick',['b:7']);r.hub.clear('gamepad:0','drums-five','lane0');r.hub.clearProfile('gamepad:0','drums-four');
+ const custom=structuredClone(r.hub.mapping('gamepad:0'));r.hub.selectProfile('gamepad:0','standard');assert.deepEqual(r.hub.mapping('gamepad:0'),custom);assert.deepEqual(r.hub.mapping('gamepad:0','drums-four'),{});
+ const fresh=rig({data:r.data});fresh.connect();assert.equal(fresh.hub.profileInfo('gamepad:0').profile,'standard');assert.deepEqual(fresh.hub.mapping('gamepad:0'),custom);assert.equal(fresh.hub.mapping('gamepad:0').lane0,undefined);assert.deepEqual(fresh.hub.mapping('gamepad:0','drums-four'),{});
+ fresh.hub.restoreBuiltin('gamepad:0','drums-five');assert.equal(fresh.hub.profileInfo('gamepad:0').custom,false);assert.deepEqual(fresh.hub.mapping('gamepad:0').kick,[['b:5']]);assert.deepEqual(fresh.hub.mapping('gamepad:0','drums-four'),{});
+});
+test('legacy custom data remains exact and unconfigured layouts gain defaults; malformed profile choices are ignored',()=>{
+ const key='gamepad:Test kit:16:2',legacy={version:1,deviceProfiles:{[key]:'fake-device-type'},profiles:{[key]:{'drums-five':{lane0:[['b:7']]}}}},r=rig({data:new Map([[API.STORAGE_KEY,JSON.stringify(legacy)]])});r.connect();assert.deepEqual(r.hub.mapping('gamepad:0'),{lane0:[['b:7']]});assert.ok(r.hub.mapping('gamepad:0','frets').strum.length);assert.equal(r.hub.profileInfo('gamepad:0').profile,'auto');
+});
+test('alternate pads that share a four-lane color retrigger even while the other input is held',()=>{
+ const r=rig();const p=r.connect();r.hub.selectProfile('gamepad:0','gh-drums');r.hub.setContext('drums-four');r.hub.poll(1);r.button(p,0,true);r.hub.poll(2);r.button(p,5,true);r.hub.poll(3);assert.deepEqual(downs(r),['lane3','lane3']);r.hub.poll(4);assert.equal(downs(r).length,2);
+});
+test('MIDI defaults work after permission with no preset action, and MIDI pitch pads have built-in notes',async()=>{
+ const r=rig();r.inputs.set('kit',{id:'kit',name:'USB MIDI'});await r.hub.enableMidi();r.hub.setBlocked(false);r.hub.midiMessage('midi:kit',[0x99,38,90]);r.hub.midiMessage('midi:kit',[0x99,36,90]);assert.deepEqual(downs(r),['lane0','kick']);
+ r.hub.selectProfile('midi:kit','midi-pads');r.hub.setContext('frets');r.hub.midiMessage('midi:kit',[0x90,60,80]);r.hub.midiMessage('midi:kit',[0x90,72,80]);assert.deepEqual(downs(r).slice(-2),['lane0','strum']);
 });
