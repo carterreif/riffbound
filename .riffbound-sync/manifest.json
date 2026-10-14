@@ -1,0 +1,1032 @@
+{
+  "source_commit": "b1a16ae74514759faaf4579290c9a3403bec7914",
+  "version": 100,
+  "files": [
+    {
+      "path": ".gitignore",
+      "sha256": "733961d725dbb9949a0c56081b74be6b056cdca54a228e40141b6d051dd63ecb",
+      "size": 24,
+      "mode": "100644"
+    },
+    {
+      "path": ".openai/hosting.json",
+      "sha256": "755a7c63ffa0b0f85cc633ae53244986655c50c8072e10a11811ed4858658fe6",
+      "size": 106,
+      "mode": "100644"
+    },
+    {
+      "path": "README.md",
+      "sha256": "4854286713f692ed3134b037c6e89ba8d6c2b8eb83e64f2420683ac18875a2c2",
+      "size": 47465,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/assets/app-icon-192.png",
+      "sha256": "63fc3749e7152909c2a014be0006cfd90be370733bf91a424fdbc840e0caa6b0",
+      "size": 1260,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/assets/app-icon-512.png",
+      "sha256": "98b6d80b24561e92a3259770a81a3f70d7058068d2e66aa046aa5b025c649467",
+      "size": 3899,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/assets/band-atlas.png",
+      "sha256": "e9c7c4db1493b7fe61912e0baf299af8109424de26b76b1cad4cf8c209f69368",
+      "size": 1854626,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/assets/concert-stage.png",
+      "sha256": "6f75ce5b06b18e3d7d14be36d06681f2d2def916fa3f74838dcdf68a90291dc6",
+      "size": 2339600,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/audio-clock.js",
+      "sha256": "fe310a1b09c0fa7e19769d7b988a46835fb98acb0b26c35bdb8c297635c230c3",
+      "size": 882,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/authored-chart-reuse.js",
+      "sha256": "f22d0e43bfa098cbc253c1cd36e265a3f115fd703aa82f39db4663ecfad8aa69",
+      "size": 4157,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/authored-drums.js",
+      "sha256": "d2ab2ca4424fd513b6511994065f32d479719551ff32462c068ca5a5eacc9fd3",
+      "size": 5456,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/autochart.js",
+      "sha256": "081f709b220eb3a4e18368f349968e7bf749c2821b51d72b2d16295162a2004e",
+      "size": 115969,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/backup-save.html",
+      "sha256": "c3a92b52e9d7e6352ea2e0151a3b8dde2ec86f502c9311e468f7bc6ec5cde18e",
+      "size": 1080,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/backup-save.js",
+      "sha256": "39c56b493b14f1adc03b4ad5dc285273032bac40fd032fc1d76017f811cafcc2",
+      "size": 3592,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/chart-difficulties.js",
+      "sha256": "bdf78ef84deef81e2645330cc0d5e82ab9a83381481c1c739e91d44a3c95f0a2",
+      "size": 5704,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/chart-exchange.js",
+      "sha256": "31b3488660695b8c5b75e7a4d5be13fd8cdf3667df232edb33a7f4841b596561",
+      "size": 19521,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/chart-timing.js",
+      "sha256": "741e98ac826264591ba1b371252a80554cfb3ad400ddace269fe0ef96f66ee39",
+      "size": 6927,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/charts/king-nothing-drums.chart",
+      "sha256": "f5d5267188520d1cdf38236eefa50c9e3221ec5c44c36c6c8ef4e3da21f56229",
+      "size": 88527,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/charts/king-nothing-drums.json",
+      "sha256": "76a294b511ab91fb8fce5e0af0fa93e80d21fcd21b1361d54622ebdf79c4249d",
+      "size": 267810,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/community-charts.js",
+      "sha256": "fc003c811f648134efe0c9f21480aad0c75674cf27669a0e4ccb45a7dc83719f",
+      "size": 37564,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/community-packs.js",
+      "sha256": "3d98e5daf1ba4d3ef35d378a45dbc9c18fc1f9bd861112386c5d8c85f0e789f5",
+      "size": 5782,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/demo-catalog.js",
+      "sha256": "3a56f7729c94e5f1888147a9249e78806dd90c5772588c1e7211f86d86a92f1a",
+      "size": 1194,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/demos/catalog.json",
+      "sha256": "2374e6b4709b8aba3794ccae6f9c1bbda127805ec4c01e0eea7760dd4538dbf9",
+      "size": 1172,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/demos/frantic-drums-v2.json",
+      "sha256": "68674837d330fa55dde36b5e26a76547b5cef1306dbedb14fdc9c4c54d8f7908",
+      "size": 429731,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/demos/frantic-drums-v2.mp3",
+      "sha256": "121ebd467d396541a2719231b1d685515e8c91884aca574cdcac1fa673a2e2d8",
+      "size": 7518293,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/demos/in-bloom-drums-v4.json",
+      "sha256": "9d1ded45183a55e4d17f65f28afe240d33b003e31a630ef129dd74ed4c305426",
+      "size": 261849,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/demos/in-bloom-drums-v4.mp3",
+      "sha256": "830321c2c7061f91dd68ac82241d516aa698c3258fcf19c20d0b0ba3ac4bd10d",
+      "size": 6545284,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/demos/roam-drums-v3.json",
+      "sha256": "c49a729e8e4d41517fe50786fa4af45ebff8e38b1d606d3048e4176913dad1de",
+      "size": 288752,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/demos/roam-drums-v3.mp3",
+      "sha256": "164838e75a16245672e194d6e04afbc0cabd0a108a16acb3fd24733ee67e0915",
+      "size": 10408481,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/demos/roam-video-excerpt-v1.json",
+      "sha256": "d463617719980c11fdd34ff1b1acfbb2b7db3c8467a61d79bd82d1264c8cc6ed",
+      "size": 22165,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/demos/roam-video-excerpt-v1.mp3",
+      "sha256": "192af6ed5c6ce24dbae9135af33d4910b2a2f4dd397aaaa69e5f36fd7a458d77",
+      "size": 765536,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/drum-separation.js",
+      "sha256": "9da64ecb2443882e2cb04e08eee1ec0ecec61b0861a9edd725ec5f4544a89ca6",
+      "size": 7455,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/engine.js",
+      "sha256": "4d2c77090fe10588f1bafdd99ceeee03333b65252061fa2f58be56781169d860",
+      "size": 9610,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/game.js",
+      "sha256": "ba7cb34574e1db557b63e18a83be63d3da5411d870350281f7964c9db762c708",
+      "size": 151326,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/hero-reference.js",
+      "sha256": "762a9eb1ac2a54ca5987adde49d4b563bf526912c0b1c1b5f15d9550d54367ee",
+      "size": 81214,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/index.html",
+      "sha256": "dd49d6207f628a3df0531e9800eebcaf40b7f2b3f37a676621bf59efcb59d3ec",
+      "size": 37402,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/manifest.webmanifest",
+      "sha256": "cce31d9d199615a0b799622529db45b8a744afabdbf14e2810535b58878c2686",
+      "size": 573,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/midi-chart.js",
+      "sha256": "16e7578f60300ee08823dc95229b69fb7f388cfe1afc8eaeff62e1435ca827bc",
+      "size": 11040,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/offline-assets.js",
+      "sha256": "a8ec5f1bb5e3da6170224d2594296c90828c95a07e130f61184402d213ba067f",
+      "size": 1140,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/offline.js",
+      "sha256": "a8ab03f3923c95c2b591f39ab4cb228839c72800654cd9b229ca2c78639bad62",
+      "size": 12407,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/part-charts.js",
+      "sha256": "809f10c6987a83d248b24466317c109b1a4cbcfe5e35e6e74bcd41db4484d67d",
+      "size": 2515,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/performance-motion.js",
+      "sha256": "ee3b94d7c6936d3bd184779cdef523eda09c996dc50446cec13bbea642eae90b",
+      "size": 7662,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/playback-tools.js",
+      "sha256": "06f8d2f0e181b45bb542a94af668d5d305f42990ffaa779f9a15e4850788684a",
+      "size": 2107,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/public-demos.js",
+      "sha256": "f20b9185c440fe4f0788bad78734c706cf358948205d999ec505e4c2896ef45d",
+      "size": 2656,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/recording-alignment.js",
+      "sha256": "6ebddedf63a33e0d76b9074383e1092df016fea4945dca19d3f001718ce13ede",
+      "size": 10160,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/reference-charts.js",
+      "sha256": "e44d422df53c2b1f4f618999e1dc9ffa0fa6f776af5b9fc57c31dfacc78ca28f",
+      "size": 26206,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/reference-updates.js",
+      "sha256": "8072d2e78f5de753eaf5175a05490086a2adefe2f076006da1fab6be567fa245",
+      "size": 3446,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/roam-reference.js",
+      "sha256": "78f0363b6f8f8cb2d925b8727b86bee32a27bd963c761bad501a9ff424f16921",
+      "size": 36498,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/song-audio.js",
+      "sha256": "ff9aa2210273463a50ebd374d17ebb4529aa49f5322940afcc112d2af382b780",
+      "size": 5462,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/song-library.js",
+      "sha256": "3d1a7e1dddfe16aa06f1429d818f9e46d898195157b4558bbe302d54291b43b0",
+      "size": 17241,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/stage-mesh.js",
+      "sha256": "4f0f118ddb193aa31cadd7ad5f0e8fb940b46c2637b042a4168281305679fd2a",
+      "size": 4169,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/stage.js",
+      "sha256": "900a351f21a1530cb60ae0b68e1c0fdfa5866ec1e997cff69a16181ed331c456",
+      "size": 5383,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/styles.css",
+      "sha256": "366bce54826a183d2944808fe30efd0fb2df2ca1f79cd1d22d938d511d4ef994",
+      "size": 43145,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/sw.js",
+      "sha256": "a54052627ac5f10ab1598d8a0a97c548af84c1174701951f39e5a5f17a62fb71",
+      "size": 4266,
+      "mode": "100644"
+    },
+    {
+      "path": "dist/track-two-reference.js",
+      "sha256": "69ee12d9a4a2576e2a2291ab16f520c4bb60a7a482fad469d274e5226bf38ca8",
+      "size": 132049,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/PRD.md",
+      "sha256": "bded9d7f08015ffd45f4f0508b5a3138e934278aa608254f001f87cb42110ef7",
+      "size": 244446,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/authored-chart-reuse.md",
+      "sha256": "40a539a45dd67c28b5933ea8cf06712c78cf339de3af11232240b2f1e3ac3a86",
+      "size": 2708,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/authored-recording-workflow.md",
+      "sha256": "c4a188044e855ded9d5c027b2a34c24be3e2cdaa0f949ecfdcbdc16ece06c642",
+      "size": 9318,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/bundled-audio-padding.md",
+      "sha256": "6c9c9893de9952b690d6d6785bec1429c79ff59d8bbe2d0b7c8cbcad7a7d0a6a",
+      "size": 2466,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/clone-drum-recording.md",
+      "sha256": "541735ed39fa791417390163b667cb3f798f4a9dd037c61327a3d55487be2e44",
+      "size": 3780,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/direct-stinkfist-search.md",
+      "sha256": "2171e70d27ac0c9ac54ddeb33912ad7084440411ba0809148c367a5547074a30",
+      "size": 2840,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/drum-rolls.md",
+      "sha256": "f1161dba9de9a05faea2fdb7c60919567eb57e7f6bfad6cbf89870eea4864c16",
+      "size": 3516,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/drum-source-audio.md",
+      "sha256": "9ae19bdc0cb90da0336ce752014b9be530d2ec6b29814c854fefff43e170bd81",
+      "size": 4491,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/four-lane-drums.md",
+      "sha256": "267671dbcb73818aa1b3ece33ba80dcabe68eef84acba06524a76ea02fef6d76",
+      "size": 4480,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/guitar-hero-source-policy.md",
+      "sha256": "e81c4ce26bc95c9e81273e5b735e8342267ddc9cd021e56dc146be586c753015",
+      "size": 3566,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/hero-of-the-day-drums.md",
+      "sha256": "92c376a0c3a6ff0be70fdffe41724f57ec19540032bfcce389294db687bce63a",
+      "size": 3380,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/inbloom-chart-review.md",
+      "sha256": "246920b0b159eb843a5ad6bbf838d64ad95b6e602eeb94ef75df3434a92feb15",
+      "size": 18101,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/king-nothing-alignment.json",
+      "sha256": "0acaeed4a9ad782379837a5edd93e6ddb90b6a3e6fd9698282f3eef627d14c79",
+      "size": 5490,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/king-nothing-drums.md",
+      "sha256": "8677c72b136f6ba7a1c9bb5a32d67c7b80f9bdd64c88b4f525482ddb03c03564",
+      "size": 4703,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/orion-long-songs.md",
+      "sha256": "505136ca39e01bf68271cb1a2b86b66cb54260a407014b74e65ff3f475c8d825",
+      "size": 3430,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/stinkfist-community-pack.md",
+      "sha256": "a0e2f2c8e76c3665306eb41223fd6ccd9110dc1c9fe5da194ffdc672d76789f3",
+      "size": 4543,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/title-only-chart-search.md",
+      "sha256": "a9fe543a78f9cc5b2af9c85dc392aa8ec232200052a7196ce379e5d891d18d53",
+      "size": 10508,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/track-two-drums.md",
+      "sha256": "44c8d74071c5beb9a833909fe2a02b62079f8c21014ae0f98116a9f14513d7bc",
+      "size": 3747,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/audible-notes.test.cjs",
+      "sha256": "0c21f4e9ccbde0075bf6a438b07c3b3698f8b5a0f122b1dd41dfbbe482840873",
+      "size": 1627,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/authored-chart-reuse.test.cjs",
+      "sha256": "78c7381992bb7b9ef4e9c4b5c6cbfde7c46bca2bd017b1b1aa0188e18ab4258c",
+      "size": 11239,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/authored-drums.test.cjs",
+      "sha256": "aa73549a837981d7dedd7a3e373c8263c5d6b4c074fe3485ba14019bc2ef0726",
+      "size": 9952,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/authored-workflow.test.cjs",
+      "sha256": "849fe93f1d06824b1bcfbe6ae1c32a4303fef6a3ae8bfed1d097c3ed2fdb2f3c",
+      "size": 7777,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/autochart.test.cjs",
+      "sha256": "acb03f45217ab0f4c350c9daccc2f529797b9e9ad6d9b3e192ac93a9fa077c8a",
+      "size": 4709,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/automatic-updates.test.cjs",
+      "sha256": "12cd762651002bda7bb4b02f1ab068ad20f954ccdb6a374c598fa0c6d858fc13",
+      "size": 11945,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/backup-community.test.cjs",
+      "sha256": "0e86addb884a3889aa0a332f06cfaa83178f04de3a443f3e2ee895ab8662a809",
+      "size": 7663,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/backup-save.test.cjs",
+      "sha256": "7feaac8367c42d7c06390a4771a68aa75de40af7bacac06d739f28c3e47f6592",
+      "size": 5877,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/bass-masked-drums.test.cjs",
+      "sha256": "806a81a09e7a4e833df86f770cecb85cb1b6e27e8f36d45aaca9431a1b990c49",
+      "size": 2261,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/bundled-audio-padding.test.cjs",
+      "sha256": "135e0b36de1ccd40e2d1bc3808e42ebc5a278127213834c3b95c29507a7eeb82",
+      "size": 2315,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/bundled-song-audio.test.cjs",
+      "sha256": "ff6751eb8b66fb54fb166289d5e7964cb194c548d7eb6d079afa331eca97ab92",
+      "size": 9677,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/buried-hits.test.cjs",
+      "sha256": "b2b91b535b3ec3d58db2ae9e49973fb02684d9f1fb34237f471b98e4b53cee7a",
+      "size": 3376,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/cached-instrument-tabs.test.cjs",
+      "sha256": "cdca911858ba6bec921af665453b92a585a7af3b6a2cb41b97f91443c0131e7a",
+      "size": 3623,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/chart-exchange.test.cjs",
+      "sha256": "95bc96795731d76f3b0663364534f211d1ebb4e4534d1f5049e230736f31a14a",
+      "size": 8710,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/chart-metrics.cjs",
+      "sha256": "6e1e49f873b42fd01f3295105fbd55ace424bd97cca289bf0888c158515de3ba",
+      "size": 977,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/chart-retention.test.cjs",
+      "sha256": "5c16b311f3b1fbefefbbe30e5be4537e9b22f1249488e4817e3b16a18b42f3de",
+      "size": 5427,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/chart-timing.test.cjs",
+      "sha256": "2e7b291d3b163e67822d2cb54f99355c6d238a234a4650c6ae2220699da70b42",
+      "size": 5491,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/clone-drum-recording.test.cjs",
+      "sha256": "8d5eebbf3ca58e6f0236d5091c9402d2bb3d326b2abadcc0cc0ecde29146772b",
+      "size": 7936,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/community-alignment.test.cjs",
+      "sha256": "c2c1e413dc800335f5162986b90e57a4a882db66f26aedba7142fa3c3ab667f1",
+      "size": 9884,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/community-charts.test.cjs",
+      "sha256": "72e4741447e17ea5903e7eaab668e5f9176dfe1abd2ea93ca260f9f860cc9979",
+      "size": 20324,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/community-first.test.cjs",
+      "sha256": "b278ce1f3af83f53d943ebcaa7507be71c56ea2973fe523f73555ef46faf256e",
+      "size": 3978,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/community-packs.test.cjs",
+      "sha256": "1d16180d756c14d3272f68809ee37af7faeccf17e62ab4530901cf9b903fc9f1",
+      "size": 5643,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/conjunction-title-search.test.cjs",
+      "sha256": "87dd21f1b815a107d0b1bccd48e373c976a121a95177a0c4050db22436dfb7d6",
+      "size": 5108,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/cymbal-hats.test.cjs",
+      "sha256": "e85656fa48ec79828a6c857cb20248e8131e72445afaef9a636c2148ccf9fc21",
+      "size": 1527,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/difficulties.test.cjs",
+      "sha256": "cb9337a1954e9e3ef987bb6274c484c252fb8c1e05279e4ca19c28e36673692b",
+      "size": 6094,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/direct-pack-search.test.cjs",
+      "sha256": "147ecea712b3a7a04dda236f8ac93ab5569bb5634a35b17a530c5e354a2ebac8",
+      "size": 6226,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/drum-colors.test.cjs",
+      "sha256": "72aeea219d0dfa1133feb62469774c5bf83579e88b02f01e9db977279fdc939e",
+      "size": 1575,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/drum-fills.test.cjs",
+      "sha256": "56ad889563deb3301de4c8baf06e7deb8e66bf2d7c938df6c89f5e5852adfa27",
+      "size": 2133,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/drum-overlaps.test.cjs",
+      "sha256": "039cf00bde744f0b5d4c48e7e00c173c0b623d0acf43d38aee98ecaeca4706c4",
+      "size": 3311,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/drum-recording.test.cjs",
+      "sha256": "a0885520a7a11e5512d8d8ea5c06e2ce0c6d68974b4ffbce30934df8abdd6683",
+      "size": 2248,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/drum-repair.test.cjs",
+      "sha256": "0d8616ca61ae89bd9b848b329b3a5d1061bc8f5580cec061544ac29c728019f7",
+      "size": 7902,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/drum-rolls.test.cjs",
+      "sha256": "fe84fe798bf1e8b39f11d5de25b749d38f7d385067c2f8cbc9b5fa037615953d",
+      "size": 10196,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/drum-source-audio.test.cjs",
+      "sha256": "110f55cbd02641110b8a1973e7cfc410acd42b3ca1ac97f633d6514c1377d35a",
+      "size": 12065,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/expert-recall.test.cjs",
+      "sha256": "99834318834713d828910fc7a0cba8653d93b054e917c7c87af7e3973532bb61",
+      "size": 2093,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/fixtures/audible-notes.cjs",
+      "sha256": "ec5b1a1e34cf62e3ce0769a844e08cdc2c1e5dd5f059f84c6857b82231be072f",
+      "size": 1509,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/fixtures/bass-masked-drums.cjs",
+      "sha256": "b36d329898047a8c0aad5d784d61d4c150b2abde8b072eb6ec5995eef4d5c865",
+      "size": 919,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/fixtures/cymbal-overlaps.cjs",
+      "sha256": "b0fd4a92ada51a629b5875d11b3bc4dc43efc711318a8927f33faa16adcba3ba",
+      "size": 2254,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/fixtures/drum-colors.cjs",
+      "sha256": "83dab27bad127f08cd5e3cb7d0cc55f5dc9604cfa7740d21027bc0a69ae52c09",
+      "size": 1417,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/fixtures/drum-fills.cjs",
+      "sha256": "c21d39de31d6781950fa84c46f45b0276c8364005c1e193bc4da209791155c89",
+      "size": 1532,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/fixtures/expert-recall.cjs",
+      "sha256": "248b647876cf8641a6a82047e670a62642d9d3d441262151d109d25b31eb196f",
+      "size": 1718,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/fixtures/guitar-chords.cjs",
+      "sha256": "a3b08f4243f7ddc6339c2aef270800dd29b55208157b1db38874355d1b6ea852",
+      "size": 2635,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/fixtures/hat-kicks.cjs",
+      "sha256": "0f206cf1ebbee064155c75917a64c5ff8f87edad75f7a5b9fd4dd2913c376c8f",
+      "size": 1109,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/fixtures/independent-timing.cjs",
+      "sha256": "d2e373af8e6628b1160cbf6e46d068c6d791f0e0ffb70c216287699ac7d75b47",
+      "size": 2766,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/fixtures/melody-parts.cjs",
+      "sha256": "71b6216136ff705edaa8b183f2b3bd00fef2e066898fbe1a5fc9bf70a5d47a0d",
+      "size": 2060,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/fixtures/open-hat-identity.cjs",
+      "sha256": "57b4589e5e3d53c65cb03ef38f196e9c2ad3e003d691a51de0b8fbdc2a885de5",
+      "size": 1829,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/fixtures/pitch-colors.cjs",
+      "sha256": "e7b815ebe18a362572610f9f81b44b0ca34b660c92ddaeb9cfb3061e171458b0",
+      "size": 944,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/fixtures/quiet-attacks.cjs",
+      "sha256": "738c42e0f73c320d2925f3be2dbbc8106d4a374eb8810d8b79806c6dc0947a68",
+      "size": 993,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/fixtures/snare-rolls.cjs",
+      "sha256": "6f410f51841c93aee38db5e535ae76395bc4167404f42961962edbebfbb2dea7",
+      "size": 835,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/fixtures/tom-recovery.cjs",
+      "sha256": "df833f6701a624a2b6984ff038c2a072bf05e18b88e3a049f6273a9735e0bc74",
+      "size": 1524,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/focused-chart.test.cjs",
+      "sha256": "4680b50860438d0366d26d3414b0e761739d7b4dd04324e3499699a665430cff",
+      "size": 2858,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/four-lane-drums.test.cjs",
+      "sha256": "ff985f885fa39fbdf820d2d0ba0865deed5322c0b8a115089cdfa6c71c685e8d",
+      "size": 12646,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/guitar-chords.test.cjs",
+      "sha256": "892fc125d865b6a69b36878995639c39a406298518f16d43eaafa4d7011ed012",
+      "size": 4771,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/guitar-fret-review.test.cjs",
+      "sha256": "7d02d7b42b0d0414af925c81aacaad46b7fc33e4b41b6cfa2613179e5e57e961",
+      "size": 4328,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/guitar-guide.test.cjs",
+      "sha256": "314f8ef544d669d0220409dd1e7b52762016796ba6603059776d1e67ebd95b16",
+      "size": 1847,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/guitar-hero-sources.test.cjs",
+      "sha256": "da61383530909fb03a0c0c2ed32a011dc64410844e9d73b5e7b7b699931a463c",
+      "size": 10699,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/hat-kicks.test.cjs",
+      "sha256": "5735a9c9b6ae14c197f6fff5216206b89fa61378ca735b744ae96adbf081fdbc",
+      "size": 2013,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/helpers/bundled-audio.cjs",
+      "sha256": "de00280d0b8536978eca5cb65ea73900de88c232795a69d8e54acd6ae75f29ab",
+      "size": 1991,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/helpers/community-fixture.cjs",
+      "sha256": "33026b1a2a90c1266743f1d1c20ae9ebf4c6340a71a91c00c30bc1c3ae42b9c0",
+      "size": 4357,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/helpers/reference-container.cjs",
+      "sha256": "49097db184cbc3439ed019589c64ba11ce384cc95a57600980e214d105f64425",
+      "size": 1257,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/helpers/song-storage.cjs",
+      "sha256": "d58deca860f46e3760c63f948eba77c6c6b67b2c178b36cebff47a72896aa35c",
+      "size": 2471,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/hero-reference.test.cjs",
+      "sha256": "802b1cec372c5c765e51255453ce616c9cf6cd7b55a1a46dbc3580158b37a95e",
+      "size": 7983,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/hi-hat.test.cjs",
+      "sha256": "e9fe7b52104b51390fb7429b4087a3a2199d035db44feb72c7612a5249d4e4dd",
+      "size": 4094,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/independent-timing.test.cjs",
+      "sha256": "ca9cac8df65642fe4f5d9cf7157eba40dcfd5a9a8586d57697aa88f19cbbbadd",
+      "size": 3201,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/instrument-audio-isolation.test.cjs",
+      "sha256": "02bb36469b66fc3597a09db0d8c1583be9c2746ed28a7fa85db84d1d83855bf3",
+      "size": 1483,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/live-instrument-tabs.test.cjs",
+      "sha256": "97921035e4f9e09b8f016018944673085750c84d95f4bf9686e1f5cdcc1bafd1",
+      "size": 5303,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/long-song-audio.test.cjs",
+      "sha256": "e118367908e211740fae3e075464985f810101125885d1fc75230cf38ed5d4b2",
+      "size": 8634,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/melody-parts.test.cjs",
+      "sha256": "4fab63cedef457be2eb84be958fa802fa0110b3b8211f4f4fdff3c6736d3c128",
+      "size": 3404,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/missing-chart-audio.test.cjs",
+      "sha256": "c6cc06035062f6ebdc12150df2be4c82d51d421ab34f38d86615bf7cc9523a77",
+      "size": 11447,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/missing-part-selection.test.cjs",
+      "sha256": "de342f5a0a5d0e6bfed8adc68480e12f9977671b5c71a72b9af769a5fd613427",
+      "size": 5883,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/note-colors.test.cjs",
+      "sha256": "65d0f986a0bccee9858fb1db4b23be15c7a463cd25a6a341fb0460d0f226329f",
+      "size": 4761,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/open-hat-identity.test.cjs",
+      "sha256": "c989e3cc45157951a5da6a52411e3f37ac9166a292116d159665f474e4c1cd58",
+      "size": 3150,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/part-charts.test.cjs",
+      "sha256": "a23020d0dadb3b07191a24314b186c24272d04796f3a2461c9e137642f800287",
+      "size": 8600,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/pitch-colors.test.cjs",
+      "sha256": "c05bee169ea30fdf2198e7883d6a69f261caabc09d70aa614f2c186b9a2684db",
+      "size": 3413,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/play-parts.test.cjs",
+      "sha256": "45439d8a081e93867791fc8b9bea6ba9123ff3aa125139af0b3b35b9eddfcb43",
+      "size": 9444,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/preview-timing.test.cjs",
+      "sha256": "7bcad308d22da4c05c7bf45014eedc59361cebfc457bcac7de1681b4c436c7b8",
+      "size": 2602,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/public-demos.test.cjs",
+      "sha256": "69120b41ee64e24c5ce614abcd34b037e47b15c65b14ec9c44e4fed100a4e92d",
+      "size": 4438,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/quiet-notes.test.cjs",
+      "sha256": "dce97f54fd9acdc471838e94c4cca7aef6b3c56dd5b318a99eb1727a78aff699",
+      "size": 5154,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/recording-alignment.test.cjs",
+      "sha256": "3ba182ed3248439f26805eaaf80f675a14e1fd7c7984a44db0e89b610e4e0ed0",
+      "size": 3471,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/reference-charts.test.cjs",
+      "sha256": "8bd5b563c8c21c68ff25416cc58d329bb12086bde0c6c721104b1b9b9824ef6f",
+      "size": 11661,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/reference-updates.test.cjs",
+      "sha256": "01b868f9f5ba0439752f1b855aec63d94406adeca9a50116172c13dcd0897dab",
+      "size": 1982,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/required-upload-match.test.cjs",
+      "sha256": "8a5a8d08efda0583a30a5c184b627c3205d0aec9c8e263f5a341b9fd1fb08c63",
+      "size": 6802,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/roam-reference.test.cjs",
+      "sha256": "085777b0041f4f6082498671310a7a146ee5154f9dd3e7b24e86a4ca0e7831a4",
+      "size": 10424,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/snare-metal-identity.test.cjs",
+      "sha256": "ca2b17b8e0bf3090da365cc4398cc95d712f5d3043bf8bc5c1d4b05a27a1171c",
+      "size": 2066,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/snare-rolls.test.cjs",
+      "sha256": "82b8680a1f740f020d0a311ec40b5543da140340472259a43e41ea6ea29adf57",
+      "size": 1795,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/storage-connection.test.cjs",
+      "sha256": "228cdc68ba303d7eed9bed5ab10202581df6a19d61a14e7dee117f3edaff32d8",
+      "size": 8047,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/storage-offline.test.cjs",
+      "sha256": "61c707be17be0a3580a9aec6d847e8af3cb2e5fb858a5d9849b7c3b1d3b39284",
+      "size": 12700,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/title-only-search.test.cjs",
+      "sha256": "0551fa992007d3ba1ceae069684f328ba479fd4d9def7f5c6cf3d3f44687ff1a",
+      "size": 18084,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/tom-recovery.test.cjs",
+      "sha256": "972ec4139585448dd010cfb9bc546e3f5f83536554f5f64355772f047fa3d3bf",
+      "size": 1908,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/track-two-reference.test.cjs",
+      "sha256": "bbb85e230a053010bd0b7aaff01313a0ee76aefcd5ac435b69b8a616f4cdc029",
+      "size": 6909,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/upgrades.test.cjs",
+      "sha256": "b967d6d2991553dda87dcb207791f71880e847ca2312b9df322110a0a786256c",
+      "size": 3865,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/upload-flow.test.cjs",
+      "sha256": "e1d93fac36a53fb636b59f6a334d21f86d1388d73c904b480bae4a4bddf38a4e",
+      "size": 144484,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/upload-instrument.test.cjs",
+      "sha256": "abfbed58cf8c67cd549838cee910456b3e6b1b182d5d347a0cb9dc163086fead",
+      "size": 6035,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/whole-song-analysis.test.cjs",
+      "sha256": "2acf94e5bf1224cb8d5d4a32dcbcc58fc96766e5ef9cff774b2e9a08ab89f1ad",
+      "size": 5195,
+      "mode": "100644"
+    },
+    {
+      "path": "tools/apply-inbloom-score-review.py",
+      "sha256": "5312fc9505c45be8ffed0ec54a0c0cea63518d25763751d9bb920d69924f4dd1",
+      "size": 4527,
+      "mode": "100644"
+    },
+    {
+      "path": "tools/build-inbloom-reference.py",
+      "sha256": "b4360eaffe78208c41eef0605288843c84c5d949431cd73dd06bd033b41bbcf1",
+      "size": 3770,
+      "mode": "100644"
+    },
+    {
+      "path": "tools/build-public-demos.cjs",
+      "sha256": "18f9ed03aca7965858eab35ee77d6bd946543c5661a3f6495940e3091b968dd9",
+      "size": 3760,
+      "mode": "100644"
+    },
+    {
+      "path": "tools/inbloom-onsets.json",
+      "sha256": "3a99f52c7b489146a5581faa8c3b2f19134ecd3e0696a0909855a6d30ec87a57",
+      "size": 28795,
+      "mode": "100644"
+    },
+    {
+      "path": "tools/inbloom-score-review.json",
+      "sha256": "c9557c316dc21b405562d03dc7d16753739657241973474fa2218a246b6aef6b",
+      "size": 31304,
+      "mode": "100644"
+    }
+  ],
+  "downloads": [
+    "dist/demos/frantic-drums-v2.mp3",
+    "dist/demos/in-bloom-drums-v4.mp3",
+    "dist/demos/roam-drums-v3.mp3",
+    "dist/demos/roam-video-excerpt-v1.mp3"
+  ]
+}
