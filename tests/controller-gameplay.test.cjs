@@ -1,13 +1,13 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),{createRequire}=require('node:module');
 const API=require('../dist/controller-input.js'),E=require('../dist/engine.js'),D=E.Difficulties,L=require('../dist/song-library.js');
 const adapter=require.resolve('./upload-flow.test.cjs'),code=fs.readFileSync(adapter,'utf8').split('\ntest(')[0],{setup,until}=new Function('require',code+'\nreturn {setup,until};')(createRequire(adapter));
-function appRig({layout='five',part='drums',mobile=false,notes,storage=new Map()}={}){
- let hub;const pad={index:0,id:'Physical test controller',connected:true,buttons:Array.from({length:16},()=>({pressed:false,value:0})),axes:[0,0]},ports=new Map(),midi={inputs:ports};let pads=[pad],midiFailure=null;
+function appRig({layout='five',part='drums',mobile=false,notes,storage=new Map(),missingControls=[]}={}){
+ let hub;const pad={index:0,id:'Physical test controller',mapping:'standard',connected:true,buttons:Array.from({length:16},()=>({pressed:false,value:0})),axes:[0,0]},ports=new Map(),midi={inputs:ports};let pads=[pad],midiFailure=null;
  const browserEvents=new Map();
  class Hub extends API.Hub{constructor(options){super({...options,storage:{getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v)}});hub=this;}}
  const record=L.validate({id:'d'.repeat(64),title:'Controller soundcheck',artist:'Test',instrument:part,musicEnd:16,bpm:120,beat:.5,charts:{[part]:D.build(notes||[{time:1,lane:0,duration:0}],part,.5)},audioBlob:new Blob([new Uint8Array([1,2,3])]),quality:{drumLayout:layout}});
  record.audioBlob=new Blob([new Uint8Array([1,2,3])]);const savedSongs=new Map([[record.id,record]]);
- const app=setup({mobile,savedSongs,chartFixture:[],browserOverrides:{RiffControllerInput:{...API,Hub},navigator:{getGamepads:()=>pads,requestMIDIAccess:async()=>{if(midiFailure)throw midiFailure;return midi;}},addEventListener:(event,fn)=>{const listeners=browserEvents.get(event)||[];listeners.push(fn);browserEvents.set(event,listeners);}}});
+ const app=setup({mobile,savedSongs,chartFixture:[],missingControls,browserOverrides:{RiffControllerInput:{...API,Hub},navigator:{getGamepads:()=>pads,requestMIDIAccess:async()=>{if(midiFailure)throw midiFailure;return midi;}},addEventListener:(event,fn)=>{const listeners=browserEvents.get(event)||[];listeners.push(fn);browserEvents.set(event,listeners);}}});
  const button=(i,down)=>pad.buttons[i]={pressed:down,value:down?1:0};
  const open=async()=>{await until(()=>app.nodes.setlistEntries.children.length===2);await app.nodes.setlistEntries.children[1].click();assert.equal(app.nodes.trackTitle.textContent,record.title,app.nodes.statusMessage.textContent);};
  const row=a=>app.nodes.controllerMappings.children.find(n=>n.dataset.action===a);
@@ -51,4 +51,12 @@ test('device/layout selectors, clear and enable controls edit only the selected 
  const r=appRig(),{app}=r,n=app.nodes;await r.open();await n.controllerButton.click();await n.controllerPreset.click();assert.ok(r.hub.mapping('gamepad:0','drums-five').lane4.length);
  n.controllerContext.value='drums-four';await n.controllerContext.emit('change');assert.equal(r.row('lane4'),undefined);await n.controllerPreset.click();assert.ok(r.hub.mapping('gamepad:0','drums-four').lane3.length);await r.row('lane3').children[2].children[1].click();assert.equal(r.hub.mapping('gamepad:0','drums-four').lane3,undefined);assert.ok(r.hub.mapping('gamepad:0','drums-five').lane4.length);
  await n.controllerClear.click();assert.equal(Object.keys(r.hub.mapping('gamepad:0','drums-four')).length,0);n.controllerEnabled.checked=false;await n.controllerEnabled.emit('change');assert.equal(r.hub.enabled,false);assert.equal(JSON.parse(r.storage.get(API.STORAGE_KEY)).enabled,false);
+});
+test('World Tour preset button scores orange cymbal and kick separately on the five-lane chart',async()=>{
+ const r=appRig({notes:[{time:1,lane:3,duration:0},{time:2,lane:5,duration:0}]}),{app}=r,n=app.nodes;await r.open();await n.controllerButton.click();assert.equal(n.controllerWorldTourPreset.disabled,false);await n.controllerWorldTourPreset.click();assert.match(n.controllerStatus.textContent,/Orange RB.*Kick LB/);
+ n.controllerContext.value='drums-four';await n.controllerContext.emit('change');assert.equal(n.controllerWorldTourPreset.disabled,true);n.controllerContext.value='drums-five';await n.controllerContext.emit('change');n.controllerDialog.close();await app.radios.difficulty.find(x=>x.value==='expert').emit('change');await n.playButton.click();await until(()=>n.playText.textContent==='RESTART TRACK');const start=app.sources.at(-1).when;app.tick(start+.5);
+ r.button(5,true);app.tick(start+1);assert.equal(n.score.textContent,'000,100');r.button(5,false);app.tick(start+1.1);r.button(4,true);app.tick(start+2);app.tick(start+18);assert.match(n.resultNotes.textContent,/2 of 2 notes hit/);assert.equal(n.resultAccuracy.textContent,'100%');
+});
+test('cached version 101 HTML without the new preset button still opens setup and learns inputs',async()=>{
+ const r=appRig({missingControls:['controllerWorldTourPreset']});await r.open();await r.app.nodes.controllerButton.click();await r.learn('kick',4,.1);assert.match(r.row('kick').children[1].textContent,/Button 5/);
 });

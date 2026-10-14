@@ -22,8 +22,15 @@
     // A kit can encode one pad as A + bumper. Do not also fire its A-only pad.
     return [...new Set(candidates.filter(x=>!candidates.some(y=>y.b.length>x.b.length&&x.b.every(t=>y.b.includes(t)))).map(x=>x.action))];
   }
-  function preset(kind,context){
+  function preset(kind,context,name='standard'){
     const map={};const add=(a,...tokens)=>map[a]=tokens.map(t=>[t]);
+    // Browser standard mapping: A=0, B=1, X=2, Y=3, LB=4, RB=5.
+    // GH kit pads: B/Y/X/RB/A; pedal: LB. This is not the guitar preset.
+    if(name==='ghwt-xbox360'){
+      if(kind!=='gamepad'||context!=='drums-five')return null;
+      [1,3,2,5,0].forEach((b,i)=>add('lane'+i,'b:'+b));
+      add('kick','b:4');add('overdrive','b:8');add('pause','b:9');return map;
+    }
     if(kind==='gamepad'){
       [context==='frets'?0:1,context==='frets'?1:3,context==='frets'?3:2,context==='frets'?2:context==='drums-four'?0:4,context==='frets'?4:0].forEach((b,i)=>{if(actions(context).includes('lane'+i))add('lane'+i,'b:'+b);});
       if(context==='frets')add('strum','b:12','b:13');else add('kick','b:5');
@@ -45,7 +52,7 @@
       try{const data=JSON.parse(storage?.getItem(STORAGE_KEY)||'null');if(data?.version===1){this.enabled=data.enabled!==false;for(const [key,contexts] of Object.entries(data.profiles||{}).slice(0,100)){const safe={};for(const c of CONTEXTS){const map={};for(const a of actions(c)){const bindings=contexts?.[c]?.[a];if(Array.isArray(bindings))map[a]=bindings.map(cleanBinding).filter(Boolean).slice(0,8);}safe[c]=map;}this.profiles.set(key,safe);}}}catch{}
     }
     save(){try{this.storage?.setItem(STORAGE_KEY,JSON.stringify({version:1,enabled:this.enabled,profiles:Object.fromEntries(this.profiles)}));this.storageError='';}catch{this.storageError='Mapping works for this visit, but the browser could not save it. Allow site storage to keep it.';}this.onChange();}
-    list(){return [...this.devices.values()].map(({id,key,name,kind})=>({id,key,name,kind}));}
+    list(){return [...this.devices.values()].map(({id,key,name,kind,standard})=>({id,key,name,kind,standard:!!standard}));}
     mapping(id,context=this.context){const d=this.devices.get(id);return d?this.profiles.get(d.key)?.[context]||{}:{};}
     release(d){for(const a of d.active)this.onAction(a,false,`${d.id}:${a}`);d.active.clear();}
     reset(){for(const d of this.devices.values()){this.release(d);d.ready=false;if(d.kind==='midi')d.tokens.clear();}this.cancelLearn();}
@@ -61,7 +68,7 @@
       map[action]=[...(map[action]||[]),b].slice(-8);profiles[context]=map;this.profiles.set(d.key,profiles);this.release(d);d.ready=false;this.save();return moved;
     }
     clear(id,context,action){const d=this.devices.get(id);if(!d)return;const p=this.profiles.get(d.key);if(p?.[context])delete p[context][action];this.release(d);d.ready=false;this.save();}
-    usePreset(id,context){const d=this.devices.get(id);if(!d)return;this.cancelLearn();const p=this.profiles.get(d.key)||{};p[context]=preset(d.kind,context);this.profiles.set(d.key,p);this.release(d);d.ready=false;this.save();}
+    usePreset(id,context,name='standard'){const d=this.devices.get(id);if(!d||name==='ghwt-xbox360'&&!d.standard)return false;const map=preset(d.kind,context,name);if(!map)return false;this.cancelLearn();const p=this.profiles.get(d.key)||{};p[context]=map;this.profiles.set(d.key,p);this.release(d);d.ready=false;this.save();return true;}
     clearProfile(id,context){const d=this.devices.get(id);if(!d)return;this.cancelLearn();const p=this.profiles.get(d.key);if(p)p[context]={};this.release(d);d.ready=false;this.save();}
     learn(id,context,action,now=0){this.cancelLearn();const d=this.devices.get(id);if(!d||!actions(context).includes(action))return false;this.release(d);this.learning={id,context,action,expires:now+10000,ready:d.kind==='midi'||d.tokens.size===0,candidate:[],changed:now};this.onChange();return true;}
     cancelLearn(){if(!this.learning)return;this.learning=null;this.onChange();}
@@ -76,7 +83,7 @@
       const connected=new Set();
       for(const pad of pads){if(!pad||pad.connected===false)continue;const id='gamepad:'+pad.index,key=`gamepad:${pad.id}:${pad.buttons.length}:${pad.axes.length}`;connected.add(id);let d=this.devices.get(id);
         if(d&&d.key!==key){this.removeDevice(id);d=null;}
-        if(!d)d=this.addDevice(id,key,pad.id||'Game controller','gamepad',{baseline:Array.from(pad.axes).map(x=>Number(x)||0)});
+        if(!d)d=this.addDevice(id,key,pad.id||'Game controller','gamepad',{baseline:Array.from(pad.axes).map(x=>Number(x)||0),standard:pad.mapping==='standard'});
         const tokens=new Set();Array.from(pad.buttons).slice(0,128).forEach((b,i)=>{if(typeof b==='number'?b>.5:b?.pressed||b?.value>.5)tokens.add('b:'+i);});
         Array.from(pad.axes).slice(0,32).forEach((v,i)=>{const delta=v-d.baseline[i];for(const sign of ['+','-']){const token=`a:${i}:${sign}`,n=delta*(sign==='+'?1:-1);if(n>(d.tokens.has(token) ? .35 : .65))tokens.add(token);}});
         const changed=signature([...tokens].sort())!==signature([...d.tokens].sort());d.tokens=tokens;

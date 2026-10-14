@@ -1,5 +1,7 @@
 # Riffbound
 
+Version 102 adds an explicit **World Tour Xbox 360** controller preset for five-lane Drums exposed with browser-standard button mapping: Red B, Yellow Y, Blue X, Orange RB, Green A, Kick LB. It keeps orange and kick separate and retains other device/layout mappings. Xbox 360 wireless drums still require a working PC receiver connection. See docs/controller-input.md for the mapping and hardware test limits.
+
 Version 101 adds live gamepad and MIDI input with **Controllers / drums** setup, a live input test, learned pad/button/axis combinations and saved mappings for four-lane Drums, five-lane Drums and Guitar/Bass/pitch pads. Multiple cymbals/kicks and strum directions can share actions. Setup pauses playback; disconnects and focus changes release held controls. Existing charts, audio and setlists retain their contents. Physical Stage Tour/Xbox kit compatibility still requires device testing. See docs/controller-input.md.
 
 Version 100 sends exact title-only Stinkfist / Tool / Drums searches directly to the reviewed Clone Hero package, without depending on main-catalog queries. A found source that cannot download now reports its actual failure instead of looking like a missing song. See docs/direct-stinkfist-search.md.

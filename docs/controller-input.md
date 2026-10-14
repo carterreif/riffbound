@@ -1,5 +1,34 @@
 # Controllers and drum mapping — version 101
 
+Version 102 adds **Use World Tour Xbox 360 preset**. It is available for the
+five-lane Drum layout when the browser exposes a controller with standard button
+mapping. It is an explicit preset, not automatic hardware identification.
+
+| Physical Xbox 360 Guitar Hero control | Browser standard button | Riffbound action |
+| --- | --- | --- |
+| Red snare / B | 1 | Red |
+| Yellow cymbal / Y | 3 | Yellow |
+| Blue tom / X | 2 | Blue |
+| Orange cymbal / right bumper | 5 | Orange |
+| Green floor tom / A | 0 | Green |
+| Kick pedal / left bumper | 4 | Kick |
+| Back | 8 | Overdrive |
+| Start | 9 | Pause / resume |
+
+Button indices in this table are zero-based browser indices; the setup's live
+monitor displays one-based button numbers. The preset changes only the selected
+device's five-lane mapping. Four-lane mappings, MIDI mappings and saved songs are
+kept. Use Add input to correct differences exposed by a particular driver.
+
+Activision's [classic Guitar Hero FAQ](https://support.activision.com/articles/guitar-hero-classic-faq)
+confirms World Tour had a PC version and Xbox 360 instrument use requires the
+Xbox 360 wireless receiver for PC. The physical pad/button assignments come from
+the [Clone Hero project's Guitar Hero kit mapping guide](https://wiki.clonehero.net/books/guitars-drums-controllers/page/drum-mapping-guide#bkmrk-guitar-hero-kits),
+translated to the W3C standard browser button indices. This does not run World
+Tour's executable, install its drivers, or bypass the receiver requirement. A
+physical Xbox 360 drum kit was not available; tests exercise documented input
+states, separate orange/kick scoring, simultaneous hits and preset gating.
+
 Open **Controllers / drums** at Soundcheck. Connect the controller to Windows with
 its supported USB connection or receiver, then press a button so the browser can
 expose it. Choose the device and mapping layout. Beside each color, kick, strum or

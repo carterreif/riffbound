@@ -5,10 +5,16 @@ function rig(options={}){
   const storage=options.storage||{getItem:k=>data.get(k),setItem:(k,v)=>data.set(k,v)};
   const midi={inputs,onstatechange:null};
   const hub=new API.Hub({storage,navigator:{getGamepads:()=>pads,requestMIDIAccess:async options=>{assert.deepEqual(options,{sysex:false});return midi;}},onAction:(...e)=>events.push(e),onSignal:s=>signals.push(s),onLearn:r=>learned.push(r)});
-  const pad=(index=0,id='Test kit')=>({index,id,connected:true,buttons:Array.from({length:16},()=>({pressed:false,value:0})),axes:[0,0]});
+  const pad=(index=0,id='Test kit')=>({index,id,mapping:'standard',connected:true,buttons:Array.from({length:16},()=>({pressed:false,value:0})),axes:[0,0]});
   return {hub,events,signals,learned,data,inputs,midi,pad,setPads:p=>pads=p,connect:()=>{const p=pad();pads=[p];hub.poll(0);hub.setBlocked(false);hub.poll(1);return p;},button:(p,i,down)=>p.buttons[i]={pressed:down,value:down?1:0}};
 }
 const downs=r=>r.events.filter(e=>e[1]).map(e=>e[0]);
+test('World Tour Xbox 360 preset separates every drum color, orange cymbal and kick; raw/MIDI/four-lane devices are gated',()=>{
+ const r=rig(),p=r.connect();assert.equal(r.hub.usePreset('gamepad:0','drums-five','ghwt-xbox360'),true);r.hub.poll(2);
+ const expected=['lane0','lane1','lane2','lane3','lane4','kick'];for(const b of [1,3,2,5,0,4]){r.button(p,b,true);r.hub.poll(3);r.button(p,b,false);r.hub.poll(4);}assert.deepEqual(downs(r),expected);
+ r.events.length=0;for(const b of [1,3,2,5,0,4])r.button(p,b,true);r.hub.poll(5);assert.deepEqual(downs(r),expected);assert.equal(r.hub.usePreset('gamepad:0','drums-four','ghwt-xbox360'),false);
+ const previous=JSON.stringify(r.hub.mapping('gamepad:0'));r.hub.devices.get('gamepad:0').standard=false;assert.equal(r.hub.usePreset('gamepad:0','drums-five','ghwt-xbox360'),false);assert.equal(JSON.stringify(r.hub.mapping('gamepad:0')),previous);assert.equal(API.preset('midi','drums-five','ghwt-xbox360'),null);
+});
 test('discovery is passive, blank mappings are safe, button edges do not repeat and disconnect releases holds',()=>{
  const r=rig(),p=r.connect();assert.equal(r.hub.midi,null);assert.equal(r.hub.list().length,1);r.button(p,0,true);r.hub.poll(10);assert.deepEqual(downs(r),[]);
  r.button(p,0,false);r.hub.poll(11);r.hub.assign('gamepad:0','drums-five','lane0',['b:0']);r.hub.poll(12);r.button(p,0,true);r.hub.poll(13);r.hub.poll(14);assert.deepEqual(downs(r),['lane0']);r.setPads([]);r.hub.poll(15);assert.equal(r.events.at(-1)[1],false);assert.equal(r.hub.list().length,0);

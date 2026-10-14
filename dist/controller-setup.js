@@ -24,6 +24,7 @@
       });$('controllerMappings').replaceChildren(...elements);}
       $('controllerCancelLearn').hidden=!hub.learning;
       $('controllerPreset').disabled=!device||(device.kind==='midi'&&context==='frets');$('controllerPreset').textContent=device?.kind==='midi'?'Use General MIDI drum preset':'Use standard gamepad preset';
+      if($('controllerWorldTourPreset'))$('controllerWorldTourPreset').disabled=!device?.standard||context!=='drums-five';
       $('controllerClear').disabled=!device;
       if(!notice)$('controllerStatus').textContent='Choose Add input beside a color, then strike that pad or press its control. Add more inputs for alternate cymbals, strum directions or a second kick. Mappings save on this browser.';
     }
@@ -41,6 +42,7 @@
     $('controllerEnabled').addEventListener('change',()=>hub.setEnabled($('controllerEnabled').checked));
     $('controllerCancelLearn').addEventListener('click',()=>{hub.cancelLearn();message('Assignment cancelled.');});
     $('controllerPreset').addEventListener('click',()=>{hub.usePreset(selected,context);message('Preset applied to this device and layout. Test every pad below; use Add input and Clear to correct any differences.');});
+    $('controllerWorldTourPreset')?.addEventListener('click',()=>{if(hub.usePreset(selected,context,'ghwt-xbox360'))message('World Tour Xbox 360 preset saved: Red B, Yellow Y, Blue X, Orange RB, Green A, Kick LB; Back = Overdrive, Start = Pause. Test every pad before playing.');});
     $('controllerClear').addEventListener('click',()=>{hub.clearProfile(selected,context);message('All assignments cleared for this device and layout.');});
     $('controllerEnableMidi').addEventListener('click',async()=>{
       $('controllerEnableMidi').disabled=true;message('Waiting for MIDI permission…');
