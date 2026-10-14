@@ -1,0 +1,46 @@
+# Future authored instrument charts — version 76
+
+New uploads use saved authored charts for the same audio SHA-256 before looking online. With title and artist, or an `Artist - Title` filename, community lookup searches bounded catalog pages for exact title/artist matches. Each requested instrument is parsed independently from its own MIDI track or .chart section. A source may supply only some parts: others are explicitly reported and independently estimated. Vocals require supported pitched vocal MIDI; a lyrics-only track or Guitar melody cannot supply Vocal notes. Vocal play remains five pitch pads, without microphone or lyric scoring.
+
+Supplied Easy, Medium, Hard and Expert charts are retained. Missing difficulties derive from the nearest supplied difficulty using the existing difficulty reducer, and the UI labels these derived levels. The recording correction changes times uniformly; it does not simplify, add, remove or recolor authored notes, split chords, alter sustain lengths, retune pitches or stretch tempo.
+
+## Recording alignment
+
+`recording-alignment.js` summarizes source and uploaded waveforms at 1,378.125 Hz using block averages. Stereo is mixed with a strongest-channel fallback when phase cancellation would remove the signal. Source audio can use recognized Guitar, Bass, Vocal or Drum stems; multiple Drum/Vocal stems are combined. `song` full-mix audio is not used as an instrument reference; missing stems leave that instrument unverified. Each candidate's waveform is independent of its note chart, avoiding the false assumption that a Guitar attack proves a Drum hit.
+
+FFT correlation measures five windows distributed across the recording. A usable window needs absolute normalized correlation at least 0.25 and an advantage of 0.065 over a competing lag outside 60 ms. At least three reliable windows must span the early, middle and late recording. Uniform shifts require at most 18 ms spread and a fitted slope under 0.00005 seconds per second. Silence, unrelated recordings, repeated tonal aliases, edits or drift can cause refusal. The accepted median lag updates each imported part's note times and tempo-map offset; notes outside the uploaded recording reject that part. Each instrument requires its own named stem comparison and owns its own correction. A Guitar match cannot verify or move Drums, Bass or Vocals. The catalog accepts a review only when its referenceInstrument equals the part being imported.
+
+Exact-title/artist candidates within eight seconds of the upload can be tested, including packages with differing padding. Padded candidates and conflicting length variants require successful waveform verification before import. With an otherwise unambiguous close length match, failed waveform verification keeps original authored timing and marks it unverified. Verification is evidence of uniform recording identity, not proof that an author charted every musical hit correctly. Different mastering, very quiet instruments or unsupported browser codecs may prevent a confident match.
+
+Source requests retain byte-range, file-table and identity validation. Reference media uses at most eight MB per file, four files per stem group and 24 MB total per lookup. At most four chart packages are tried, within a 45-second deadline. Cancellation and host access/rate blocks stop further requests. Source media is decoded transiently, reduced to small waveform features and discarded; only chart data, source credit and alignment evidence are persisted. Original uploaded audio is unchanged and stays device-local. No reference recordings are bundled in the app, public setlist or backup.
+
+The verified base offset, source and all difficulties persist with the selected part and exact upload hash. Existing exact-recording reuse retains later manual timing changes without applying alignment twice. Another upload/part cannot replace these charts accidentally. Existing setlists and the version 74 King Nothing repair remain unchanged.
+
+## Validation
+
+Core tests identify synthetic positive/negative padding and inverted polarity, recover a source in a mixed signal, and reject silence, unrelated signals, repeating-wave aliases, interrupted timing and drift. Stereo cancellation, sample rate normalization, combined stems and cancellation are covered. Real masked-SNG fixtures import each instrument independently, retain every supplied note/color/hold/pitch and derived difficulty, verify each part independently in Whole song, and refuse incompatible or out-of-bounds sources. Desktop/mobile DOM and audio adapters run the actual upload, catalog, source decoder, alignment, save, difficulty selection, part switching, backup, reopen and same-file reuse handlers. Existing source/difficulty, part ownership, timing and offline suites remain required.
+
+The generic matcher was also run against the actual supplied King Nothing MP3 and temporary source Guitar waveform. Three distinct matching windows returned -2.836462585 seconds, within 0.2 ms of the version 74 reviewed -2.836281179-second correction. Its existing chart and backup were not changed. Physical-phone rendering and live browser CDN codec/CORS behavior have not been tested in this environment; runtime failure uses the explicit unverified/fallback paths.
+
+Release validation: 143 checks passed across 146 scoped checks; three optional local-file fixtures were skipped. This includes all new waveform, source-range and desktop/mobile end-to-end adapter checks, existing independent chart/difficulty/reuse suites, selected upload/import flows, timing controls and offline storage checks.
+
+Format references: https://github.com/mdsitton/SngFileFormat and https://github.com/Geomitron/Bridge. The SNG parser and waveform matcher are independently implemented; no new external runtime dependency is added.
+
+## Version 76 instrument isolation
+
+Catalog lookup canonicalizes numeric multiplication spellings such as 2x4, 2 X 4 and 2 × 4 for the query and both metadata checks. Artist and recording variants remain exact. A missing authored part continues to use its own audio estimator, never another MIDI track. Drum estimates reject attacks concentrated in a distinct integer harmonic family in three successive windows; noisy overlaps and inharmonic tom resonance must survive this guard. This does not fully separate a distorted full-band mix, and can miss quiet percussion under dominant tones. Existing harmonic pitch checks for Guitar, Bass and Vocals remain independent.
+
+Opening or reusing older saved charts withdraws cross-instrument timing verification labels while retaining every saved note, difficulty, source offset, manual timing change, recording and setlist entry. Reupload or an explicit part rebuild is required to change previously estimated notes.
+
+Current validation adds own-reference refusal/offset fixtures, 2x4 numeric-title lookup, legacy-label preservation, harmonic-only recordings and real six-color percussion. Desktop/mobile adapters cover four independently decoded references, part switching, own-part replacement, backup/reopen and exact-audio reuse. Physical phone and the user's 2x4 recording are not available for direct validation.
+
+Version 76 release validation: 342 scoped checks, 338 passed and four optional local-file fixtures skipped, with no failures. Final DSP checks include the corrected sustained-tone guard and preserve every tested tom-fill strike. Desktop/mobile upload/rebuild, independent sources and timing, part selection, saved reuse, backup/reopen and offline update checks passed. Browser script-order checks cover both current and previously cached HTML order. No direct test of the user’s unprovided 2x4 audio or a physical phone was possible.
+
+
+## Version 94 — Drum source audio for future uploads
+
+Production uploads now use the exact identity, bounded game-source and missing-instrument queries previously reserved for title-and-artist search. Authored notes still require the requested instrument’s own recording proof. For requested Drums without a usable authored arrangement, later-game or community packages containing named Drum audio can be checked independently of their chart flags. Early guitar-only games remain excluded as Drum sources.
+
+A stable own-Drum waveform match may supply transient, full-rate Drum PCM to the estimator. The uniform shift is applied to the source PCM before analysis, within the original upload’s duration. Original playback bytes, audio hash and other parts remain intact. Reference groups are checked with the existing four-file, per-file eight MB and total 24 MB budget; compatible FLAC/M4A stems may also be decoded. Raw PCM is retained only for this fallback, combined incrementally, and discarded after the job. This creates an estimated percussion arrangement, with source files and recording proof stored separately from authored imports. Missing, uncertain or unrelated stems use the original-upload estimate.
+
+Title searches can use named Drum stems from the same package as their downloaded full song without an independent recording claim. They retain a distinct package provenance policy. Neither path uses Guitar/full-mix evidence as isolated Drum proof or changes Drums into pitched/held Guitar notes. Finding a full mix alone does not guarantee the accuracy of drum colors.

@@ -1,0 +1,44 @@
+[
+  {
+    "id": "121ebd467d396541a2719231b1d685515e8c91884aca574cdcac1fa673a2e2d8",
+    "title": "Frantic — Drums",
+    "artist": "Metallica",
+    "instrument": "drums",
+    "musicEnd": 313.19356009070293,
+    "charts": {
+      "drums": {}
+    },
+    "metadata": "demos/frantic-drums-v2.json",
+    "audio": "demos/frantic-drums-v2.mp3",
+    "audioBytes": 7518293,
+    "publicDemo": true
+  },
+  {
+    "id": "830321c2c7061f91dd68ac82241d516aa698c3258fcf19c20d0b0ba3ac4bd10d",
+    "title": "In Bloom — Drums",
+    "artist": "Nirvana",
+    "instrument": "drums",
+    "musicEnd": 272.66185941043085,
+    "charts": {
+      "drums": {}
+    },
+    "metadata": "demos/in-bloom-drums-v4.json",
+    "audio": "demos/in-bloom-drums-v4.mp3",
+    "audioBytes": 6545284,
+    "publicDemo": true
+  },
+  {
+    "id": "164838e75a16245672e194d6e04afbc0cabd0a108a16acb3fd24733ee67e0915",
+    "title": "Roam — Drums",
+    "artist": "Metallica",
+    "instrument": "drums",
+    "musicEnd": 433.62603174603174,
+    "charts": {
+      "drums": {}
+    },
+    "metadata": "demos/roam-drums-v3.json",
+    "audio": "demos/roam-drums-v3.mp3",
+    "audioBytes": 10408481,
+    "publicDemo": true
+  }
+]

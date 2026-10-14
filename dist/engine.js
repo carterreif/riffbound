@@ -72,7 +72,8 @@
   class Session{
     constructor(difficulty='medium',mode='tap',instrument='guitar',options={}){
       this.difficulty=difficulty;this.instrument=instrument;this.mode=['drums','vocals'].includes(instrument)?'tap':mode;
-      this.notes=options.notes?options.notes.map((n,id)=>({...n,id,hit:false,missed:false,held:false,holdAwarded:0})):makeChart(difficulty,instrument);
+      this.drumLayout=options.drumLayout==='four'?'four':'five';
+      this.notes=options.notes?options.notes.map((n,id)=>({...n,duration:instrument==='drums'?0:n.duration,id,hit:false,missed:false,held:false,holdAwarded:0})):makeChart(difficulty,instrument);
       this.musicEnd=options.musicEnd??MUSIC_END;this.window=Difficulties.WINDOWS[difficulty]??.16;
       this.score=0;this.streak=0;this.bestStreak=0;this.hits=0;this.misses=0;this.perfect=0;this.charge=0;this.energy=55;this.overdrive=false;this.lastTime=0;this.onJudge=null;this.onMilestone=null;
     }
@@ -86,7 +87,7 @@
       if(this.streak%25===0)this.onMilestone?.(this.streak);return true;
     }
     findTap(lane,time){
-      const sharedGreen=this.instrument==='drums'&&lane===4;
+      const sharedGreen=this.instrument==='drums'&&this.drumLayout==='five'&&lane===4;
       // Choose the closest drum attack, including rapid kicks. Green accepts cymbals too.
       let best;
       for(const note of this.notes){
@@ -96,12 +97,15 @@
       }
       return best;
     }
+    findRoll(lane,time){
+      return this.instrument==='drums'&&this.notes.find(n=>n.hit&&Number.isFinite(n.rollDuration)&&n.rollDuration>0&&(n.lane===lane||this.drumLayout==='five'&&lane===4&&n.lane===3)&&time>=n.time&&time<n.time+n.rollDuration);
+    }
     tap(lane,time){
       if(time<-.25)return false;
       const note=this.findTap(lane,time);
       if(note){
         this.hitNote(note,time);
-        if(this.instrument==='drums'&&lane===4){
+        if(this.instrument==='drums'&&this.drumLayout==='five'&&lane===4){
           // One green hit also covers orange + green notes charted at the same instant.
           const other=this.notes.find(n=>n.lane===(note.lane===3?4:3)&&!n.hit&&!n.missed&&Math.abs(n.time-note.time)<.001&&Math.abs(n.time-time)<=this.window);
           if(other){this.hitNote(other,time);this.greenChordTime=time;}
@@ -110,6 +114,9 @@
       }
       // Still allow the usual two-pad chord if orange follows the shared green hit.
       if(this.instrument==='drums'&&lane===3&&this.greenChordTime!==undefined&&time>=this.greenChordTime&&time-this.greenChordTime<=.035){this.greenChordTime=undefined;return false;}
+      // Extra strikes in an authored roll are allowed after hitting its head.
+      // They never create scored notes or award guitar-style hold points.
+      const roll=this.findRoll(lane,time);if(roll){this.onJudge?.('ROLL',roll.lane);return true;}
       this.overstrum(time);return false;
     }
     strum(lanes,time){

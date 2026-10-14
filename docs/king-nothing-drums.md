@@ -1,0 +1,23 @@
+# King Nothing authored Drum source
+
+The user confirmed that the affected 05 Track 5 is King Nothing by Metallica, from Load. Their screenshot lists a 5:28 recording. No current Track 5 audio/backup was available for waveform alignment.
+
+On 2026-10-11, the public enchor.us API returned a five-lane Neversoft chart with container identity `dfd72e68624c18f79c36c12261383e82`, declared duration 333.518 seconds, and Easy/Medium/Hard/Expert Drums. Only the container header and `notes.mid` byte ranges were fetched; source audio was not downloaded or bundled. The chart also has other parts, but only `PART DRUMS` was parsed and included.
+
+The MIDI SHA-256 is `8f355a693174847f32b07ecd34887674dfbf18980a6eced8244689df93644dfa`. Credits: Neversoft; community container catalog: https://www.enchor.us/.
+
+The original authored Drum counts are Easy 569, Medium 859, Hard 1154, Expert 1711. Expert starts with yellow hi-hat at 3.763 seconds and ends with kick at 317.581 seconds. The original variable tempo map is retained. All six Riffbound drum lanes occur. No notes are inferred from Guitar, Bass or Vocals, and no lower difficulty is retained from an old audio estimate.
+
+`authored-drums.js` loads a cloned drum-only result after an explicit named action. Its eight-second duration guard is a compatibility check for that manual choice, not recording identification. It does not loosen automatic community matching or turn arbitrary Track 5 files into King Nothing. Charts are not automatically shifted. The game marks timing as unverified, and the drums-only export can be imported with a manual chart shift. Export timing differs from the original parsed MIDI by at most 0.073 ms due to tempo/tick serialization; the bundled JSON retains original parsed note times exactly.
+
+Desktop/mobile DOM and audio adapters verify all four Drum arrangements, unchanged neighboring parts and audio, persistence, reopening, same-recording reuse, and failure recovery. Browser rendering is not verified.
+
+## Version 74 recording alignment
+
+The user's supplied `05 Track 5.riffpack` contains the Neversoft Drum chart, with -50 ms already applied to every difficulty. That small adjustment worked and was persisted, but the source audio has substantially different leading padding. The uploaded MP3 SHA-256 is `29095952ed5badc3d13ea508d3e2c817b77fcce5c399d2dd49d26f766a070c59`; decoded mono duration at 22,050 Hz is 328.0718367346939 seconds, matching the backup. Container duration is not used as decoded duration.
+
+For this review only, source audio byte ranges were downloaded, unmasked and decoded locally. They are not distributed with the game, corrected backup, or public setlist. Correlation in nine separated windows from 15 to 305 source seconds identifies a constant source-to-upload shift. Guitar waveform correlation peaks at -2.836281 seconds in seven windows, with the other two within 1.3 ms. Kick waveform peaks independently cluster around -2.830 seconds; percussion attack envelopes in bass and treble bands agree near -2.836 seconds across seven later windows. Different mastering/stem phase makes waveform correlation moderate rather than a bit-identical match. There is no measured tempo drift requiring time stretching. Evidence is summarized in `king-nothing-alignment.json`.
+
+The applied source offset is -2.836281179138322 seconds. Relative to the supplied backup's previous -50 ms setting, notes move another 2.786281179138322 seconds earlier. First Expert hi-hat is now 0.926718820861678 seconds; last kick is 314.7447188208615 seconds. Counts and every note color/order remain Easy 569, Medium 859, Hard 1154 and Expert 1711. The per-instrument tempo map receives the same base offset, and manual Drum adjustment resets to zero relative to that corrected base. Audio, Guitar, Bass, Vocals, title and setlist ID remain unchanged.
+
+Migration runs on opening/importing or reusing the saved exact recording. It requires the exact audio ID and duration, exact source MIDI ID, and a comparison of every authored difficulty against the source allowing only its saved uniform adjustment. Player-edited notes, another recording, a missing source file, or an already corrected revision remain untouched. A subsequent manual adjustment is retained. The named source-load action applies verified timing only to that exact audio hash; other versions keep the original source timing marked unverified. The corrected backup round-trip was checked against the actual supplied file, including byte-identical MP3 and unchanged neighboring charts. Tests cover automatic desktop/mobile save and reopen, migration guards, all authored arrangements, and preview Apply/Reset continuing at the same audio position.

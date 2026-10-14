@@ -17,22 +17,22 @@
     // Check the actual bytes, not the filename or approximate song length.
     const bytes=await file.arrayBuffer(),audioBlob=requireAudio(new Blob([bytes],{type:file.type||song.mime||'audio/wav'}));
     const hash=await root.crypto.subtle.digest('SHA-256',bytes),id=Array.from(new Uint8Array(hash),b=>b.toString(16).padStart(2,'0')).join('');
-    if(id!==song.id)throw Error('This file does not match the song used for this chart. Select the original audio file. Your chart has not been changed.');
-    return {...song,audioBlob,filename:file.name||song.filename};
+    if(!song.chartOnly&&id!==song.id)throw Error('This file does not match the song used for this chart. Select the original audio file. Your chart has not been changed.');
+    return {...song,id,chartOnly:false,audioBlob,filename:file.name||song.filename};
   }
   function metadata(song){
-    return {id:song.id,title:song.title,filename:song.filename||song.title,mime:song.audioBlob?.type||song.mime||'',instrument:song.instrument||'guitar',musicEnd:song.musicEnd,duration:song.musicEnd+.8,bpm:song.bpm,beat:song.beat,offset:song.offset||0,charts:song.charts,waveform:song.waveform,quality:song.quality||null,chartVersion:song.chartVersion||1,byteLength:song.audioBlob?.size||song.byteLength||0,updatedAt:Date.now()};
+    return {id:song.id,title:song.title,filename:song.filename||song.title,mime:song.audioBlob?.type||song.mime||'',...(song.chartOnly===true?{chartOnly:true}:{}),instrument:song.instrument||'guitar',musicEnd:song.musicEnd,duration:song.musicEnd+.8,bpm:song.bpm,beat:song.beat,offset:song.offset||0,charts:song.charts,waveform:song.waveform,quality:song.quality||null,chartVersion:song.chartVersion||1,byteLength:song.audioBlob?.size||song.byteLength||0,updatedAt:Date.now()};
   }
   function validate(data){
     if(!data||typeof data.id!=='string'||!/^[a-f0-9]{64}$/.test(data.id)||typeof data.title!=='string'||data.title.length>500)throw Error('This is not a valid Riffbound song backup.');
-    if(!Number.isFinite(data.musicEnd)||data.musicEnd<5||data.musicEnd>480||!Number.isFinite(data.beat)||data.beat<=0||data.beat>4||!Number.isFinite(data.bpm)||data.bpm<15||data.bpm>1000)throw Error('The song timing in this backup is invalid.');
+    if(!Number.isFinite(data.musicEnd)||data.musicEnd<5||data.musicEnd>Difficulties.MAX_DURATION||!Number.isFinite(data.beat)||data.beat<=0||data.beat>4||!Number.isFinite(data.bpm)||data.bpm<15||data.bpm>1000)throw Error('The song timing in this backup is invalid.');
     if(!['guitar','drums','bass','vocals'].includes(data.instrument)||!data.charts?.[data.instrument])throw Error('The backup has no playable chart.');
     const charts={},imports={};
-    for(const instrument of ['guitar','drums','bass']){
+    for(const instrument of ['guitar','drums','bass','vocals']){
       const imported=data.quality?.imports?.[instrument];
-      if(imported&&typeof imported.id==='string'&&/^[a-f0-9]{64}$/.test(imported.id)&&typeof imported.filename==='string'&&Array.isArray(imported.levels)&&Array.isArray(imported.derived))imports[instrument]={id:imported.id,filename:imported.filename.slice(0,500),layout:['five','pro','four'].includes(imported.layout)?imported.layout:'five',levels:imported.levels.filter(l=>Difficulties.LEVELS.includes(l)),derived:imported.derived.filter(l=>Difficulties.LEVELS.includes(l))};
+      if(imported&&typeof imported.id==='string'&&/^[a-f0-9]{64}$/.test(imported.id)&&typeof imported.filename==='string'&&Array.isArray(imported.levels)&&Array.isArray(imported.derived))imports[instrument]={id:imported.id,filename:imported.filename.slice(0,500),layout:['five','pro','four'].includes(imported.layout)?imported.layout:'five',levels:imported.levels.filter(l=>Difficulties.LEVELS.includes(l)),derived:imported.derived.filter(l=>Difficulties.LEVELS.includes(l)),...(imported.derivedFrom&&typeof imported.derivedFrom==='object'?{derivedFrom:Object.fromEntries(Object.entries(imported.derivedFrom).filter(([level,source])=>Difficulties.LEVELS.includes(level)&&Difficulties.LEVELS.includes(source)))}:{})};
     }
-    data={...data,quality:data.quality?{...data.quality,imports}:null};
+    data={...data,quality:data.quality?{...data.quality,imports,...(data.quality.chartAdjustments?{chartAdjustments:Object.fromEntries(Object.entries(data.quality.chartAdjustments||{}).filter(([part,value])=>['guitar','bass','drums','vocals'].includes(part)&&Number.isFinite(value)&&Math.abs(value)<=2000))}:{})}:null};
     for(const instrument of ['guitar','drums','bass','vocals'])if(data.charts[instrument]){
       charts[instrument]={};
       const levels=data.charts[instrument];
@@ -43,11 +43,13 @@
         charts[instrument][level]=notes.map((n,id)=>{
           if(!Number.isInteger(n.lane)||n.lane<0||n.lane>(instrument==='drums'?5:canonical&&level!=='normal'&&!data.quality?.imports?.[instrument]?.levels?.includes(level)?Difficulties.frets(instrument,level)-1:4)||!Number.isFinite(n.time)||n.time<0||n.time>data.musicEnd||!Number.isFinite(n.duration)||n.duration<0||n.time+n.duration>data.musicEnd+1)throw Error('The backup contains an invalid note.');
           if(n.ghost!==undefined&&typeof n.ghost!=='boolean'||n.velocity!==undefined&&(!Number.isFinite(n.velocity)||n.velocity<=0||n.velocity>1))throw Error('The backup contains invalid note dynamics.');
-          return {id,lane:n.lane,time:n.time,duration:n.duration,...(Number.isFinite(n.pitch)?{pitch:n.pitch}:{}),...(n.velocity!==undefined?{velocity:n.velocity}:{}),...(n.ghost!==undefined?{ghost:n.ghost}:{})};
+          if(n.rollDuration!==undefined&&(instrument!=='drums'||!Number.isFinite(n.rollDuration)||n.rollDuration<=0||n.time+n.rollDuration>data.musicEnd+.01))throw Error('The backup contains an invalid drum roll.');
+          return {id,lane:n.lane,time:n.time,duration:instrument==='drums'?0:n.duration,...(n.rollDuration!==undefined?{rollDuration:n.rollDuration}:{}),...(instrument!=='drums'&&Number.isFinite(n.pitch)?{pitch:n.pitch}:{}),...(n.velocity!==undefined?{velocity:n.velocity}:{}),...(n.ghost!==undefined?{ghost:n.ghost}:{})};
         }).sort((a,b)=>a.time-b.time||a.lane-b.lane);
       }
       charts[instrument]=Difficulties.upgrade(charts[instrument],instrument,data.beat);
     }
+    if(charts.drums){const layout=Difficulties.drumLayout(data.quality);data.quality={...data.quality,drumLayout:layout};if(layout==='four')charts.drums=Difficulties.fourDrumLevels(charts.drums);}
     return {...metadata({...data,audioBlob:null}),charts,waveform:Array.isArray(data.waveform)?data.waveform.slice(0,1200).map(v=>Number.isFinite(v)?Math.max(0,Math.min(1,v)):0):[],offset:Number.isFinite(data.offset)?data.offset:0};
   }
   function forgetConnection(d){
@@ -121,12 +123,13 @@
     if(value?.format!==FORMAT)return false;
     for(const [kind,limit] of [['audio',MAX_AUDIO],['meta',MAX_META]]){
       const bytes=value[kind+'Bytes'],count=value[kind+'Chunks'];
-      if(!Number.isSafeInteger(bytes)||bytes<=0||bytes>limit||count!==Math.ceil(bytes/RECORD_BYTES))throw Error('This saved song is incomplete. Import its .riffpack backup to restore it.');
+      if(!Number.isSafeInteger(bytes)||bytes<(kind==='audio'&&value.chartOnly===true?0:1)||bytes>limit||count!==Math.ceil(bytes/RECORD_BYTES))throw Error('This saved song is incomplete. Import its .riffpack backup to restore it.');
     }
     return true;
   }
   function readChunks(store,id,kind,manifest,done,fail){
     const count=manifest[kind+'Chunks'],size=manifest[kind+'Bytes'],parts=new Array(count);let remaining=count;
+    if(!count){done([]);return;}
     for(let i=0;i<count;i++){
       const request=store.get(chunkKey(id,kind,i));
       request.onsuccess=()=>{try{
@@ -146,7 +149,7 @@
         const bytes=new Uint8Array(stored.metaBytes);let offset=0;for(const part of parts){bytes.set(new Uint8Array(part),offset);offset+=part.byteLength;}
         const meta=JSON.parse(new TextDecoder().decode(bytes));if(meta.id!==id)throw Error('The saved chart does not match this song. Import its backup.');
         if(!withAudio){done(meta,stored);return;}
-        readChunks(store,id,'audio',stored,audio=>done({...meta,audioBlob:new Blob(audio,{type:stored.mime||meta.mime||''})},stored),fail);
+        readChunks(store,id,'audio',stored,audio=>done({...meta,audioBlob:stored.chartOnly?null:new Blob(audio,{type:stored.mime||meta.mime||''})},stored),fail);
       },fail);
     }catch(error){fail(error);}};
     a.onsuccess=finish;b.onsuccess=finish;
@@ -160,17 +163,17 @@
     for(let start=0,index=0;start<bytes.byteLength;start+=RECORD_BYTES,index++)store.put(bytes.slice(start,start+RECORD_BYTES),chunkKey(id,kind,index));
   }
   const list=()=>transaction('readonly',(tx,done)=>{const r=tx.objectStore('songs').getAll();r.onsuccess=()=>done(r.result.sort((a,b)=>b.updatedAt-a.updatedAt));});
-  const get=id=>transaction('readonly',(tx,done,fail)=>readRecord(tx,id,true,record=>done(record?.audioBlob?record:null),fail));
+  const get=id=>transaction('readonly',(tx,done,fail)=>readRecord(tx,id,true,record=>done(record?.audioBlob||record?.chartOnly===true?record:null),fail));
   const save=async song=>{
-    const blob=requireAudio(song.audioBlob),current=validate(metadata(song));
+    const chartOnly=song.chartOnly===true&&audioStatus(song.audioBlob).code==='AUDIO_MISSING',blob=chartOnly?new Blob([]):requireAudio(song.audioBlob),current=validate(metadata({...song,chartOnly}));
     return write((tx,done,fail,audio)=>readRecord(tx,current.id,false,(previous,stored)=>{
       const meta={...current,charts:{...previous?.charts,...current.charts}},json=new TextEncoder().encode(JSON.stringify(meta));
       if(json.byteLength>MAX_META)throw Error('This chart is too large to save.');
-      const manifest={format:FORMAT,audioBytes:audio.byteLength,audioChunks:Math.ceil(audio.byteLength/RECORD_BYTES),metaBytes:json.byteLength,metaChunks:Math.ceil(json.byteLength/RECORD_BYTES),mime:blob.type||current.mime||''};
+      const manifest={format:FORMAT,...(chartOnly?{chartOnly:true}:{}),audioBytes:audio.byteLength,audioChunks:Math.ceil(audio.byteLength/RECORD_BYTES),metaBytes:json.byteLength,metaChunks:Math.ceil(json.byteLength/RECORD_BYTES),mime:blob.type||current.mime||''};
       const store=tx.objectStore('audio');deleteChunks(store,current.id,stored);
       putChunks(store,current.id,'audio',audio);putChunks(store,current.id,'meta',json.buffer);store.put(manifest,current.id);
       // Setlist rows stay small; the full chart and waveform live in chunks.
-      const summary={id:meta.id,title:meta.title,instrument:meta.instrument,musicEnd:meta.musicEnd,byteLength:audio.byteLength,updatedAt:meta.updatedAt,charts:Object.fromEntries(Object.keys(meta.charts).map(part=>[part,{}]))};
+      const summary={id:meta.id,title:meta.title,...(chartOnly?{chartOnly:true}:{}),instrument:meta.instrument,musicEnd:meta.musicEnd,byteLength:audio.byteLength,updatedAt:meta.updatedAt,charts:Object.fromEntries(Object.keys(meta.charts).map(part=>[part,{}]))};
       tx.objectStore('songs').put(summary);
     },fail),async()=>{
       const bytes=await blob.arrayBuffer();if(bytes.byteLength!==blob.size)throw Error('Could not read the attached audio. Reconnect the original audio and try saving again.');return bytes;
@@ -178,18 +181,19 @@
   };
   const remove=id=>write((tx,done,fail)=>{const store=tx.objectStore('audio'),request=store.get(id);request.onsuccess=()=>{try{deleteChunks(store,id,request.result);store.delete(id);tx.objectStore('songs').delete(id);}catch(error){fail(error);}};});
   function pack(song){
-    requireAudio(song.audioBlob);
+    if(!song.chartOnly||song.audioBlob)requireAudio(song.audioBlob);
     const data=validate(metadata(song)),json=new TextEncoder().encode(JSON.stringify(data));
     if(json.length>MAX_META)throw Error('This chart is too large to export.');
     const length=new Uint8Array(4);new DataView(length.buffer).setUint32(0,json.length);
-    return new Blob([MAGIC,length,json,song.audioBlob],{type:'application/octet-stream'});
+    return new Blob([MAGIC,length,json,...(song.audioBlob?[song.audioBlob]:[])],{type:'application/octet-stream'});
   }
   async function unpack(blob){
     if(blob.size>MAX_AUDIO+MAX_META+14||blob.size<15)throw Error('Choose a valid .riffpack backup.');
     const header=new Uint8Array(await blob.slice(0,14).arrayBuffer());
     if(!MAGIC.every((v,i)=>header[i]===v))throw Error('Choose a Riffbound .riffpack backup.');
-    const length=new DataView(header.buffer).getUint32(10);if(length>MAX_META||length+14>=blob.size)throw Error('This backup is incomplete.');
+    const length=new DataView(header.buffer).getUint32(10);if(length>MAX_META||length+14>blob.size)throw Error('This backup is incomplete.');
     let data;try{data=validate(JSON.parse(await blob.slice(14,14+length).text()));}catch(error){throw Error('Could not read this backup: '+error.message);}
+    if(length+14===blob.size){if(data.chartOnly)return {...data,audioBlob:null};throw Error('This backup is incomplete.');}
     const audioBlob=blob.slice(14+length,blob.size,data.mime);if(audioBlob.size>MAX_AUDIO)throw Error('This backup audio is too large.');
     return {...data,audioBlob};
   }

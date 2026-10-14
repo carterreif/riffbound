@@ -46,7 +46,7 @@ test('malformed, oversized, unsupported and incompatible files fail instead of i
   assert.throws(()=>X.parse('not a chart'),/not a supported/);
   assert.throws(()=>X.parse(' '.repeat(X.MAX_BYTES+1)),/4 MB/);
   assert.throws(()=>X.parse(chart(track('ExpertSingle','0 = N 7 0'))),/Open guitar/);
-  assert.throws(()=>X.parse(chart(track('ExpertDrums','0 = N 5 192'))),/sustained drum rolls/);
+  assert.throws(()=>X.parse(chart(track('ExpertDrums','0 = N 4 192')),{drumLayout:'pro'}),/five-lane drum chart/);
   assert.throws(()=>X.parse(chart(track('ExpertSingle','0 = N 0 0\n0 = N 0 0'))),/same pad/);
   assert.throws(()=>X.parse(chart(track('ExpertSingle','0 = N 0 0'),'0 = B 0')),/tempos/);
   assert.throws(()=>X.parse(chart(track('ExpertSingle','0 = N 0 0'),'0 = B nonsense')),/Invalid tempo/);
@@ -60,4 +60,23 @@ test('authored Easy frets survive validation and backups without changing legacy
   assert.equal(L.validate(song).charts.guitar.easy[0].lane,4);
   assert.throws(()=>L.validate({...song,quality:null}),/invalid note/);
   const unpacked=await L.unpack(L.pack(song));assert.equal(unpacked.charts.guitar.easy[0].lane,4);assert.deepEqual(unpacked.quality.imports,song.quality.imports);
+});
+
+test('missing lower arrangements derive from the closest supplied higher difficulty, with no new attacks',()=>{
+ const p=X.parse(chart(track('ExpertSingle','192 = N 0 0\n384 = N 4 0')+track('HardSingle','576 = N 2 0\n768 = N 0 0'))),arranged=X.arrange(p,10);
+ assert.deepEqual(arranged.derivedFrom.guitar,{easy:'hard',medium:'hard'});assert.deepEqual(arranged.charts.guitar.hard,p.charts.guitar.hard);assert.deepEqual(arranged.charts.guitar.expert,p.charts.guitar.expert);
+ for(const level of ['easy','medium'])for(const n of arranged.charts.guitar[level])assert.ok(p.charts.guitar.hard.some(s=>s.time===n.time));
+});
+
+test('song.ini delay and layout apply alongside .chart offset without trimming authored holds or double export delay',()=>{
+ const ini=X.parseIni('\ufeff; metadata\n[Song]\nname = "Correct name #1"\nartist = Example Artist\ndelay = 125 ; lead-in\nfive_lane_drums = True\npro_drums = False\nsustain_cutoff_threshold = 20\n[other]\ndelay = 900');
+ const options=X.settings({metadata:ini,shiftMs:25}),p=X.parse(chart(track('ExpertDrums','192 = N 2 0\n240 = N 3 0')+track('ExpertSingle','192 = N 0 10\n240 = N 4 48'),'0 = B 120000','Offset = 0.25'),options);
+ assert.equal(p.title,'Correct name #1');assert.equal(p.artist,'Example Artist');assert.equal(p.timing.offset,.4);assert.deepEqual(p.charts.drums.expert.map(n=>[n.time,n.lane]),[[.9,1],[1.025,2]]);assert.ok(Math.abs(p.charts.guitar.expert[0].duration-10/384)<1e-12);assert.equal(p.charts.guitar.expert[1].duration,.125);
+ const song={title:p.title,bpm:p.bpm,musicEnd:10,charts:X.arrange(p,10).charts,quality:{chartTiming:p.timing}};
+ const reimport=X.parse(X.exportChart(song),X.settings({metadata:X.parseIni(X.exportIni(song))}));assert.deepEqual(reimport.charts.drums,song.charts.drums);
+});
+test('invalid, conflicting or oversized song.ini settings fail rather than changing chart timing silently',()=>{
+ for(const text of ['delay=100','[song]\ndelay=NaN','[song]\ndelay=','[song]\ndelay=31000','[song]\ndelay=1\ndelay=2','[song]\nfive_lane_drums=True\npro_drums=True','[song]\npro_drums=maybe','[song]\nsustain_cutoff_threshold=-1'])assert.throws(()=>X.parseIni(text));
+ assert.throws(()=>X.parseIni('[song]\n'+ 'a'.repeat(X.MAX_INI_BYTES)),/64 KB/);assert.throws(()=>X.settings({shiftMs:29900,metadata:{delay:'200'}}),/Combined/);
+ assert.equal(X.settings({metadata:{delay:'-125'},shiftMs:25}).shiftMs,-100);
 });

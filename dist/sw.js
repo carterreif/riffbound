@@ -18,7 +18,7 @@ async function cacheGame(progress=()=>{}){
     const expectedRedirect=response.redirected&&canonical&&response.url===canonical;
     if(!response.ok||response.redirected&&!expectedRedirect)throw Error(`Could not download ${files[i]}${response.status?' (HTTP '+response.status+')':''}. Check your connection and try again.`);
     const type=response.headers.get('content-type')||'';
-    if((/\.(js|css|png)$/.test(url)&&type.includes('text/html'))||(/\.png$/.test(url)&&!type.startsWith('image/'))||files[i].endsWith('.html')&&!type.includes('text/html'))throw Error(`${files[i]} returned an unexpected page. Open the game in your browser and try again.`);
+    if((/\.(js|css|png|json|mp3)$/.test(url)&&type.includes('text/html'))||(/\.png$/.test(url)&&!type.startsWith('image/'))||files[i].endsWith('.html')&&!type.includes('text/html'))throw Error(`${files[i]} returned an unexpected page. Open the game in your browser and try again.`);
     progress(++completed,urls.length);
     return response;
   }));

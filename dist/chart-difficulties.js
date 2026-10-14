@@ -1,11 +1,33 @@
 /* One measured Expert chart, four playable arrangements. No invented onsets. */
 (function(root){
   'use strict';
+  const MAX_DURATION=15*60,MAX_REFERENCE_DURATION=MAX_DURATION+15;
   const LEVELS=['easy','medium','hard','expert'];
   const NAMES={easy:'Easy',medium:'Medium',hard:'Hard',expert:'Expert'};
   const WINDOWS={easy:.19,medium:.16,hard:.14,expert:.125};
   const APPROACH={easy:3.1,medium:2.7,hard:2.4,expert:2.15};
   const frets=(instrument,level)=>['guitar','bass'].includes(instrument)?level==='easy'?3:level==='medium'?4:5:5;
+  function drumLayout(quality){
+    if(['four','five'].includes(quality?.drumLayout))return quality.drumLayout;
+    const ref=quality?.communityReferences?.drums;
+    if(ref)return /^Guitar Hero(?:\b|:)|^Band Hero\b/i.test(ref.game||ref.setlist||'')&&!ref.guitarOnly?'five':'four';
+    return quality?.imports?.drums?.layout==='four'?'four':'five';
+  }
+  function fourDrums(notes){
+    const pads=new Map(),orangeTimes=new Set(notes.filter(n=>n.lane===3).map(n=>n.time));
+    for(const note of notes){
+      // Five-lane Orange + Green becomes Blue + Green in Clone Hero.
+      // This preserves the two-pad chord rather than dropping its tom hit.
+      const lane=note.lane===4?(orangeTimes.has(note.time)?2:3):note.lane,key=note.time+':'+lane,prior=pads.get(key),next={...note,lane,duration:0};
+      if(prior){
+        if(prior.rollDuration||next.rollDuration)prior.rollDuration=Math.max(prior.rollDuration||0,next.rollDuration||0);
+        if(prior.velocity!==undefined||next.velocity!==undefined)prior.velocity=Math.max(prior.velocity||0,next.velocity||0);
+        if(prior.ghost!==undefined||next.ghost!==undefined)prior.ghost=prior.ghost===true&&next.ghost===true;
+      }else pads.set(key,next);
+    }
+    return [...pads.values()].sort((a,b)=>a.time-b.time||a.lane-b.lane).map((n,id)=>({...n,id}));
+  }
+  const fourDrumLevels=levels=>Object.fromEntries(Object.entries(levels).map(([level,notes])=>[level,fourDrums(notes)]));
   function reduce(notes,instrument,beat,level){
     const drums=instrument==='drums';
     const gap=level==='easy'?Math.max(.35,beat*1.15):level==='medium'?Math.max(.18,beat*.6):Math.max(.08,beat*.28);
@@ -31,7 +53,11 @@
   }
   function build(expert,instrument,beat=.5){
     beat=Number.isFinite(beat)&&beat>0?beat:.5;
-    const full=expert.map(n=>({...n})).sort((a,b)=>a.time-b.time||a.lane-b.lane);
+    const full=expert.map(n=>{
+      if(instrument!=='drums')return {...n};
+      // Drum lanes identify kit voices, never pitches or held frets.
+      const {pitch,...hit}=n;return {...hit,duration:0};
+    }).sort((a,b)=>a.time-b.time||a.lane-b.lane);
     // Soft attacks remain on Expert; accents carry the simpler arrangements.
     const hard=reduce(full.filter(n=>!n.ghost),instrument,beat,'hard'),medium=reduce(hard,instrument,beat,'medium'),easy=reduce(medium,instrument,beat,'easy');
     const result={};
@@ -50,12 +76,15 @@
   }
   function upgrade(charts,instrument,beat){
     if(!charts||!Array.isArray(charts.expert))return charts;
+    if(instrument==='drums'&&Object.values(charts).some(notes=>Array.isArray(notes)&&notes.some(n=>n.duration!==0||n.pitch!==undefined))){
+      charts=Object.fromEntries(Object.entries(charts).map(([level,notes])=>[level,Array.isArray(notes)?notes.map(n=>{const {pitch,...hit}=n;return {...hit,duration:0};}):notes]));
+    }
     if(Array.isArray(charts.medium)&&Array.isArray(charts.hard))return charts;
     // The hidden normal key preserves old Standard charts in portable backups.
     // New arrangements come from the original Expert events without audio analysis.
     return {...charts,...build(charts.expert,instrument,beat)};
   }
   function upgradeAll(charts,beat){return Object.fromEntries(Object.entries(charts).map(([instrument,levels])=>[instrument,upgrade(levels,instrument,beat)]));}
-  const api={LEVELS,NAMES,WINDOWS,APPROACH,frets,build,upgrade,upgradeAll};
+  const api={MAX_DURATION,MAX_REFERENCE_DURATION,LEVELS,NAMES,WINDOWS,APPROACH,frets,drumLayout,fourDrums,fourDrumLevels,build,upgrade,upgradeAll};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.RiffDifficulties=api;
 })(typeof window!=='undefined'?window:globalThis);

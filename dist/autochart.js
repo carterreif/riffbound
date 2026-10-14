@@ -140,6 +140,43 @@
     const before=measure(-.055),early=measure(.025),body=measure(.075),late=measure(.16);
     return {before,early,body,late};
   }
+  function rejectTonalDrumEvents(events,samples,sampleRate,plan,re,im){
+    // A new harmonic bass/guitar/vocal tone is not a new drum body. Require
+    // a sustained harmonic family in three windows; broadband overlapping hits
+    // and inharmonic tom resonance cannot be rejected by this test.
+    const measure=(time,offset)=>{
+      spectrum(samples,Math.round((time+offset)*sampleRate)-re.length/2,re,im,plan);
+      const powers=Float64Array.from(re,(_,k)=>re[k]**2+im[k]**2),end=Math.min(re.length/2,Math.ceil(10000*re.length/sampleRate));
+      let total=0;for(let k=3;k<end;k++)total+=powers[k];
+      if(total<1e-8)return {harmonic:false,total};
+      for(let k=3;k<Math.min(end-2,Math.ceil(1500*re.length/sampleRate));k++){
+        if(powers[k]<=powers[k-1]||powers[k]<powers[k+1]||powers[k]<total*.08)continue;
+        const a=Math.log(powers[k-1]+1e-20),b=Math.log(powers[k]+1e-20),c=Math.log(powers[k+1]+1e-20);
+        const base=k+clamp(.5*(a-c)/(a-2*b+c||1),-.5,.5);
+        let covered=0,second=0,fundamental=0;const used=new Set();
+        for(let h=1;h<=12&&base*h<end-2;h++){
+          const center=Math.round(base*h);let band=0;
+          for(let j=Math.max(3,center-1);j<=center+1;j++)if(!used.has(j)){used.add(j);band+=powers[j];}
+          covered+=band;if(h===1)fundamental=band;if(h===2)second=band;
+        }
+        if(covered>total*.88&&second>fundamental*.035)return {harmonic:true,total};
+      }
+      return {harmonic:false,total};
+    };
+    const decisions=new Map();
+    return events.filter(event=>{
+      const key=Math.round(event.time*1000);
+      // A following fill stroke cannot supply persistence for this hit.
+      if(events.some(next=>next.time>event.time+.035&&next.time<event.time+.27&&[2,4,5].includes(next.lane)))return true;
+      if(!decisions.has(key)){
+        const early=measure(event.time,.035),body=measure(event.time,.10),late=measure(event.time,.21);
+        // Toms can have nearly integer partials too. Only reject a tonal body
+        // that persists, rather than a short decaying drum resonance.
+        decisions.set(key,early.harmonic&&body.harmonic&&late.harmonic&&late.total>early.total*.35);
+      }
+      return !decisions.get(key);
+    });
+  }
   function drumVoices(features){
     const {before,early,body,late}=features,voices=[];
     const low=early.bands[0]+early.bands[1]+early.bands[2],high=early.bands[4];
@@ -936,6 +973,174 @@
     }
     return events;
   }
+  function reviewGuitarTones(events,samples,sampleRate,progress){
+    // Independent harmonic families may share a picked attack. An overtone of
+    // an already accepted family is not a second fret. This is a conservative
+    // audio estimate; Guitar Hero's authored fret choices cannot be inferred
+    // exactly from an arbitrary mixed recording.
+    const n=4096,hop=512,dt=hop/sampleRate,frames=Math.ceil(samples.length/hop),first=40,last=88;
+    const plan=fftPlan(n),re=new Float32Array(n),im=new Float32Array(n),mag=new Float32Array(n/2);
+    const levels=Array.from({length:last-first+1},()=>new Float32Array(frames));
+    const evidence=levels.map(()=>new Float32Array(frames));
+    const attackEvidence=levels.map(()=>new Float32Array(frames));
+    const amplitude=hz=>{const k=Math.round(hz*n/sampleRate);return k>1&&k<mag.length-1?Math.max(mag[k-1],mag[k],mag[k+1]):0;};
+    const prominent=hz=>{
+      const k=Math.round(hz*n/sampleRate),background=[];
+      for(const offset of [-5,-4,-3,3,4,5])if(k+offset>0&&k+offset<mag.length)background.push(mag[k+offset]);
+      return amplitude(hz)>percentile(background,.5)*2.4;
+    };
+    for(let f=0;f<frames;f++){
+      spectrum(samples,f*hop-n/2,re,im,plan);let power=0;
+      for(let k=1;k<mag.length;k++){mag[k]=Math.hypot(re[k],im[k])/n;power+=mag[k]**2;}
+      for(let pitch=first;pitch<=last;pitch++)levels[pitch-first][f]=amplitude(440*2**((pitch-69)/12));
+      for(let k=Math.ceil(78*n/sampleRate);k<Math.min(mag.length-1,Math.ceil(1400*n/sampleRate));k++){
+        const a=mag[k];if(a<=mag[k-1]||a<mag[k+1]||a<.000015)continue;
+        const l=Math.log(mag[k-1]+1e-15),c=Math.log(a+1e-15),r=Math.log(mag[k+1]+1e-15);
+        const hz=(k+clamp(.5*(l-r)/(l-2*c+r||1),-.5,.5))*sampleRate/n;
+        const exact=69+12*Math.log2(hz/440),pitch=Math.round(exact);
+        if(pitch<first||pitch>last||Math.abs(exact-pitch)>.42)continue;
+        const h2=amplitude(hz*2),h3=amplitude(hz*3);
+        if(!prominent(hz)||!((h2>a*.12&&prominent(hz*2))||(h3>a*.12&&prominent(hz*3))))continue;
+        const share=(a*a+h2*h2+h3*h3)/(power+1e-20);
+        if(share<.012)continue;
+        // Weak tones need both upper harmonics, rather than borrowing one
+        // prominent peak from a neighboring instrument in the mix.
+        if(share>=.045||(h2>a*.12&&prominent(hz*2)&&h3>a*.12&&prominent(hz*3)))attackEvidence[pitch-first][f]=Math.max(attackEvidence[pitch-first][f],a);
+        if(share<.045)continue;
+        evidence[pitch-first][f]=Math.max(evidence[pitch-first][f],a);
+      }
+      if(f%400===0)progress(86+Math.round(f/frames*4),'Checking independent Guitar tones and releases…');
+    }
+    const at=(array,f)=>array[clamp(f,0,frames-1)];
+    const ownAttack=(pitch,time,short=false)=>{
+      // A new fret needs its own rapid rise. The full mix can stay loud while
+      // another Guitar tone starts, or grow louder because of a drum hit.
+      const hz=440*2**((pitch-69)/12),window=Math.round(sampleRate*Math.max(short?.018:.09,(short?2:4)/hz)),step=Math.max(1,Math.round(sampleRate*.003));
+      const begin=Math.max(0,Math.round((time-.11)*sampleRate)),end=Math.min(samples.length,Math.round((time+.13)*sampleRate)+window);
+      const real=new Float64Array(end-begin+1),imag=new Float64Array(end-begin+1),values=[],times=[];
+      for(let i=begin;i<end;i++){const angle=2*Math.PI*hz*(i-begin)/sampleRate;real[i-begin+1]=real[i-begin]+samples[i]*Math.cos(angle);imag[i-begin+1]=imag[i-begin]+samples[i]*Math.sin(angle);}
+      for(let i=begin;i+window<=end;i+=step){const a=i-begin,b=a+window;values.push(2*Math.hypot(real[b]-real[a],imag[b]-imag[a])/window);times.push((i+window/2)/sampleRate);}
+      const before=short?values.filter((v,i)=>times[i]>=time-.04&&times[i]<=time-.006):values.slice(0,8);
+      const base=percentile(before,short?0:.5),peak=percentile(values,.85);let rise=0;
+      for(let i=4;i<values.length-5;i++)if(Math.abs(times[i]-time)<.065)rise=Math.max(rise,values[i+5]-values[i-4]);
+      if(peak<.00008||peak<base*1.7||rise<Math.max(.00004,peak*.25,(peak-base)*.25))return null;
+      const threshold=base+(peak-base)*.5;
+      const starts=[];
+      for(let i=1;i<values.length-2;i++)if(values[i-1]<threshold&&values[i]>=threshold&&values[i+1]>=threshold&&values[i+2]>=threshold){
+        const fraction=clamp((threshold-values[i-1])/(values[i]-values[i-1]||1),0,1);
+        const start=times[i-1]+fraction*(times[i]-times[i-1]);if(Math.abs(start-time)<.075)starts.push(start);
+      }
+      return starts.length?Math.max(0,starts.sort((a,b)=>Math.abs(a-time)-Math.abs(b-time))[0]):null;
+    };
+    // Existing short picked attacks have a separate high-confidence detector.
+    // A longer isolation window must not erase their 80 ms re-articulations.
+    const confirmedAttack=(pitch,time,recovered)=>ownAttack(pitch,time)??(recovered?null:ownAttack(pitch,time,true));
+    const candidates=[];
+    for(let pitch=first;pitch<=last;pitch++){
+      const own=levels[pitch-first],proof=attackEvidence[pitch-first];let lastCandidate=-Infinity;
+      for(let f=4;f<frames-5;f++){
+        if(f*dt-lastCandidate<.1)continue;
+        const after=[1,2,3,4].map(j=>at(proof,f+j)),strength=percentile(after,.25);
+        const base=percentile([-4,-3,-2].map(j=>at(own,f+j)),.5);
+        if(strength<Math.max(.00005,base*2.4)||after.filter(v=>v>.00004).length<3)continue;
+        // A ringing fundamental's upper harmonics are not new chord members.
+        let overtone=false;
+        for(let lower=first;lower<pitch;lower++){
+          const ratio=2**((pitch-lower)/12),integer=Math.round(ratio);
+          if(integer<2||Math.abs(1200*Math.log2(ratio/integer))>=45)continue;
+          const support=percentile([1,2,3,4].map(j=>at(evidence[lower-first],f+j)),.5);
+          if(support>=strength*.2){overtone=true;break;}
+        }
+        if(overtone)continue;
+        const time=ownAttack(pitch,f*dt);if(time===null||time>=samples.length/sampleRate-.08)continue;
+        lastCandidate=time;
+        // Review existing attacks through the same chord pass. Only recover a
+        // distinct pitch whose own onset was missed by the full-mix envelope.
+        if(events.some(e=>e.pitch===pitch&&Math.abs(e.time-time)<.055))continue;
+        if(candidates.some(e=>e.pitch===pitch&&Math.abs(e.time-time)<.1))continue;
+        candidates.push({time,pitch,strength,toneAttackProof:true,recoveredTone:!events.some(e=>Math.abs(e.time-time)<.055)});
+      }
+    }
+    const input=[...events,...candidates].sort((a,b)=>a.time-b.time);
+    const refineStart=time=>{
+      // First sustained rise of a short RMS envelope, rather than a later
+      // waveform peak from beating between the two chord members.
+      const step=Math.max(1,Math.round(sampleRate*.002)),window=Math.max(step,Math.round(sampleRate*.006));
+      const begin=Math.max(0,Math.round((time-.09)*sampleRate)),end=Math.min(samples.length-window,Math.round((time+.04)*sampleRate)),values=[];
+      for(let i=begin;i<=end;i+=step){let power=0;for(let j=0;j<window;j++)power+=samples[i+j]**2;values.push(Math.sqrt(power/window));}
+      const base=percentile(values.slice(0,10),.5),peak=percentile(values,.8);
+      if(peak<base*1.45)return time;
+      const threshold=base+(peak-base)*.25;
+      for(let i=1;i<values.length-2;i++)if(values[i]>threshold&&values[i+1]>threshold&&values[i+2]>threshold)return Math.max(0,(begin+i*step)/sampleRate);
+      return time;
+    };
+    const result=[],lastVoice=new Map();let chordAttacks=0;
+    for(const event of input){
+      const frame=Math.round(event.time/dt),voices=[];
+      for(let pitch=first;pitch<=last;pitch++){
+        const proof=evidence[pitch-first],own=levels[pitch-first],after=[],before=[];
+        for(let j=1;j<=4;j++)after.push(at(proof,frame+j));
+        for(let j=-4;j<=-2;j++)before.push(at(own,frame+j));
+        const strength=percentile(after,.25),base=percentile(before,.5);
+        if(strength>Math.max(.00002,base*1.45)){
+          const peak=Math.max(...[0,1,2,3,4].map(j=>at(own,frame+j))),threshold=base+(peak-base)*.4;
+          let onset=frame+4;
+          for(let f=frame-4;f<=frame+4;f++)if(at(own,f)>threshold){
+            const previous=at(own,f-1),current=at(own,f);
+            onset=f-1+clamp((threshold-previous)/(current-previous||1),0,1);break;
+          }
+          voices.push({pitch,strength,onset:onset*dt});
+        }
+      }
+      const strongest=Math.max(0,...voices.map(v=>v.strength)),families=[];
+      for(const voice of voices.sort((a,b)=>a.pitch-b.pitch)){
+        if(voice.strength<strongest*.2)continue;
+        const harmonic=families.some(v=>{
+          const ratio=2**((voice.pitch-v.pitch)/12),integer=Math.round(ratio);
+          return integer>=2&&Math.abs(1200*Math.log2(ratio/integer))<45;
+        });
+        if(!harmonic)families.push(voice);
+      }
+      // Require at least two proven families. Leave existing monophonic attacks
+      // and their pitch colors intact when chord evidence is ambiguous.
+      const primary=families.find(v=>v.pitch===event.pitch)||families.slice().sort((a,b)=>b.strength-a.strength)[0];
+      const simultaneous=primary?families.filter(v=>Math.abs(v.onset-primary.onset)<=.025):[];
+      const seedStart=event.toneAttackProof?null:ownAttack(event.pitch,event.time,true);
+      const mono=seedStart!==null?{pitch:event.pitch}:primary&&confirmedAttack(primary.pitch,event.time,event.toneAttackProof)!==null?primary:{pitch:event.pitch};
+      const chosen=simultaneous.length>=2?simultaneous.sort((a,b)=>b.strength-a.strength).slice(0,3):[mono];
+      if(chosen.length>1)chordAttacks++;
+      const time=chosen.length>1?refineStart(event.time):mono.pitch!==event.pitch?(confirmedAttack(mono.pitch,event.time,event.toneAttackProof)??event.time):event.time;
+      for(const voice of chosen){
+        if(confirmedAttack(voice.pitch,time,event.toneAttackProof)===null)continue;
+        const own=levels[voice.pitch-first],proof=event.toneAttackProof?attackEvidence[voice.pitch-first]:evidence[voice.pitch-first];let tail=0;
+        const clear=proof&&[1,2,3,4,5].filter(j=>at(proof,frame+j)>.000015).length>=3;
+        // Do not erase an existing hold just because a dense mix masks its
+        // harmonics. Only replace the old estimate when this tone is clear.
+        if(!clear){
+          // Retain a short mono note only when its own tone really attacks.
+          // Unrelated energy in the recording cannot justify a guessed hold.
+          if(confirmedAttack(event.pitch,event.time,event.toneAttackProof)!==null)result.push({...event,duration:0,measuredTail:true});
+          continue;
+        }
+        if(own){
+          const initial=[];for(let j=1;j<=5;j++)initial.push(at(own,frame+j));
+          const floor=Math.max(.000015,percentile(initial,.5)*.22);let quiet=0;
+          for(let f=frame+1;f<frames;f++){
+            if(own[f]<floor)quiet++;else quiet=0;
+            if(quiet*dt>=.07){tail=Math.max(0,(f-quiet+1)*dt-time);break;}
+            tail=Math.max(0,Math.min(samples.length/sampleRate,f*dt)-time);
+          }
+        }
+        const previous=lastVoice.get(voice.pitch);
+        if(previous&&Math.abs(previous.time-time)<.045){previous.duration=Math.max(previous.duration,tail);continue;}
+        const accepted={...event,time,pitch:voice.pitch,duration:tail,measuredTail:true,chordTone:chosen.length>1};
+        result.push(accepted);lastVoice.set(voice.pitch,accepted);
+      }
+    }
+    const chordTimes=new Map();for(const event of result)chordTimes.set(event.time,(chordTimes.get(event.time)||0)+1);
+    chordAttacks=[...chordTimes.values()].filter(count=>count>1).length;
+    return {events:result,chordAttacks,recovered:result.filter(e=>e.recoveredTone).length};
+  }
   function buildFocusedCharts(events,instrument,beat,duration,energy,dt){
     // Expert is the audio master: never discard an accepted attack because
     // it is quiet or close to another one. Merge only detections explicitly
@@ -964,44 +1169,116 @@
     // Assign colors from distinct accepted pitches, not the frequency of their
     // repetitions. A rare low/high note must not be clipped to a common note's
     // color. Up to five pitches fit individually; wider melodies share pads
-    // in pitch order across their full measured range. Never add note heads
+    // in pitch order across their full measured range. Guitar balances distinct
+    // pitches, so one distant pitch cannot squeeze a riff onto a single fret.
+    // Never add note heads
     // merely to populate unused colors.
     const charts={},pitches=[...new Set(events.map(e=>e.pitch).filter(Number.isFinite))].sort((a,b)=>a-b);
     const low=pitches[0],high=pitches[pitches.length-1];
-    const colors=new Map(pitches.map((pitch,i)=>[pitch,pitches.length<=5?
+    const colors=new Map(pitches.map((pitch,i)=>[pitch,pitches.length<=5||instrument==='guitar'?
       Math.round(i*4/Math.max(1,pitches.length-1)):
       Math.round((pitch-low)*4/(high-low))]));
+    if(instrument==='guitar'&&pitches.length>5){
+      const ranks=new Map(pitches.map((pitch,i)=>[pitch,i])),intervals=[],ringing=new Map();
+      for(let i=0;i<events.length;){
+        let j=i+1;while(j<events.length&&events[j].time-events[i].time<=.001)j++;
+        const members=[...new Set(events.slice(i,j).map(e=>ranks.get(e.pitch)))].sort((a,b)=>a-b);
+        for(let k=1;k<members.length;k++)intervals.push({start:members[k-1]+1,end:members[k]});i=j;
+      }
+      for(const event of events){
+        for(const [pitch,end] of ringing){
+          if(end<=event.time+.015){ringing.delete(pitch);continue;}
+          if(pitch!==event.pitch){const a=ranks.get(pitch),b=ranks.get(event.pitch);intervals.push({start:Math.min(a,b)+1,end:Math.max(a,b)});}
+        }
+        if(event.measuredTail&&event.duration>.18)ringing.set(event.pitch,event.time+event.duration);
+      }
+      if(intervals.some(({start,end})=>colors.get(pitches[start-1])===colors.get(pitches[end]))){
+        // Select fret boundaries that keep proven chord members apart while
+        // preserving low-to-high order and one color per pitch for the song.
+        // An interval needs a boundary somewhere between its two members.
+        const boundaries=[];
+        for(const {start,end} of intervals.sort((a,b)=>a.end-b.end))if(!boundaries.some(b=>b>=start&&b<=end))boundaries.push(end);
+        if(boundaries.length<=4){
+          for(let fret=1;fret<=4&&boundaries.length<4;fret++){
+            const target=(pitches.length-1)*(fret-.5)/4,candidates=[];
+            for(let b=1;b<pitches.length;b++)if(!boundaries.includes(b))candidates.push(b);
+            candidates.sort((a,b)=>Math.abs(a-.5-target)-Math.abs(b-.5-target));
+            if(candidates.length)boundaries.push(candidates[0]);
+          }
+          pitches.forEach((pitch,i)=>colors.set(pitch,boundaries.filter(b=>b<=i).length));
+        }
+      }
+    }
     const laneFor=pitch=>colors.get(pitch);
     // Build Expert first. The hidden normal key only supports older backups;
     // all three playable lower difficulties are derived from Expert below.
     for(const difficulty of ['expert','normal']){
       const selected=difficulty==='expert'||instrument==='drums'?events:thin(events,Math.max(.2,beat*.43),percentile(events.map(e=>e.strength),.25)*.75);
+      const nextPitch=new Map(),nextTimes=new Float64Array(selected.length);
+      let nextDistinct=duration;
+      for(let i=selected.length-1;i>=0;i--){
+        if(i<selected.length-1&&selected[i+1].time>selected[i].time+.001)nextDistinct=selected[i+1].time;
+        nextTimes[i]=selected[i].measuredTail?(nextPitch.get(selected[i].pitch)??duration):nextDistinct;
+        nextPitch.set(selected[i].pitch,selected[i].time);
+      }
       const notes=selected.map((event,i)=>{
         const dynamics={...(Number.isFinite(event.velocity)?{velocity:event.velocity}:{}),...(event.ghost?{ghost:true}:{})};
         if(instrument==='drums')return {lane:event.lane,time:event.time,duration:0,...dynamics};
-        const lane=laneFor(event.pitch),next=selected[i+1]?.time??duration;
+        const lane=laneFor(event.pitch),next=nextTimes[i];
         let tail=event.duration||0;
-        if(instrument==='guitar'&&next-event.time>.65){
-          const start=Math.floor((event.time+.08)/dt),floor=(energy[start]||0)*.24;
-          for(let f=start;f<energy.length&&f*dt<Math.min(next-.1,event.time+1.8,duration-.05);f++){if(energy[f]<Math.max(.0001,floor))break;tail=f*dt-event.time;}
-        }
-        // One measured tonal attack becomes one note. Loudness does not invent chords.
+        // Measured tones have independent tails; another fret does not
+        // truncate a proven hold. A repeated same-pitch attack does.
         tail=Math.min(tail,Math.max(0,next-event.time-.015),duration-event.time);
-        return {time:event.time,lane,pitch:event.pitch,duration:tail>(instrument==='vocals'?.12:.5)?tail:0,...dynamics};
+        return {time:event.time,lane,pitch:event.pitch,duration:tail>(instrument==='vocals'?.12:event.measuredTail?.18:.5)?tail:0,...dynamics};
       });
+      if(instrument==='guitar')for(let i=0;i<notes.length;){
+        let j=i+1;while(j<notes.length&&notes[j].time-notes[i].time<=.001)j++;
+        const group=notes.slice(i,j).sort((a,b)=>a.pitch-b.pitch);
+        if(group.length<=5&&new Set(group.map(n=>n.lane)).size<group.length){
+          // Some wide arrangements cannot use one monotonically ordered fret
+          // per pitch throughout the song. Pick the closest playable local
+          // voicing instead of drawing two chord members on the same pad.
+          let best=null,cost=Infinity;
+          for(let mask=1;mask<32;mask++){
+            const lanes=[0,1,2,3,4].filter(lane=>mask&(1<<lane));if(lanes.length!==group.length)continue;
+            const error=lanes.reduce((sum,lane,k)=>sum+(lane-group[k].lane)**2,0);
+            if(error<cost){cost=error;best=lanes;}
+          }
+          group.forEach((note,k)=>note.lane=best[k]);
+        }
+        i=j;
+      }
       charts[difficulty]=notes.sort((a,b)=>a.time-b.time||a.lane-b.lane).map((note,id)=>({...note,id,bar:Math.floor(note.time/beat/4)}));
     }
-    return {[instrument]:{...charts,...Difficulties.build(charts.expert,instrument,beat)}};
+    const arrangements={...charts,...Difficulties.build(charts.expert,instrument,beat)};
+    if(instrument==='guitar')for(const notes of Object.values(arrangements)){
+      // Five pads cannot represent every independent pitch at once. After
+      // voicing and easier-level compression, end a reused pad's previous
+      // hold before its next measured head. Keep all heads, pitches and times.
+      const nextLane=new Map();
+      for(let i=notes.length-1;i>=0;i--){
+        const note=notes[i],next=nextLane.get(note.lane);
+        if(next!==undefined&&next>note.time+.001&&note.time+note.duration>next-.015)note.duration=Math.max(0,next-note.time-.015);
+        nextLane.set(note.lane,note.time);
+      }
+    }
+    return {[instrument]:arrangements};
   }
   function colorEvidence(notes,instrument){
     if(instrument==='drums')return {colorPolicy:'fixed-drum-voices-v1'};
+    if(instrument==='guitar'){
+      const positions=new Map();for(const n of notes){const set=positions.get(n.pitch)||new Set();set.add(n.lane);positions.set(n.pitch,set);}
+      if([...positions.values()].some(lanes=>lanes.size>1))return {colorPolicy:'pitch-ordered-chord-frets-v1',contextualFrets:true,pitchColors:[...positions].sort((a,b)=>a[0]-b[0]).flatMap(([pitch,lanes])=>[...lanes].sort().map(lane=>({pitch,lane})))};
+    }
     const pitches=new Map(notes.map(n=>[n.pitch,n.lane]));
     return {colorPolicy:'distinct-audio-pitches-v1',pitchColors:[...pitches].sort((a,b)=>a[0]-b[0]).map(([pitch,lane])=>({pitch,lane}))};
   }
   function buildMatchedCharts(reference,duration){
     if(reference.exactTiming){
-      const notes=reference.events.map((hit,id)=>({lane:hit.lane,time:hit.time,duration:0,id,bar:Math.floor(hit.time/reference.beat/4)}));
-      return {drums:Difficulties.build(notes,'drums',reference.beat)};
+      const notes=reference.events.map((hit,id)=>({lane:hit.lane,time:hit.time,duration:0,id,bar:Math.floor(hit.time/reference.beat/4),...(hit.velocity!==undefined?{velocity:hit.velocity}:{}),...(hit.ghost!==undefined?{ghost:hit.ghost}:{})}));
+      const drums=Difficulties.build(notes,'drums',reference.beat);
+      if(reference.authoredQuality)drums.normal=drums.medium;
+      return {drums};
     }
     const updated=buildFocusedCharts(reference.events,'drums',reference.beat,duration,new Float32Array(0),.01);
     if(reference.baselineEvents){
@@ -1012,7 +1289,7 @@
     }
     return updated;
   }
-  function analyzeMelody(samples,sampleRate,instrument,progress){
+  function analyzeMelody(samples,sampleRate,instrument,progress,wholeSong=false){
     // Bass uses a longer window for low fundamentals. Vocals follow stable
     // voiced pitch segments, including legato changes without a new attack.
     // These are signal-based estimates, not source-separated audio stems.
@@ -1021,16 +1298,33 @@
     const frames=Math.ceil(samples.length/hop),plan=fftPlan(n),re=new Float32Array(n),im=new Float32Array(n),mag=new Float32Array(n/2);
     const pitches=new Float32Array(frames),energy=new Float32Array(frames),flux=new Float32Array(frames),confidence=new Float32Array(frames),previous=new Float32Array(n/2);
     const minHz=bass?30:85,maxHz=bass?330:1050;
+    const powerPrefix=wholeSong?new Float32Array(n/2):null;
+    const amplitudePrefix=wholeSong&&bass?new Float32Array(n/2):null,logPrefix=wholeSong&&bass?new Float32Array(n/2):null;
+    const ownEnvelopes=wholeSong?new Map():null;
+    if(ownEnvelopes)for(let pitch=Math.ceil(69+12*Math.log2(minHz/440));pitch<=Math.floor(69+12*Math.log2(maxHz/440));pitch++)ownEnvelopes.set(pitch,new Float32Array(frames));
     for(let f=0;f<frames;f++){
       spectrum(samples,Math.round(f*hop)-n/2,re,im,plan);
       let power=0,best=0,frequency=0,concentration=0;
       for(let k=1;k<n/2;k++){
-        mag[k]=Math.hypot(re[k],im[k])/n;power+=mag[k]*mag[k];
+        mag[k]=Math.hypot(re[k],im[k])/n;
+        if(!wholeSong||bass||k*sampleRate/n>=minHz)power+=mag[k]*mag[k];
+        if(powerPrefix)powerPrefix[k]=powerPrefix[k-1]+mag[k]*mag[k];
+        if(amplitudePrefix){amplitudePrefix[k]=amplitudePrefix[k-1]+mag[k];logPrefix[k]=logPrefix[k-1]+Math.log(mag[k]+1e-15);}
         const hz=k*sampleRate/n;
         if(hz>=minHz&&hz<=maxHz*3){flux[f]+=Math.max(0,mag[k]-previous[k]);previous[k]=mag[k];}
       }
       energy[f]=Math.sqrt(power);
+      if(ownEnvelopes)for(const [pitch,envelope] of ownEnvelopes){
+        const center=Math.round(440*2**((pitch-69)/12)*n/sampleRate);let value=0;
+        for(let k=Math.max(1,center-1);k<=Math.min(mag.length-1,center+1);k++)value+=mag[k]*mag[k];
+        envelope[f]=Math.sqrt(value);
+      }
       const amplitude=hz=>{const k=Math.round(hz*n/sampleRate);return k>0&&k<mag.length-1?Math.max(mag[k-1],mag[k],mag[k+1]):0;};
+      const harmonicPeak=hz=>{
+        const center=Math.round(hz*n/sampleRate),background=[];
+        for(const offset of [-6,-5,-4,4,5,6]){const k=center+offset;if(k>0&&k<mag.length)background.push(mag[k]);}
+        return amplitude(hz)>percentile(background,.5)*1.8;
+      };
       for(let k=Math.max(2,Math.floor(minHz*n/sampleRate));k<Math.min(mag.length-1,Math.ceil(maxHz*n/sampleRate));k++){
         const a=mag[k];if(a<=mag[k-1]||a<mag[k+1])continue;
         const l=Math.log(mag[k-1]+1e-15),c=Math.log(a+1e-15),r=Math.log(mag[k+1]+1e-15);
@@ -1041,9 +1335,24 @@
         // not become a pitched melody. Favor a bass fundamental over overtones.
         const score=a+.6*h2+.35*h3+.15*h4;
         if(a<score*.27)continue;
-        const tonal=(a*a+h2*h2+h3*h3+h4*h4)/(power+1e-20);
+        // In a mix, normalize a bass candidate against its own harmonic
+        // region. Treble vocals must not erase a quieter low fundamental.
+        const bandEnd=wholeSong&&bass?Math.min(powerPrefix.length-1,Math.ceil(Math.max(170,hz*3)*n/sampleRate)):0;
+        if(amplitudePrefix){
+          // A local energy denominator must not promote broadband noise
+          // into a bass line. Require a peaked, harmonic spectral region.
+          const bandStart=Math.max(1,Math.floor(minHz*n/sampleRate)),count=bandEnd-bandStart+1;
+          const average=(amplitudePrefix[bandEnd]-amplitudePrefix[bandStart-1])/count;
+          const geometric=Math.exp((logPrefix[bandEnd]-logPrefix[bandStart-1])/count);
+          if(geometric/(average+1e-15)>.65)continue;
+        }
+        const candidatePower=wholeSong&&bass?powerPrefix[bandEnd]:power;
+        const tonal=(a*a+h2*h2+h3*h3+h4*h4)/(candidatePower+1e-20);
         if(tonal<.28)continue;
-        if(score>best){best=score;frequency=hz;concentration=tonal;}
+        // A lone ringing kick/tom is insufficient evidence of a melody.
+        if(wholeSong&&!((h2>=a*.12&&harmonicPeak(hz*2))||(h3>=a*.12&&harmonicPeak(hz*3))))continue;
+        const weighted=score/(wholeSong&&bass?Math.max(1,hz/100):1);
+        if(weighted>best){best=weighted;frequency=hz;concentration=tonal;}
       }
       pitches[f]=frequency?69+12*Math.log2(frequency/440):0;confidence[f]=concentration;
       if(f%300===0)progress(15+Math.round(f/frames*65),bass?'Tracking low bass notes…':'Tracking vocal melody and held pitches…');
@@ -1073,12 +1382,24 @@
       if(freshTone(time)&&!attacks.some(e=>Math.abs(e.time-time)<.075))attacks.push({time,strength:event.strength});
     }
     attacks.sort((a,b)=>a.time-b.time);
+    const ownRise=(pitch,time)=>{
+      if(!ownEnvelopes)return true;
+      const envelope=ownEnvelopes.get(pitch);if(!envelope)return false;
+      const frame=Math.round(time/dt),before=[],after=[];
+      for(let j=-5;j<=-2;j++)before.push(envelope[clamp(frame+j,0,frames-1)]);
+      for(let j=1;j<=4;j++)after.push(envelope[clamp(frame+j,0,frames-1)]);
+      const base=percentile(before,.5),peak=percentile(after,.75);
+      return peak>Math.max(.00008,base*1.25);
+    };
     const split=[];
     for(const event of events){
       const end=event.time+event.duration,cuts=[event.time];
       for(const attack of attacks){
         const t=attack.time;
         if(t<event.time+stable||t>end-stable)continue;
+        // Splitting a held note needs a rise of this fundamental, rather
+        // than the kick, guitar or cymbal that happens to overlap it.
+        if(!ownRise(event.pitch,t))continue;
         if(t-cuts[cuts.length-1]>=stable)cuts.push(t);
       }
       cuts.forEach((time,i)=>split.push({...event,time,duration:(cuts[i+1]??end)-time}));
@@ -1091,29 +1412,31 @@
     for(const event of split){
       const at=refineTime(filtered,event.time,sampleRate),a=Math.max(0,Math.round((at-.015)*sampleRate)),b=Math.min(samples.length,Math.round((at+.025)*sampleRate));let before=0,after=0;
       for(let i=a;i<b;i++){if(i<at*sampleRate)before+=filtered[i]**2;else after+=filtered[i]**2;}
-      if(after>before*2){const end=event.time+event.duration;event.time=at;event.duration=Math.max(0,end-at);}
+      if(after>before*2&&ownRise(event.pitch,at)){const end=event.time+event.duration;event.time=at;event.duration=Math.max(0,end-at);}
     }
-    const accepted=split.filter(e=>e.duration>=stable&&e.time<duration-.05).sort((a,b)=>a.time-b.time);
+    // A bass head also needs a measured rise of its fundamental. A cymbal
+    // may reveal harmonics over an old tom tail; that is not a new bass note.
+    const accepted=split.filter(e=>e.duration>=stable&&e.time<duration-.05&&(!wholeSong||!bass||ownRise(e.pitch,e.time))).sort((a,b)=>a.time-b.time);
     if(!accepted.length)throw Error(`No clear ${bass?'bass line':'vocal melody'} was detected. Try an isolated ${bass?'bass':'vocal'} track or a recording where the part is louder.`);
     measureDynamics(accepted,samples,sampleRate,instrument);
     const timing=tempo(flux,dt),charts=buildFocusedCharts(accepted,instrument,timing.beat,duration,energy,dt),expert=charts[instrument].expert;
     const waveform=Array.from({length:160},(_,i)=>{let value=0;for(let f=Math.floor(i*frames/160);f<Math.ceil((i+1)*frames/160)&&f<frames;f++)value=Math.max(value,energy[f]);return value;});
     const peak=Math.max(...waveform)||1;
-    return {...timing,instrument,duration,charts,chartVersion:6,waveform:waveform.map(v=>v/peak),quality:{audioReviews:{[instrument]:{policy:'audible-attacks-v2',checked:true,recovered:0,...colorEvidence(expert,instrument)}},ghostEvidencePolicy:'relative-attack-dynamics-v1',ghostHits:expert.filter(n=>n.ghost).length,evidencePolicy:'audible-attacks-v2',counts:Array.from({length:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),method:bass?'Low fundamental and attack tracking':'Voiced pitch and phrase tracking'}};
+    return {...timing,instrument,duration,charts,chartVersion:wholeSong?7:6,waveform:waveform.map(v=>v/peak),quality:{...(wholeSong?{mixAnalysis:{[instrument]:{policy:'own-harmonic-energy-v1',estimated:true}}}:{}),audioReviews:{[instrument]:{policy:'audible-attacks-v2',checked:true,recovered:0,...colorEvidence(expert,instrument)}},ghostEvidencePolicy:'relative-attack-dynamics-v1',ghostHits:expert.filter(n=>n.ghost).length,evidencePolicy:'audible-attacks-v2',counts:Array.from({length:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),method:bass?'Low fundamental and attack tracking':'Voiced pitch and phrase tracking'}};
   }
-  function analyze({samples,sampleRate,instrument='guitar',audioId},progress=()=>{}){
+  function analyze({samples,sampleRate,instrument='guitar',audioId,wholeSong=false},progress=()=>{}){
     if(!['guitar','drums','bass','vocals'].includes(instrument))throw Error('Choose Guitar, Drums, Bass or Vocals before charting.');
     if(!(samples instanceof Float32Array)||!Number.isFinite(sampleRate)||sampleRate<8000)throw Error('The audio could not be analyzed. Try a WAV or MP3 file.');
     const duration=samples.length/sampleRate;
-    if(duration<5||duration>480.05)throw Error('Choose a song between 5 seconds and 8 minutes long.');
-    if(instrument==='bass'||instrument==='vocals')return analyzeMelody(samples,sampleRate,instrument,progress);
+    if(duration<5||duration>Difficulties.MAX_DURATION+.05)throw Error('Choose a song between 5 seconds and 15 minutes long.');
+    if(instrument==='bass'||instrument==='vocals')return analyzeMelody(samples,sampleRate,instrument,progress,wholeSong===true);
     const reference=instrument==='drums'?References?.match(audioId,duration):null;
     if(reference){
       progress(85,`Loading the matched ${reference.title||'In Bloom'} drum chart…`);
       const charts=buildMatchedCharts(reference,duration);
       const expert=charts.drums.expert;
       return {instrument,duration,bpm:reference.bpm,beat:reference.beat,offset:reference.offset,...(reference.exactTiming?{}:{confidence:.7028361194449136}),charts,waveform:reference.waveform,chartVersion:reference.chartVersion||15,
-        quality:{audioReviews:{drums:{policy:'reviewed-audio-identity-v1',checked:true,recovered:0,...colorEvidence(expert,'drums')}},preserveEasyMedium:reference.preserveEasyMedium!==false,scoreRevision:reference.revision,...(reference.scoreReference?{scoreReference:reference.scoreReference}:{}),scoreReview:reference.review||'In Bloom notation review: Expert and Hard updated; Easy and Medium retained.',counts:Array.from({length:6},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:reference.label,sources:{drums:reference.label}}};
+        quality:{...(reference.authoredQuality||{}),audioReviews:{drums:{policy:'reviewed-audio-identity-v1',checked:true,recovered:0,...colorEvidence(expert,'drums'),...reference.authoredQuality?.audioReviews?.drums}},preserveEasyMedium:reference.preserveEasyMedium!==false,scoreRevision:reference.revision,...(reference.scoreReference?{scoreReference:reference.scoreReference}:{}),scoreReview:reference.review||'In Bloom notation review: Expert and Hard updated; Easy and Medium retained.',counts:Array.from({length:6},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:reference.label,sources:{drums:reference.label}}};
     }
     const n=2048,hop=256,dt=hop/sampleRate,frames=Math.ceil(samples.length/hop),bins=Math.min(n/2,Math.floor(10000*n/sampleRate));
     const plan=fftPlan(n),re=new Float32Array(n),im=new Float32Array(n),rows=Array.from({length:17},()=>new Float32Array(bins));
@@ -1264,10 +1587,14 @@
       const withKicks=alignKickAttacks(verifyKickRepeats(toms,samples,sampleRate,plan,re,im),samples,sampleRate,plan,re,im);events.length=0;events.push(...withKicks);
     }
     events.sort((a,b)=>a.time-b.time);
-    let recovered=0;
+    let recovered=0,chordAttacks=0;
+    if(instrument==='guitar'){
+      const review=reviewGuitarTones(events,samples,sampleRate,progress);
+      events.length=0;events.push(...review.events);chordAttacks=review.chordAttacks;recovered=review.recovered;
+    }
     if(instrument==='drums'){
       progress(90,'Checking overlapping drum hits…');
-      const review=recoverBuriedResonance(events,samples,sampleRate,plan,re,im);events.length=0;events.push(...review.events);recovered=review.recovered;
+      const review=recoverBuriedResonance(events,samples,sampleRate,plan,re,im);events.length=0;events.push(...rejectTonalDrumEvents(review.events,samples,sampleRate,plan,re,im));recovered=review.recovered;
     }
     if(!events.length)throw Error(`Not enough clear ${instrument==='guitar'?'guitar-like tones':'drum hits'} were detected. Try a recording where that instrument is louder, or upload its isolated track.`);
     progress(92,`Building the ${instrument==='guitar'?'Guitar':'Drums'} chart…`);
@@ -1276,8 +1603,9 @@
     const waveform=Array.from({length:160},(_,i)=>{const a=Math.floor(i*frames/160),b=Math.max(a+1,Math.floor((i+1)*frames/160));let max=0;for(let f=a;f<b&&f<frames;f++)max=Math.max(max,energy[f]);return max;});
     const peak=Math.max(...waveform)||1;
     const expert=charts[instrument].expert;
-    const quality={audioReviews:{[instrument]:{policy:instrument==='drums'?'ring-residual-v1':'audible-attacks-v2',checked:true,recovered,...colorEvidence(expert,instrument),...(instrument==='drums'?{metalIdentityPolicy:'attack-release-timbre-v2',snareOverlapPolicy:'independent-metal-timbre-v1',metalCorrections}:{})}},ghostEvidencePolicy:'relative-attack-dynamics-v1',ghostHits:expert.filter(n=>n.ghost).length,evidencePolicy:'audible-attacks-v2',...(instrument==='drums'?{tomEvidencePolicy:'measured-resonance-v1'}:{}),counts:Array.from({length:instrument==='drums'?6:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:instrument==='drums'&&events.some(e=>e.part!==undefined)?'Adaptive kit separation':'Attack and tone analysis'};
-    return {...timing,instrument,duration,charts,quality,chartVersion:instrument==='drums'?25:8,waveform:waveform.map(v=>v/peak)};
+    const quality={audioReviews:{[instrument]:{policy:instrument==='drums'?'ring-residual-v1':'audible-attacks-v2',checked:true,recovered,...colorEvidence(expert,instrument),...(instrument==='drums'?{instrumentEvidencePolicy:'own-percussion-v1',tonalRejectionPolicy:'sustained-harmonic-family-v1',estimated:true,metalIdentityPolicy:'attack-release-timbre-v2',snareOverlapPolicy:'independent-metal-timbre-v1',metalCorrections}:{})}},ghostEvidencePolicy:'relative-attack-dynamics-v1',ghostHits:expert.filter(n=>n.ghost).length,evidencePolicy:'audible-attacks-v2',...(instrument==='drums'?{tomEvidencePolicy:'measured-resonance-v1'}:{}),counts:Array.from({length:instrument==='drums'?6:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:instrument==='drums'&&events.some(e=>e.part!==undefined)?'Adaptive kit separation':'Attack and tone analysis'};
+    if(instrument==='guitar')quality.audioReviews.guitar={...quality.audioReviews.guitar,chordPolicy:'independent-harmonic-attacks-v1',sustainPolicy:'own-fundamental-release-v1',arrangementPolicy:'reference-guided-audio-v1',onsetPolicy:'own-tone-attack-v1',fretPolicy:'ordered-distinct-pitch-groups-v2',holdPolicy:'playable-fret-reuse-v1',chordAttacks,estimated:true};
+    return {...timing,instrument,duration,charts,quality,chartVersion:instrument==='drums'?26:11,waveform:waveform.map(v=>v/peak)};
   }
   function reviewDrumColors({notes,samples,sampleRate=22050}){
     const plan=fftPlan(2048),review=verifyMetalIdentity(notes,samples,sampleRate,plan,new Float32Array(2048),new Float32Array(2048));

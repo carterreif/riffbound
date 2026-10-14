@@ -13,7 +13,7 @@ test('automatic In Bloom Expert/Hard exactly match upload analysis; audio and lo
   assert.equal(Updates.upgrade(updated),updated,'A revision saves only once');assert.equal(original.quality.scoreRevision,1);
 });
 test('no automatic replacement of authored drums, other recordings, wrong durations or future revisions',()=>{
-  for(const modify of [s=>s.quality.imports.drums={id:'authored'},s=>s.id='f'.repeat(64),s=>s.musicEnd+=1,s=>s.quality.scoreRevision=99,s=>delete s.charts.drums]){
+  for(const modify of [s=>s.quality.imports.drums={id:'authored'},s=>s.quality.chartAdjustments={drums:100},s=>s.id='f'.repeat(64),s=>s.musicEnd+=1,s=>s.quality.scoreRevision=99,s=>delete s.charts.drums]){
     const original=song();modify(original);assert.equal(Updates.upgrade(original),original);
   }
 });

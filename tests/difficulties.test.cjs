@@ -2,7 +2,7 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const D=require('../dist/chart-difficulties.js'),E=require('../dist/engine.js'),A=require('../dist/autochart.js'),L=require('../dist/song-library.js');
 const pitches=[52,57,60,64,69];
 function dense(instrument){
-  const notes=Array.from({length:100},(_,i)=>({time:1+i*.06,lane:i%5,pitch:pitches[i%5],duration:0}));
+  const notes=Array.from({length:100},(_,i)=>({time:1+i*.06,lane:i%5,...(instrument!=='drums'?{pitch:pitches[i%5]}:{}),duration:0}));
   if(instrument==='drums')for(let i=0;i<50;i++)notes.push({time:1+i*.12,lane:5,duration:0});
   return notes.sort((a,b)=>a.time-b.time||a.lane-b.lane).map((n,id)=>({...n,id}));
 }

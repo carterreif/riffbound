@@ -12,7 +12,7 @@
     rate=[.5,.75,1].includes(Number(rate))?Number(rate):1;
     return {start,end,rate};
   }
-  function segment(notes,loop){return loop?notes.filter(n=>n.time>=loop.start&&n.time<loop.end).map(n=>({...n,duration:Math.min(n.duration,loop.end-n.time)})):notes;}
+  function segment(notes,loop){return loop?notes.filter(n=>n.time>=loop.start&&n.time<loop.end).map(n=>({...n,duration:Math.min(n.duration,loop.end-n.time),...(n.rollDuration?{rollDuration:Math.min(n.rollDuration,loop.end-n.time)}:{})})):notes;}
   function visibleNotes(notes,loop,time,lookahead){
     if(!loop)return notes;const span=loop.end-loop.start,out=notes.slice();
     for(let cycle=1;cycle<=Math.ceil(lookahead/span);cycle++)for(const note of notes){const next=note.time+span*cycle;if(next>time+lookahead)break;out.push({...note,time:next,hit:false,missed:false,held:false});}

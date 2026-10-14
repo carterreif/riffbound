@@ -19,9 +19,10 @@ function melody(instrument,{vibrato=0,legato=false}={}){
   return {samples,sampleRate,expected};
 }
 function noise(){const samples=new Float32Array(sampleRate*6);let seed=19;for(let i=0;i<samples.length;i++){seed=(Math.imul(seed,1664525)+1013904223)>>>0;samples[i]=.2*(seed/2147483648-1);}return {samples,sampleRate};}
-function fullBand(){
-  const bass=melody('bass'),vocals=melody('vocals',{vibrato:.25}),irregular=require('./independent-timing.cjs').irregular;
-  const guitar=irregular('guitar',.21),drums=irregular('drums');
-  return {sampleRate,samples:Float32Array.from(bass.samples,(v,i)=>v+vocals.samples[i]*.8+guitar.samples[i]*.35+drums.samples[i]*.4)};
+function fullBand({bassLevel=1,vocalLevel=.8,guitarLevel=.35,drumLevel=.4,vibrato=.25,variant=0}={}){
+  const bass=melody('bass'),vocals=melody('vocals',{vibrato}),irregular=require('./independent-timing.cjs').irregular;
+  const guitar=irregular('guitar',.21,variant),drums=irregular('drums',0,variant);
+  const duration=bass.samples.length/sampleRate;
+  return {sampleRate,samples:Float32Array.from(bass.samples,(v,i)=>v*bassLevel+vocals.samples[i]*vocalLevel+guitar.samples[i]*guitarLevel+drums.samples[i]*drumLevel),truth:{bass:bass.expected,vocals:vocals.expected,guitar:guitar.truth.filter(n=>n.time<duration),drums:drums.truth.filter(n=>n.time<duration)}};
 }
 module.exports={melody,noise,fullBand,sampleRate};

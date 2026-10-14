@@ -2,7 +2,7 @@
 
 Date: 2026-09-12
 
-Status: version 29 adds an audio-matched In Bloom drum event chart following the demo's consistent voice mapping; version 22 setlist storage is preserved
+Status: version 94 searches game/community sources for future uploads and prefers authored Drum notes or verified isolated Drum audio over full-mix estimation
 
 Owner: Riffbound project
 
@@ -1123,3 +1123,479 @@ The supplied personal Frantic backup was reviewed against its entire 313.19-seco
 Verification limits: the Frantic recording has no complete independently labeled transcription, so the count changes do not establish perfect note recall or correct classification throughout. Independent synthetic mixtures verify the targeted failure; genuinely overlapping, broadband or very quiet real sounds can remain ambiguous. Six genuine crash combination tests isolate the color-review step because the existing onset detector can miss a quiet concurrent snare. Other existing fixtures explicitly tolerate some extremely quiet misses or fast-fill extras. Mobile UI checks use deterministic adapters; no physical phone or listening-based full-track transcription was performed.
 
 Validation: the drum, overlap, quiet-note, tom, other-instrument and difficulty regression run passed 167 tests. Three additional full-analyzer delayed-hat cases passed. The upload/storage/offline/update suite completed 122 cases: 120 passed, zero failed, and two optional original In Bloom-media cases skipped. The new mobile simultaneous-snare upload/rebuild case also passed independently. The reviewed Frantic backup passed pack/unpack and chunked save/fresh-reopen checks with all chart fields, review metadata and original audio bytes intact. Unchanged core-lane timing, difficulty subsets, syntax and whitespace checks passed. A full new analysis of the supplied WAV completed with analyzer version 25 and the new overlap policy; its 2,283 accepted heads differ from the 2,337 preserved/reviewed backup heads, so the personal correction file intentionally keeps the player's original onset detection rather than silently replacing it with a new analysis. These totals are not measures of real-track accuracy.
+
+
+## Version 57 — Reduce cross-instrument errors in Whole song
+
+### Problem and acceptance
+
+The version 56 four-chart workflow passes its functional checks, but independently labeled full-band mixtures demonstrate note attribution errors. Producing four playable charts is not proof of correct transcription. Reduce unsupported Bass/Vocals heads without increasing misses on the tested mixes, preserve real repeats and measured pitch colors, and keep all four choices, difficulty reductions, original audio, reviewed drum references, public demos and private setlists. Do not infer notes from a grid or remove simultaneous notes just because another instrument plays. Existing saved charts change only on an explicit rebuild or reupload.
+
+### Implementation
+
+The four-part upload/build request activates a whole-song context in each worker. Bass candidates use energy in their own harmonic region rather than the entire treble-heavy mix, with a soft low-fundamental preference that retains the original 30–330 Hz search range. A peaked spectral region and integer-spaced harmonic evidence are required so the local denominator cannot turn broadband noise or a lone drum resonance into a bass line. Vocals exclude energy below their original search range from confidence normalization and also require harmonic evidence.
+
+Each initial bass head and any rearticulation of a held Bass/Vocals pitch now needs a rise of its own fundamental. A qualifying harmonic must also stand above its neighboring spectral background. An unrelated instrument's broad-band attack cannot supply that split or move its onset without the same evidence. Expert preserves accepted events; lower difficulties retain their measured pitch/time. Single-part analysis keeps its existing behavior. Per-part whole-song metadata survives saving, backup, reopening and explicit rebuild; an explicit one-part reupload clears only that rebuilt part's stale mode. Guitar and drum inference remain unchanged because an experimental guitar change failed to improve its measured errors. Reviewed drum audio identities still bypass generic inference.
+
+Whole song explains that its four charts are estimates and reports unavailable parts. Bass/Vocals preview identifies the whole-song estimate and asks players to check overlaps. Processing remains in the browser worker; no server uploads, external models or source-separated audio stems are introduced. Original audio is the playback/backup source.
+
+### Independently labeled measurements
+
+Match each generated note to at most one expected note of the same MIDI pitch within 70 ms. A wrong pitch counts as both a miss and an extra. These are eight-second synthetic mixtures with different instrument gains, drum/guitar ordering and vocal vibrato, not annotated real recordings.
+
+| Mix | Part | Previous matched / 8 | Updated matched / 8 | Previous extras | Updated extras |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Default | Bass | 5 | 8 | 10 | 3 |
+| Default | Vocals | 1 | 7 | 19 | 10 |
+| Louder guitar, different ordering | Bass | 3 | 8 | 15 | 4 |
+| Louder guitar, different ordering | Vocals | 3 | 7 | 20 | 12 |
+| Quieter bass, different ordering/vibrato | Bass | 0 | 8 | 9 | 1 |
+| Quieter bass, different ordering/vibrato | Vocals | 8 | 8 | 10 | 7 |
+| Louder vocals, different ordering | Bass | 0 | 8 | 11 | 1 |
+| Louder vocals, different ordering | Vocals | 8 | 8 | 10 | 9 |
+
+Each isolated Bass/Vocals repeat/vibrato check retains 8/8 notes with no extras. Upper-register Bass and rare-pitch checks retain all 28 notes and their colors; the search range is not hard-clipped to low bass. Silence and broadband noise produce no Bass/Vocals chart. The labeled drums-only recording also produces neither a Bass nor a Vocals chart; genuine legato bass changes remain. A sustained bass passage is not split by the overlapping attack at 3.11 seconds. The matched In Bloom drum chart remains identical in both contexts.
+
+### Verification and limits
+
+`tests/whole-song-analysis.test.cjs` verifies recognition with independent audio labels. Desktop/mobile upload adapters exercise the actual worker, original audio preservation, four independent parts, preview, saving, backup/unpack, reopening and rebuilding a single part while preserving the other charts and their modes. The existing whole-song failure, cancellation, difficulty and setlist checks remain required.
+
+The remaining extras in the table are explicit open accuracy limitations. These signal checks do not identify instrument semantics reliably when Guitar and Vocals share pitches, do not fully transcribe guitar chords, and do not guarantee every note in an arbitrary real mix. This release makes no improvement claim for Guitar/Drums transcription. No physical phone or live browser audio session was tested; mobile UI verification uses deterministic adapters.
+
+Validation: the full regression run completed 453 cases: 439 passed, zero failed, and 14 optional real-media checks skipped because their private paths were not configured. After the final harmonic-peak and initial-bass-onset guards, all 15 recognition checks and 14 focused whole-song/selection/UI cases passed again. The 48-case public-demo, offline/update, reference and difficulty run passed 47 with one optional media case skipped. Syntax and whitespace checks pass. The physical-device and transcription limits above remain.
+
+
+## Version 58 — Guitar chord and sustain test
+
+Goal: use the uploaded 29-second GHM Guitar clip as a comparison reference while improving Guitar uploads without fabricating chord frets or changing the public drum demos.
+
+Requirements:
+
+- Accept a chord only when at least two independent harmonic families rise together at an already measured Guitar attack. Require prominent fundamentals and harmonics; reject integer-related overtones. Permit up to three proven tones.
+- Estimate each family's rise time. Rapid successive notes must not become a chord merely because their FFT windows overlap. Keep the previous monophonic attack when evidence is ambiguous.
+- Refine chord starts on the first sustained RMS rise, avoiding later beat peaks between chord members. Merge detections tied to the same measured pitch/start.
+- For clear tones, follow each fundamental to its release. Both members of a simultaneous chord retain their tails; a new same-pitch attack stops that pitch's previous hold. Monophonic holds stop at the next attack. Retain the previous sustain estimate when a dense mix masks the initial harmonic evidence. Clear measured Guitar holds over 180 ms are playable.
+- Keep original audio and saved other-instrument charts. Existing uploads change only through an explicit Guitar rebuild/reupload. Expert is the accepted master; Easy/Medium/Hard reduce it. Show the measured chord count and the mixed-audio limitation in preview.
+- Update the game/offline version to 58, preserving all three full public drum songs, ordinary uploads and the installed mobile flow.
+
+Implementation: local FFT evidence in `autochart.js`; no network calls, model service, filename-based note patterns or uploaded video media in the deployment. Per-pitch proof/envelope arrays are bounded to about 8 MiB at the supported eight-minute/22.05 kHz input. Guitar chart version is 9; the drum and Bass/Vocals recognition paths are unchanged. Both legacy Normal and the four playable arrangements remain available.
+
+Independent validation: labeled E/G/B and other Guitar families with weaker chord members, richer harmonics, overlapping unpitched drum attacks, three-tone chords, different member releases and repeated picks. All real labeled tones are detected once; held chord members extend beyond the previous 1.8-second cap and their releases stay within 100 ms. Fast 80/100/120 ms melodies and re-articulations retain their measured pitches rather than gaining chord heads. A first broad run caught an 80 ms sequential-note false chord; matching each family's rise time corrected it. A separate release test caught the old 500 ms display threshold hiding a measured 450 ms hold; clear measured tones now use 180 ms. Desktop/mobile adapter checks cover upload, preview, original-device persistence, fresh reopen and Guitar-only rebuild. No physical phone or live browser-audio test was available.
+
+Video limit: `GHM Guitar Chart.mp4` is 29.005 seconds and begins during an already-held chord. Contact frames show authored chords and colored sustains. Audio-only analysis yields 19 Expert heads and zero confidently recovered chord attacks on this mixed/compressed clip. This release therefore does not claim to recreate its GHM chart or add the missing authored video heads. The clip's sustained octave/harmonic tones, mixed instrumentation and game-specific fret choices remain ambiguous. Its timing, note count, colors and complete transcription still require a separate manually reviewed chart or clearer source audio. No synthetic notes have been inserted to make this test appear successful.
+
+Player flow: update to Game version 58; open a private uploaded recording, select Guitar, choose Rebuild this instrument’s chart, then Preview chart on Expert. Other saved parts and the public Roam drum reference remain intact. For a new recording, choose Guitar or Whole song before upload.
+
+
+Final mapping guard: a wider Guitar pitch range can place two simultaneous tones on the same fret under a simple pitch-range mapping. When possible, global pitch boundaries now keep all measured chord members on distinct frets while maintaining pitch order and repeated-pitch colors. Arrangements needing more than five fixed ordered frets use the closest ordered local chord voicing; preview explains when a repeated pitch changes fret to make its chord playable. Tests cover both cases and strum scoring. No note heads are inserted by this mapping.
+
+
+Validation results: broad regression 462 cases — 448 passed, 0 failed, 14 optional original-media cases skipped. The last short-hold and chord-fret mapping adjustments were subsequently verified with 59 focused recognition/color/timing/difficulty checks, all passing. Five final desktop/mobile adapter checks passed for Guitar chord upload/preview/storage/rebuild and Whole song reuse; original media was decoded and analyzed locally for the stated 19-head/zero-chord video comparison. Syntax and whitespace checks passed. The supplied private video and extracted samples are not included in the game or repository.
+
+
+## Version 59 — Apply the Guitar test principles to future uploads
+
+Goal: use the successful, privately imported 29-second Roam Guitar test as a guide for all future Guitar uploads without copying that recording’s notes, fret sequence or audio into unrelated songs.
+
+Requirements:
+
+- Every new Guitar upload, explicit Guitar rebuild, separate-part analysis and Whole song Guitar analysis uses the same review. Existing saved charts and authored imports remain unchanged until explicitly replaced.
+- Recover a quieter, independently emerging tonal family while an earlier note rings. Require prominent fundamentals/harmonics over several frames and a rapid rise of that specific tone; do not require the full mix to grow louder.
+- Reject a false new head assigned to a still-ringing older pitch. When one newly attacking family supplies clear evidence, it can correct the full-mix pitch vote. Integer-related overtones cannot manufacture another fret.
+- Follow a proven tone’s own release even while other frets start. A repeat of the same pitch stops its earlier hold. Do not infer an unmeasured sustain from general recording energy.
+- Preserve the existing simultaneous-chord evidence, playable fret mapping and Expert-derived Easy/Medium/Hard arrangements. Never populate missing colors or complete the rhythm by guessing.
+- Preview describes the tone review and remains explicit that mixed audio and authored Guitar Hero fret choices are not fully recoverable automatically. Game/offline version becomes 59; Guitar analysis version becomes 10.
+
+Implementation: per-pitch stable harmonic proof and short-window quadrature attack measurements inside the existing local Guitar review. No filename rule, song-specific note pattern, model service, network analysis or private media is added. New candidate proof is weaker in global energy share but must pass its own independent attack gate. Existing mono candidates receive the same gate; unpitched drum energy cannot justify holding a Guitar fret. Guitar fundamentals can overlap rather than being truncated by the next different pitch.
+
+Independent validation uses new labeled overlapping tones, including quieter tones underneath a much louder held note, displaced timing and unrelated percussion. It checks pitch plus onset and release, no extra heads, easier-difficulty derivation and gameplay. Existing harmonic-rich chord, independent release, rapid-note, volume modulation, irregular timing, saved import, desktop/mobile and whole-song regressions remain required. A first attempt wrongly retained the old pitch and missed quiet tones; tone-specific evidence and a longer frequency-isolation window corrected these failures. Octave-related voices over an existing harmonic family remain ambiguous and are conservatively rejected. No universal all-note or exact-color transcription claim is made.
+
+Validation results: 66 focused recognition checks passed. The final broad regression ran 472 cases: 458 passed, zero failed and 14 optional original-media cases were skipped. Four final desktop/mobile, separate-part and Whole song upload adapter checks passed, including saved reopen and explicit Guitar rebuild. Independent synthetic overlap comparisons improved from four of seven labeled tones detected in version 58 to seven of seven in version 59 across ordinary, quiet and timing-displaced/percussion cases, with no extra heads in the new results. These are controlled audio fixtures and UI adapters, not a physical-phone or live-browser audio accuracy test. Syntax and whitespace checks passed; private reference audio/video is excluded from the published game.
+
+## Version 60 — Review audio-generated Guitar fret colors
+
+Goal: keep accepted Guitar tones playable and ordered when a recording has more pitches than the highway has frets. Check color assignment against independent audio fixtures and the private Roam import, while distinguishing audio estimates from authored fret choices.
+
+Requirements:
+
+- Balance more than five distinct Guitar pitches into ordered fret groups. Repetition count and simple transposition must not change a riff's mapping; a distant accepted pitch must not squeeze nearby tones onto one fret.
+- Include overlapping measured holds in the fixed-fret boundary constraints, alongside simultaneous chords. Keep different ringing pitches on separate fixed frets when five ordered groups can represent the arrangement.
+- After contextual chord voicing and difficulty compression, stop a reused pad's earlier hold 15 ms before its next real head. Retain measured pitch and onset identities; do not create attacks or extend a hold to compensate for fret compression.
+- Apply only to newly generated Guitar charts and explicit rebuilds, including separate-part and Whole song paths. Preserve saved/authored imports, Bass/Vocals mappings, drum recognition and the full public demo setlist.
+- Explain the playable hold rule in preview. Set game/offline version 60 and Guitar analysis version 11; keep the chart explicitly estimated.
+
+Implementation: distinct-pitch rank groups replace numeric-range Guitar compression; overlapping measured tails add boundary constraints. The existing ordered local chord voicing remains the fallback when more than four boundaries are necessary. Each generated difficulty receives a final same-pad hold check. No recognition thresholds or measured attacks change; no private media is deployed.
+
+Reference validation: unpacked the private Roam test without changing it and decoded its original WAV to the game's mono 22.05 kHz analysis format. Against version 59, Expert's 30 audio-generated heads retained exactly the same pitches and times. Same-fret hold clashes fell from 3 to 0 on Expert, 3 to 0 on Hard, 2 to 0 on Medium and 4 to 0 on Easy. The imported authored chart has 83 Expert heads and no hold clashes, including its carry-in note. Audio analysis still finds no confident chords in that mixed/compressed clip and does not reproduce its authored transcription. Color mapping fixes are not evidence that the missing chord voices have been recovered.
+
+Independent validation covers a distant-pitch riff, transposition, a real synthesized nine-pitch audio sequence, overlapping distinct pitches, compressed Medium holds and wide contextual chord voicings. The first three hold/color regression cases failed on the original code and passed after the fix. Existing focused pitch, chord, guide, difficulty and portable-backup checks also passed. Live-browser and physical-phone audio testing is unavailable in this environment; desktop/mobile flow adapters and the full regression remain required before publication.
+
+Final validation: full regression 479 cases — 465 passed, zero failed, 14 optional original-media cases skipped. This includes the five new fret-review cases and the actual-worker desktop/mobile Guitar upload, saved reopen, rebuild, separate-part and Whole song flows. Preview reports the new hold policy and stored Guitar analysis version 11. The private Roam recording was separately decoded and checked as described above. Syntax and whitespace checks passed. Saved imports, full public drum demos and the offline asset list are preserved.
+
+
+## Version 61 — authored community charts for future uploads
+
+### Goal and flow
+
+On each newly uploaded song, optionally search the Clone Hero community catalog before audio analysis for the selected Guitar, Bass, Drums and/or Vocals parts. Share the same path for desktop uploads, mobile Add a song, One instrument, Separate parts and Whole song. Keep the original audio local and save playable charts to the device’s setlist. Do not modify the three public demos or fetch/update existing saved songs merely because they are opened.
+
+### Acceptance contract
+
+- Online lookup defaults on, can be switched off and remembers that choice. Both upload screens offer title/artist inputs; `Artist - Title` filenames are recognized. Explain the metadata sent externally and local audio storage.
+- Require exact normalized title/artist, a valid 32-hex chart identifier, an available requested instrument and recording duration within 750 ms. Reject candidates whose lengths differ by more than 200 ms from one another. Metadata matching is not an acoustic identity guarantee; tell the player to preview timing.
+- Use ordinary public API search, with no credentials/cookies. Request only bounded SNG header/chart ranges, cap header at 512 KB and note files at 4 MB, validate tables, version, offsets, overlap, masking, download lengths, song identity, MIDI events and local audio bounds. Reject downloads that ignore Range. Never bypass CDN access blocks or fetch the package’s complete music.
+- Import supported parts independently. Guitar/Bass retain authored five-fret notes, chords and holds. Drums retain snare Red, hi-hat Yellow, tom Blue, cymbal Orange, floor tom Green, kick Purple; convert supported Pro markers explicitly and reject pad collisions. MIDI pitched lead Vocals keep pitch/onset/hold and map ordered pitches to five pads. Lyrics alone do not establish a vocal chart.
+- Preserve supplied Easy/Medium/Hard/Expert arrangements; derive only missing levels and label their origin. Preserve unaffected parts and imported provenance on same-audio reuploads. Keep source author and catalog reference for review and portable backups.
+- Download failures, missing parts, ambiguous versions, unsupported note formats and a 15-second network timeout use the existing audio estimator for only the remaining targets. Whole-song context remains enabled for those remaining targets. Do not report a failed download as a fetched chart. Cancel aborts lookup; stale jobs cannot replace the active song.
+- Keep existing update/offline save paths; cache both new reader/client scripts with game version 61. Fetched songs reopen offline from local storage without a catalog request. Explicit Rebuild remains local audio analysis and clears imported provenance for that part only.
+
+### Supported formats and limits
+
+Independently implemented from primary protocol documentation: Enchor.us API via Bridge’s search schema; SNG version 1 with absolute file offsets and per-file XOR masking; MIDI format 0/1 with PPQ, variable-length times, running status, tempo changes, note pairs and bounded event counts. `.chart` parsing is applied per instrument to keep an unsupported part from discarding other playable parts. Unsupported enhanced/SysEx open notes, standard four-lane ambiguous drums, sustained drum rolls/roll lanes, freestyle endings, unpitched vocal syllables, nonzero SMPTE offsets and disco-flip sections fall back rather than being guessed. Vocal pad play does not add microphone scoring or a lyrics display. Third-party authored colors describe their chart arrangement and are not proof of literal instrument identification in every recording.
+
+### Verification and release limits
+
+Live API search returned HTTP 201 with the expected instrument/difficulty metadata; OPTIONS preflight returned 204 with public CORS access. Ordinary CDN GET and Range requests returned HTTP 403 / Cloudflare 1010. Successful live chart downloads therefore remain unverified; the client handles this block visibly and proceeds with local analysis. Do not promise a catalog entry for every song, all four parts in every entry, exact audio identity, or universal CDN access. No physical phone/live browser was available; desktop/mobile UI coverage uses the actual game handlers with deterministic audio/DOM/storage adapters.
+
+Focused tests exercise a generated, format-valid multi-track MIDI inside a masked SNG whose chart is located after an audio payload. Verify bounded ranges, authored chords and Easy orange frets, variable tempo, every drum color, vocal pitch/hold, Pro tom/cymbal mapping, running status, identity/length mismatch, ambiguous versions, malformed catalog/container, unsupported/missing parts, HTTP 403, Range rejection, timeout, cancellation and note times outside local audio. Save via chunk storage, reopen from a fresh instance and round-trip the backup including vocal import metadata and exact local audio. Both upload UIs fetch all four parts, use workers only for missing parts, preserve unrelated imported charts, and reopen without another fetch.
+
+Final version 61 validation: 497 regression cases ran; 483 passed, zero failed, and 14 optional original-media cases were skipped. All 18 new catalog/import and desktop/mobile upload checks passed. Syntax and whitespace checks passed. Catalog HTTP/CORS access is live-verified; successful CDN downloads and physical-phone behavior remain unverified for the reasons above.
+
+
+## Version 62 — explain optional song identity
+
+Add a visible explanation immediately below Find Clone Hero community charts first in both the main upload and mobile Add a song screens: blank title/artist fields use automatic audio charting unless the filename already identifies Artist - Title. Associate each explanation with its checkbox for screen readers. Charting behavior is unchanged. Bump the offline cache and visible game version to 62 so installed copies receive the text. Verify placement, HTML parsing and existing offline/update checks; no detector changes or new regression tests are needed for this copy edit.
+
+
+## Version 63 — community difficulties and recording timing
+
+### Requirements and implemented behavior
+
+- Prefer all requested instruments before difficulty completeness. For the same unambiguous recording, rank entries with four distinct authored levels above Expert-only entries. Duplicate catalog counts and intensity ratings must not masquerade as playable difficulties.
+- Preserve supplied Easy, Medium, Hard and Expert arrangements without changing colors, chords, holds or individual timing. Missing lower levels derive from the nearest supplied higher arrangement; label their source. Missing higher levels can retain only known notes, not invent omitted attacks. Retain unaffected instruments and previous authored levels during partial import.
+- Retain MIDI time signatures, tempo changes and declared sustain cutoff metadata. Highway grid lines follow the imported instrument's retained map. No beat quantization of measured or imported note onsets.
+- Provide a per-instrument uniform timing adjustment (-2000 to +2000 ms), preview, reset, save and backup. Shift all four levels together without changing holds, lanes, local audio or other parts; reject any adjustment moving notes outside the recording. Scores for shifted timing must be separate. Preserve personal drum timing when reference upgrades are available. Keep global device calibration independent.
+- Review audible attacks with conservative uniform-shift suggestions. Require broad song coverage, a clear advantage over competing offsets, and consistent alignment across thirds. Silence, sparse evidence, drifting tempo and competing rhythmic matches must return uncertainty. Never auto-apply a suggestion or claim that onset evidence identifies the instrument.
+- Import supported `.mid` files manually as a fallback alongside `.chart`, including all supplied levels and pitched vocal pad play. Unsupported parts get a reason without discarding supported ones. No automatic refetch on saved-song opening; public demos stay intact.
+- Include the new timing module in version 63's offline asset package and retain responsive controls with at least 44 px button targets.
+
+### Validation
+
+Tests cover ranking of complete authored arrangements, requested-part priority, closest supplied derivation with no new onsets, four-level MIDI import, tempo/signature/cutoff retention, exact uniform shifts and inverse reset, bounds rejection, waveform timing evidence, uncertainty for repetition/drift/silence, and backup/export timing. Actual UI handlers are exercised for mobile and desktop imports, per-part shifts, fresh setlist reopening, review without mutation, reset, and disabling edits while preview plays. Manual MIDI uses the same matching local audio and retains other parts. Existing offline/update, detector, gameplay and setlist regressions must pass before deployment.
+
+Successful live community-note downloads and physical-phone rendering remain unverified: the CDN previously returned HTTP 403 in this environment and a browser QA capability is unavailable. Authored chart availability and timing vary by song; generated fallbacks are labeled estimates, not guaranteed copies of Clone Hero charts.
+
+Final validation: 509 regression cases ran; 495 passed, zero failed, and 14 optional original-media tests were skipped (247 seconds). The final default-signature grid fix and personal-timing reference protection also passed focused rechecks, as did six desktop/mobile import and timing UI checks. JavaScript syntax and whitespace checks passed. Browser rendering, physical-phone behavior and successful live CDN chart downloads remain unverified.
+
+
+## Version 64 — closer alignment to authored community charts
+
+### Requirements
+
+- Accept an optional matching `song.ini` alongside manual `.chart`/`.mid` imports. Use its delay once, plus any explicitly entered additional shift and the `.chart` offset. Honor declared drum layout and MIDI sustain cutoff; metadata name/artist override the `.chart` fields. Preserve authored short `.chart` holds, which do not use MIDI sustain cutoffs. Keep existing songs, source difficulties, drum/fret colors and unrelated instruments intact unless the player loads a replacement.
+- Share metadata settings resolution with community imports. Prefer packaged explicit layout over catalog layout hints. Bound INI input to 64 KB and 1000 settings; validate known numeric/boolean fields, duplicate keys, conflicting layouts and combined shift bounds. A changed metadata file invalidates the prior review before loading.
+- Improve uniform-shift estimation by ranking attack-center proximity and refining to 1 ms search increments. Check equal time windows throughout the charted span instead of equal note-count thirds. Require adequate evidence and consistent offsets across windows; reject sparse windows, beat aliases and modest systematic drift. Preserve notes without per-note snapping or automatic application.
+- Keep adjusted timing and attribution through setlist saving, fresh reopening, backup and chart export. Combined offset must not be applied again through exported metadata. Retain separate device calibration.
+- Clearly distinguish import fidelity from audio-generated estimates. Do not claim identical Clone Hero gameplay, every-song catalog coverage, instrument identification from energy peaks, perfect transcription, or millisecond accuracy on real music from synthetic fixtures.
+
+### Acceptance checks
+
+Generated format-valid fixtures verify exact positive/negative offsets, attacks/chords/colors/holds, `.chart` offset plus `song.ini` delay plus manual shift, explicit five-lane metadata when the catalog hint differs, MIDI cutoff settings, metadata precedence and export without duplicate delay. Reject malformed/oversized/conflicting settings. Timing tests verify +/-137 ms and +/-700 ms shifts within 1 ms of synthetic attack centers, repetition ambiguity, dense-intro bias, sparse sections and small tempo drift. Desktop/mobile handler tests import metadata, retain all drum colors and authored Easy frets, save/reopen without reanalysis, invalidate stale reviews and reject invalid metadata without replacing the saved chart.
+
+Primary format references checked: [song.ini Standard Tags](https://github.com/TheNathannator/GuitarGame_ChartFormats/blob/main/docs/Chart-File-Formats/song-ini/Standard-Tags.md), [MIDI 5-fret mechanics](https://github.com/TheNathannator/GuitarGame_ChartFormats/blob/main/docs/Chart-File-Formats/mid-format/Tracks/5-Fret-Guitar.md), and [.chart 5-fret mechanics](https://github.com/TheNathannator/GuitarGame_ChartFormats/blob/main/docs/Chart-File-Formats/chart-format/Tracks/5-Fret-Guitar.md). No external parser code is vendored. Public catalog availability and an exact chart-to-recording audio fingerprint are separate from format compatibility. No browser/physical-phone capability or new original song media is available; verification uses synthetic waveform/import fixtures and actual game handlers with adapters.
+
+Live recheck: catalog POST returned HTTP 201 and four Metallica / Wherever I May Roam results. An ordinary 34-byte Range request to the selected chart CDN URL returned HTTP 403. Successful live note downloads remain unverified; no blocked access workaround was attempted.
+
+Final version 64 validation: 516 regression cases ran in 243 seconds; 502 passed, zero failed, and 14 optional original-media cases were skipped. All seven new import/alignment cases passed, including both desktop and mobile metadata import/save/reopen flows. Syntax and whitespace checks passed. The per-song timing input now supports 1 ms increments to match the refined suggestion values. Live catalog search is verified; successful CDN downloads and physical-phone/browser behavior remain unverified.
+
+
+## Version 65 — find authored charts on each future upload
+
+### Requirements
+
+Keep community lookup on by default for both desktop Upload and mobile Add a song. Each upload with title/artist metadata or an Artist - Title filename searches the public catalog before local audio analysis. Keep the optional-field explanation and opt-out preference. Never claim every song or instrument has an available authored chart.
+
+Search up to three pages of 50 entries, stopping on a short or repeated page. Across the collected results, enforce the existing exact normalized title/artist, valid identifier, recording duration tolerance and recording-version ambiguity checks. Rank requested part coverage and authored difficulty completeness; deduplicate chart identifiers. Try up to four relevant matching containers, skipping entries that cannot add a missing requested part. No fuzzy cover/live/edit substitution. A failed later catalog page safely falls back rather than trusting an incomplete version comparison.
+
+Retain the first successfully imported arrangement for each part, including all its supplied difficulties, derived-level labels, colors, chords, holds, offsets and tempo map. Another matching container may supply missing or unsupported parts only; do not merge different authors' difficulties within an instrument. Keep per-instrument catalog references and source authors through save, fresh reopen and backup, alongside the legacy single reference for compatibility. Reopening a saved song must not search or replace it.
+
+Missing files, wrong packaged identity and unsupported parts may try another matching entry. Host access/rate blocks (401, 403, 429) stop further download attempts without bypassing restrictions. A 15-second timeout keeps successfully fetched parts and uses audio estimates only for the remainder. Explicit cancellation rejects the job; stale results cannot replace the active song. Requests remain bounded and chart-only; original uploaded audio stays local. Display actual fetched parts and audio fallbacks separately.
+
+### Acceptance checks and limits
+
+Generated SNG/MIDI fixtures cover retry after 404, rejected packaged identity, independent source authors and offsets, no replacement of successful authored levels, missing-part recovery, cleared stale parse errors, later-page matching and ambiguity rejection, repeated-page stopping, three-page/four-container limits, host blocks, partial success during timeout and cancellation. Round-trip distinct references/timing through chunk storage and portable backup. Exercise both actual upload UIs for per-instrument provenance, fresh setlist reopening without a fetch, and a second upload performing another lookup. Existing setlist/public demos and generated-note, playback, storage, difficulty and offline/update regressions must pass.
+
+Catalog entries are metadata matches, not acoustic fingerprints. Unsupported formats and unavailable downloads still use labeled audio estimates. Successful live CDN downloads remain unverified because ordinary requests returned HTTP 403 in this environment; no access workaround is used. No browser/physical-phone QA capability is available; UI behavior is tested with the real handlers and deterministic adapters.
+
+Final version 65 validation: all 524 regression cases ran across the catalog/upload group and the remaining test files. 510 passed, zero failed, and 14 optional original-media cases were skipped. All eight new catalog/desktop/mobile checks also passed a focused rerun after the final cancellation guard. Syntax and whitespace checks passed. Live chart downloads and browser/physical-phone rendering remain unverified; no new original audio was available. Existing saved-song opening, public demos, audio fallback, backups and offline/update behavior passed their regression checks.
+
+
+## Version 66 — independent authored drum charts, including existing uploads
+
+### Requirements and implementation
+
+Drum requests must use only MIDI PART DRUMS/PART DRUM or .chart Drums sections. Guitar-only catalog entries cannot supply drums, even when title/artist/duration match. Incorrect catalog instrument metadata cannot cause the MIDI reader to use PART GUITAR as a substitute. Retain actual authored drum hit times and all supplied difficulty arrangements, mapping supported layouts to Red snare, Yellow closed/open hi-hat, Blue tom, Orange cymbal, Green floor tom and Purple kick. Reject unsupported/ambiguous layouts rather than infer drum voices from guitar frets.
+
+Adding a missing instrument to an existing uploaded song, and Build selected/all parts, must use the same community-first lookup as uploading. Save the resolved recording title/artist with each upload. Later instrument additions use that saved identity, not stale text inputs from another upload. Per-part charts, authors, tempo maps, timing adjustments, imported difficulty labels and local audio must survive partial additions and fresh setlist reopening. Preserve original audio/ID/title/filename against replacement values from worker results.
+
+Add Find community chart for this instrument in the current-song preview on desktop and mobile. This is an explicit authored-only retry: it may replace the selected instrument on successful import, never runs the audio estimator, and retains the existing chart when nothing compatible downloads or the user cancels. The player can enter corrected title/artist in the existing upload fields for this retry. Explicit retry is allowed with automatic lookup off. Keep Rebuild this instrument from audio as a separate local estimator operation. Requests and cancellation retain the existing timeout, bounded ranges, access-block handling and recording identity checks. Saved songs do not refetch merely on opening.
+
+Remove explicit Track-number decorations from recording identity, including Hero Of The Day (Track 6) and a numbered Track prefix, without stripping Live or other recording-version qualifiers. Missing artist still requires user metadata; never infer Metallica for an unknown generic Track 6 file. Report a matching recording with no authored drums distinctly from a failed download.
+
+### Hero of the Day search and limits
+
+On 2026-10-10 the public catalog search for Metallica / Hero of the Day returned a studio-title entry by metalli3212 (262576 ms) with Expert Guitar only; a separately named Hero Of The Day (Live) entry by Youngblood (286664 ms) with Expert Pro Drums; and one unrelated mashup. No matching studio drum chart was found in that catalog search. Web search also found a full-band author release explicitly labeled the S&M live recording; it must not be applied to the studio recording. These are observed search results, not proof that no studio drum chart exists anywhere.
+
+No Hero of the Day WAV/.riffpack was available among the user's saved files for recording-specific alignment. No original Hero drum notes are added or fabricated, and no existing device-local Hero chart is claimed to have been replaced. The corrected game can attempt the selected recording itself when its audio is open. Metadata/length checks are not an acoustic fingerprint. Live CDN note downloads and physical-phone rendering remain unverified; preserve visible audio-estimate labels and manual Chart files import.
+
+### Acceptance checks
+
+Test catalog-shaped Hero studio Guitar-only versus distinctly named/longer Live Drums: request studio drums and download neither. Test Track 6 title cleanup while retaining Live. Test false catalog drum metadata with guitar-only MIDI: no drum import. Independently change guitar notes in mixed MIDI and .chart fixtures and verify the six authored drum voices/times do not change.
+
+Exercise both desktop and mobile actual handlers: add missing Drums after Guitar, preserve original audio and shifted Guitar, ignore stale upload fields, and retain drum provenance. Authored-only retry must keep all current charts on no match, import only drums on success without workers, and retain source metadata after fresh reopening. Build selected parts must find the drum track first; an explicit audio rebuild must stay local. Cancel a pending retry without chart/audio changes or a false success. Run existing gameplay, drum/fret mapping, storage, reference, whole-song, difficulty and offline/update regressions before publishing.
+
+Author source for the distinct live arrangement: [Hero of the Day — S&M full-band release](https://www.reddit.com/r/CloneHero/comments/tkguri/). The studio-only Guitar result and drum-version lengths above were obtained directly from the public catalog API; no original chart notes were downloaded or copied for this song.
+
+Final version 66 validation: 533 regression cases completed in 261 seconds; 519 passed, zero failed, and 14 optional original-media cases were skipped. All nine new catalog/import/desktop/mobile checks passed a focused run. Track-number prefix cases also passed a focused recheck. Syntax and whitespace checks passed. No physical-phone/browser QA capability or Hero original media was available; live CDN note downloads remain unverified. The Hero-specific authored replacement remains unresolved, with its existing chart retained by the retry path when no matching drums are fetched.
+
+
+## Version 67 — Authored Hero of the Day drum replacement
+
+Problem: the supplied full-band Load Track 6 drum estimate reacts to guitar/bass overlap. The conservative reviewed estimate is still unsuitable.
+
+Requirements:
+
+- Replace only Drums with the actual studio-recording Clone Hero Drums part; never use Guitar notes as fallback.
+- Preserve all accepted authored Expert pad hits and retain exact color/time identities in progressively simpler difficulties.
+- Validate recording identity and a constant alignment against the original uploaded audio.
+- Preserve original audio bytes and unrelated instrument charts and their tempo maps. Protect manual imports and timing edits.
+- Apply the verified reference to new uploads and saved generated charts on desktop and mobile, including the offline asset list.
+- Retain authored source credit and a Drums-specific variable tempo map through setlist save/reopen and backup round trips.
+- Keep the existing public demo setlist unchanged.
+
+Implementation: SingeMFRC’s authored Expert Drums, with two same-pad simultaneous source voices coalesced, supplies 1,447 heads. Lower difficulties derive from Expert (Hard 1,366; Medium 722; Easy 404). Nine waveform windows establish -0.9357823129251701 seconds of source-to-user alignment, without drift. Strict audio SHA-256 and decoded duration gate the automatic reference. The original Guitar notes and original recording remain unchanged. Source and limits are documented in `docs/hero-of-the-day-drums.md`.
+
+Acceptance: the actual audio passes desktop/mobile UI adapter upload, saved setlist, backup round trip and old-estimate automatic migration checks. Automated gameplay hits every note in all difficulties. Expert replacement is checked note-for-note against the converted source. Physical phone/browser listening remains unverified.
+
+Final version 67 checks: all nine Hero-specific cases pass, including the actual uploaded recording on both desktop and mobile adapters. The authored/import/lookup UI selection passes 38 cases (two optional original-media cases skipped). The reference regression selection passes 18 cases (four optional unrelated-media cases skipped). Syntax and whitespace checks pass. The source backing waveform agrees with the user audio at all nine checked windows. Physical-phone and browser listening remain unverified.
+
+
+## Version 68 — Preserve the authored-first workflow for future uploads
+
+Problem: a previously successful authored arrangement could be replaced by audio inference when the same recording was reuploaded and its catalog search failed or returned no part.
+
+Requirements:
+
+- Reuse existing authored Guitar, Bass, Drums and Vocals independently for the exact uploaded audio identity. Validate stored import/chart metadata and decoded duration before reuse.
+- Preserve every stored difficulty, note color/time, source/import identity, part-specific variable tempo map and manual timing adjustment.
+- Search only missing requested instruments, using the saved title/artist when new fields are blank. Accept only requested instrument results.
+- Keep source-specific parsing, authored difficulty import and preview/timing review for new recordings. Unsupported/missing parts retain clearly labeled audio estimation.
+- Preserve explicit fresh community lookup and explicit audio rebuild.
+- Retain source metadata through setlist persistence, backup export/import, fresh sessions, desktop, mobile and the offline asset package.
+- Keep current demo songs and the version 67 Hero reference intact.
+
+Implementation: `authored-chart-reuse.js` selects validated authored parts using audio SHA-256 and a 20 ms decoded-duration tolerance. The UI loads the saved song before selecting the chart source, excludes reusable instruments from lookup and estimation, and restores their timing/source metadata after the normal per-part cleanup. Estimated charts without authored import identities cannot enter this reuse path.
+
+Acceptance: 16 new reuse tests pass, including all four instruments on both desktop/mobile UI adapters, backup round trips, new sessions, missing-part lookup, another recording with the same filename, and unchanged manual timing shifts. The authored/import/community regression selection passes 45 tests with two optional unrelated-media cases skipped. Syntax and whitespace checks pass. The actual successful Hero authored backup also passes same-recording reupload on desktop/mobile adapters. Storage/offline/public-demo/actual-Hero regression checks pass 45 cases with one optional unrelated-media case skipped. Physical-phone/browser and live-catalog availability remain unverified.
+
+
+## Version 69 — Keep the requested upload instrument
+
+Problem: playback and next-upload controls shared one instrument variable. Choosing an upload part while a Guitar song was open invoked the playback rebuild path; a failure or refresh could restore Guitar as the requested upload part.
+
+Requirements:
+- Keep an explicit next-upload instrument separately from playback. Selecting an upload instrument must not rebuild, save or replace the currently open song.
+- Retain that choice across playback changes, difficulty changes, failures, viewport refreshes and future visits. Add song defaults to it. Before an explicit upload choice, playback selections may still supply the upload default.
+- Capture requested parts and title/artist synchronously when opening the audio picker. Clear that snapshot after selection or cancellation.
+- Request and import only the selected part; a Guitar-only catalog response must fall back to independent Drums analysis for a Drums upload. Preserve whole-song and selected-parts routing, authored reuse, difficulties, timing, original audio and existing setlists.
+- Ship game/offline version 69 after desktop/mobile UI-handler regressions and authored import/reuse checks pass.
+
+Verification uses deterministic DOM/audio adapters and real community MIDI/SNG parsing, including all six drum lanes. It does not substitute for a physical-phone browser check or guarantee that an audio estimate identifies every hit correctly.
+
+
+## Version 70 — Independent instrument charts
+
+Goal: Guitar, Drums, Bass and Vocals own separate chart data and instrument-specific metadata throughout analysis, import, preview, saving and backup. A job for one part must not donate notes or overwrite another part.
+
+- Reject an analysis response labeled with another instrument, or missing its requested Expert chart. Keep the old song usable and report unavailable parts in partial batches.
+- Retain only the requested part from a worker response. Deep-copy its difficulty arrays and scope imports, source credit, timing, adjustments, audio reviews, mixed-audio mode and methods to that part. Drum score-review flags remain drum-only.
+- Scope community notes and metadata together. Other parts returned by a lookup cannot change a saved chart’s source, timing or credit. Shared fallback references are taken only from an accepted part.
+- Enable the existing mixed-audio checks for any selected batch with more than one instrument, including when community lookup supplies one part and only a remaining part needs analysis. Single-part analysis keeps its existing behavior.
+- Preserve authored notes and their supplied difficulties, legitimate simultaneous or unison notes across instruments, original audio, the current setlist and the existing explicit next-upload target. Do not infer another instrument merely from equal fret colors or matching note times.
+- Include the ownership module in the offline package and ship Game version 70.
+
+Validation covers mislabeled/missing worker tracks, extra worker charts, independently owned arrays/maps, protected neighbor source/timing, whole-song and selected-part routing, all four parts through backup and fresh desktop/mobile UI sessions, and a synthesized mixed Bass/Vocal recording with independently defined pitch/time truth. Authored imports and reuse, difficulty behavior and offline storage are regression checked. Physical-device browser QA is not available in this environment. Mixed-audio analysis remains an estimate and does not guarantee true source separation or correct identification of every overlapping instrument.
+
+The dense eight-note-per-part mixed fixture retains 7 of 8 Bass events and 8 of 8 Vocal events within 65 ms, with 11 Bass and 17 Vocal estimates. Those extra estimates and the missing Bass event remain a documented detector limitation; this release prevents chart-data crossover and enables existing mixed-audio safeguards rather than claiming complete source separation.
+
+
+## Version 71 — Play every available full-song part
+
+Problem: a Whole song upload defaults to Guitar, while the existing instrument control lives above the highway and is hidden during mobile preview. All four charts can exist without an obvious choice near the upload result.
+
+Requirements:
+- Show Choose an instrument to play at the top of the song preview, with separate Guitar, Drums, Bass and Vocals buttons, selected-state accessibility and each part’s current-difficulty note count.
+- Select and play an existing part immediately without reanalysis, audio replacement, or changes to its notes. Synchronize preview summary, highway controls, source details, difficulty labels and both instrument selectors.
+- Show No chart for unavailable parts, disable their playback buttons, and explain missing analysis results. Do not replace an unavailable part with Guitar.
+- During preview, enable the highway selector for existing parts and keep it visible on mobile. Switching stops the previous source and restarts the chosen chart at the current audio position, without recording a score.
+- Lock instrument changes during scored play and pause. Return to Soundcheck to select the next chart. Preserve playback selection through normal setlist save/reopen.
+- Ship game/offline version 71.
+
+Validation exercises the visible new buttons, all four instruments at Easy/Medium/Hard/Expert with successful scored note hits, fresh setlist reopening without analysis, same-position preview switching via both controls, and an unavailable Vocal part. Desktop and mobile DOM/audio adapters are used. Existing authored import, whole-song preview/rebuild, storage/offline and ownership checks remain required. Browser rendering on a physical phone cannot be verified in this environment.
+
+
+## Version 72 — Switch existing parts from Auto Chart
+
+Problem: the reported screenshot shows Drums selected under Auto Chart while the playable highway still has Guitar selected. The next-upload control did not switch an already available Drum chart.
+
+Requirements:
+- Selecting an Auto Chart instrument also selects that part for playback when its Expert chart already exists. Use its own difficulty notes, highway colors, controls, preview and scoring. Do not reanalyze or alter existing notes/audio.
+- Retain the separate explicit next-upload target. If the current song lacks that part, set only the next-upload choice without rebuilding the old song. This refines version 69's no-save rule: selecting an existing part may persist playback selection, while selecting a missing part must leave the old song unchanged.
+- Support this choice during preview at the same audio position. Clicking an already checked upload target must also switch playback back to it after a different stage selection. Scored play and pause keep their existing locks.
+- Add song's dialog only selects the new file's requested part; it must not switch or save the old song first.
+- Preserve all four difficulties, authored chart routing, saved reuse, original audio and current setlists. Ship game/offline version 72.
+
+Validation: desktop/mobile handler tests reproduce the exact Auto Chart Drums interaction, verify a successful scored Drum hit, unchanged chart data, subsequent Drums upload routing, repeat-click switching and preview position. Add song is checked for no extra old-song save. Existing missing-part upload, failed-switch, authored reuse, separate-part ownership and offline storage regressions are checked. Physical-phone browser rendering is not available in this environment.
+
+
+## Version 73 — Authored King Nothing Drums, separate from Guitar
+
+The user identified the affected 05 Track 5 as King Nothing by Metallica from Load. The screenshot gives a 5:28 recording; community packages report 330.228 and 333.518 seconds, outside the strict automatic duration match. Existing audio estimates can respond to guitar attacks even while the stored instrument arrays are separate.
+
+Requirements:
+- Fetch and extract only the authored PART DRUMS from the Neversoft community MIDI. Bundle only chart data, source identity and tempo; no audio or Guitar/Bass/Vocal notes.
+- Provide an explicit, clearly named King Nothing Drum replacement action. Do not assume that another player’s Track 5 is King Nothing. Retain strict automatic recording matching for arbitrary uploads.
+- Replace all four Drum difficulties from the new source, without keeping estimated lower arrangements or merging other instruments. Preserve every neighboring chart, original audio, song ID and filename.
+- Save authored import and per-part tempo/source metadata so reopening and same-recording uploads keep this Drum source without reanalysis. Include all files in offline version 73.
+- Clearly distinguish an audio estimate from an authored chart. Label the chart’s padding difference and unverified timing. Provide a drums-only .chart download for manual timing adjustment through Chart files; do not silently guess a shift.
+
+Validation: source has 569/859/1154/1711 Easy/Medium/Hard/Expert notes and all six Drum lanes. Stored notes match the parsed PART DRUMS exactly. Export preserves those heads and colors within 0.1 ms. Desktop/mobile UI-handler checks replace every Drum difficulty, preserve neighboring charts/audio, reopen, reuse the source, and recover from source download failure. Exact timing against the affected user recording and physical-phone rendering are not verified because that recording’s current backup was not supplied.
+
+## Version 74 — Align the reviewed recording and make preview timing usable
+
+Requirements:
+
+- Compare the supplied recording to the authored chart package's audio across the song; correct measured padding only. Preserve every Drum note, color, arrangement and variable tempo relationship. Do not guess a tempo scale or add attacks.
+- Keep original audio bytes, neighboring Guitar/Bass/Vocals charts, song identity and all setlist entries. Provide a corrected portable backup.
+- Automatically migrate only the exact reviewed audio and unedited Neversoft source difficulties. Retain later manual adjustments; make correction idempotent and available offline. Fail closed on source download or matching failure.
+- Allow per-instrument Apply/Reset during running preview, save all difficulties and continue at the same position. Reject out-of-audio shifts without stopping preview. Lock chart edits during scored play and analysis.
+- Publish the matching offline cache and visible game version together.
+
+Acceptance checks:
+
+- Measured constant source offset -2.836281179138322 seconds; no inferred tempo drift. Detailed window evidence and limits are recorded in king-nothing-alignment.json.
+- Actual backup round-trip retains all 569/859/1154/1711 Drum notes and colors, unchanged MP3 bytes and identical neighboring charts.
+- Desktop/mobile adapters verify automatic correction/save/reopen, edited-recording guards, no double shift, and preview Apply/Reset position continuity. Existing authored source, timing, import/reuse, part-switching and offline tests must pass.
+
+Validation result: 192 scoped tests, 187 passed and 5 optional local-file fixtures skipped; no failures. Three final timing/cancellation checks also passed after the asynchronous reuse guard was added. The actual supplied backup passed audio/neighbor byte and chart comparisons. Rendering on a physical phone was not tested.
+
+## Version 75 — Independent authored guides for future instrument uploads
+
+Problem: a catalog chart may be musically correct but use different leading audio padding. The King Nothing correction must become a recording-specific workflow rather than a hardcoded universal delay. Guitar, Bass, Drums and Vocals must retain separate authored tracks.
+
+Requirements:
+
+- Try saved exact-recording authored charts first, then matching Clone Hero community charts by title and artist. Parse only each requested instrument's track. Never substitute another instrument for a missing track.
+- Preserve supplied difficulty arrangements, notes, colors, chords, pitches, holds, dynamics and variable tempo. Derive only missing arrangements from the nearest supplied difficulty; do not add attacks to fill a density target.
+- Allow exact-title/artist catalog candidates within eight seconds of the uploaded duration only when recording waveform identity verifies their timing. Compare multiple separated windows, reject competing rhythmic matches and measurable drift, and apply only a uniform base shift. The same source package may share verified recording timing, with each instrument still owning its separate notes and tempo map.
+- Use bounded temporary reference audio: eight MB per file, four files per stem group, 24 MB total per lookup, four candidate packages and a 45-second lookup deadline. Reference recordings cannot replace uploaded audio, enter exports or be added to public demos. Abort promptly on cancel and stop retries on host access/rate blocks.
+- Label verified versus unverified timing honestly. Close, otherwise unambiguous metadata matches may retain original authored timing if audio verification fails; padded/ambiguous matches may not be promoted without waveform verification. Missing/unavailable parts use labeled independent audio estimates.
+- Persist/reuse the authored source, all arrangements, part timing and recording verification on this exact audio hash. Preserve existing charts/setlist entries, and keep new behavior available on desktop, mobile and offline reopen.
+
+Acceptance: real masked-SNG range fixtures cover each separate part and whole-song imports, all four authored/derived arrangements, measured early/late shifts, unchanged note data, source ownership, alternative candidates, unsupported parts, bounds and cancellation. Desktop/mobile UI adapters must save, preview/select, back up, reopen and reuse each corrected part without reanalysis, and replacing Drums must preserve neighboring audio/charts. Validate the generic matcher against the supplied King Nothing recording without changing its existing reviewed chart. Physical device and live CDN codec/CORS behavior are verification limits.
+
+Validation result: 146 scoped checks, 143 passed and three optional local-file fixtures skipped, with no failures. This includes 11 new desktop/mobile workflow checks and 25 relevant existing upload/import checks. The generic matcher recovered the actual King Nothing source offset within 0.2 ms of the reviewed correction. No existing user chart, public demo or recording was replaced by this release.
+
+## Version 76 — Instrument evidence stays with its own chart
+
+Problem: the user reports 2x4 by Metallica following Guitar when charting other parts. Separate arrays alone do not prevent shared waveform verification or tonal audio from creating spurious Drum hits.
+
+Requirements:
+
+- Guitar, Drums, Bass and Vocals must own their MIDI/.chart notes, all difficulties, sources, timing offsets and playback. No missing part may borrow another part's track.
+- Supersede version 75's shared source-package timing: collect separate reference reviews for each requested instrument. Only a named stem for that instrument may verify or shift its arrangement; full-mix `song` media is not a part reference. Padded/ambiguous sources lacking that part's match are rejected for that part only. Close metadata matches retain unverified original timing.
+- Reject clear harmonic Bass/Guitar/Vocal attacks from estimated Drums, using independent spectrum evidence in three windows. Retain real percussion, all six playable drum colors, and measured overlapping hits. No forced density, extra note insertion or color substitution.
+- Recognize equivalent numeric song-title spellings (2x4 / 2 X 4 / 2 × 4) in search and downloaded metadata while keeping artists and live/cover recording variants distinct.
+- Opening/reusing old cross-instrument verification withdraws only misleading evidence labels. Preserve saved charts, audio, manual timing and setlist entries. Changes to old estimated notes require reupload or explicit rebuild.
+- Keep bounded reference downloads, cancellation, separate-part replacement, saved reuse, backup/export and mobile/offline behavior. Audio-only transcription remains explicitly estimated.
+
+Acceptance: real masked-container tests must refuse Guitar-only verification for the other parts, keep independent offsets, and find an own Drum MIDI for 2x4 spelling variants. Own six-color percussion and mixed overlaps must survive while harmonic-only Bass/Vocal/Guitar recordings do not generate drum charts. Desktop/mobile upload, selection, save, backup/reopen and reuse must retain each chart. Existing drum color/fill/overlap, timing, part ownership and storage checks remain required. The user's actual 2x4 recording and physical-phone browser behavior are not verified here.
+
+Version 76 release validation: 342 scoped checks, 338 passed and four optional local-file fixtures skipped, with no failures. Final DSP checks include the corrected sustained-tone guard and preserve every tested tom-fill strike. Desktop/mobile upload/rebuild, independent sources and timing, part selection, saved reuse, backup/reopen and offline update checks passed. Browser script-order checks cover both current and previously cached HTML order. No direct test of the user’s unprovided 2x4 audio or a physical phone was possible.
+
+## Version 77: supplied 2 X 4 Drum review
+
+Correct the user's actual Track 2 backup, preserve its audio and unrelated charts, and make the recording-specific result available in both mobile and desktop/offline paths. Red snare rolls must not generate phantom yellow/orange heads in the inspected isolated opening. Both rack voices must use blue; floor uses green. Existing mixed-section tom candidates require evidence from this recording's own exposed kit sounds. Do not bulk import a mismatched MIDI or a partial web score, or represent this limited review as a complete authored chart.
+
+Expert retains accepted measured heads/dynamics. Hard, Medium and Easy reduce it without inventing or shifting heads. Exact audio identity and decoded duration select the review. Saved charts migrate only if every Drum difficulty matches the supplied unedited baseline; protect authored imports, user edits and manual Drum timing. Keep other instrument objects and original audio bytes intact. No new song audio or public demo is bundled.
+
+Acceptance: actual-backup export/import retains the exact audio SHA-256; inspected opening uses only the right pad colors; all four difficulties are playable nested subsets; actual desktop/mobile upload adapters select only reviewed Drums; edit/import/timing guards block automatic replacement; worker and offline manifests include the review. Dense mix accuracy is not exhaustively validated; physical phone QA is unavailable. See docs/track-two-drums.md.
+
+## Version 78 — Community search precedes estimated recording references
+
+Problem: the known 2 X 4 audio estimate had an `authoredQuality` metadata object and was excluded from community lookup before any request was sent. The checked “Find Clone Hero community charts first” control therefore did not perform its advertised search for this recording. A manual failed search also hid the catalog reason.
+
+Requirements: only a reusable, fingerprinted saved authored chart may precede online search. Every other requested instrument, including recordings with estimated reference charts, must search when community lookup is enabled. Each part still requires its own MIDI/.chart notes and independent recording evidence. Catalog drum flags cannot turn Guitar into Drums. A missing selected part must report any other available authored parts; explicit Find must retain the current chart and avoid claiming it was regenerated. Keep setlist identity, exact audio, manual timing, cancellation, authored difficulties, mobile and offline updates.
+
+Actual recording review: the current 2 X 4 backup retains revision 2 Drums (1,876 Expert heads). Live Enchor search returns one matching package by metalli3212 (`2ea56d5c859c33c5fc608127fd40af49`). Downloaded notes.mid has Guitar, Bass and Vocals and no supported Drum track, despite a pro_drums metadata flag. The package's own named Guitar audio matches the user's recording in five separated windows, with correlations above 0.90 and a constant -3.495328798185941 s shift. The revised portable backup adds only its verified Guitar arrangement with all four authored difficulties and keeps every existing Drum difficulty and original audio byte. Bass/Vocals are not imported into this backup because their separate source audio did not verify timing. No community chart audio or new public demo is bundled with the game.
+
+Acceptance: desktop/mobile adapters exercise community-first search even with an estimated recording reference; catalog absence reports other available parts without substituting them; manual missing-part search preserves saved charts. Actual backup import replaces one setlist entry, switching selects independent Guitar/Drums, all authored Guitar levels preserve original notes plus one verified shift, and export/reopen preserve both charts. Live API OPTIONS and ranged CDN requests permit the game's public origin. Physical-phone/browser codec execution is not directly verified.
+
+Release validation: 103 scoped game checks, 100 passed and three optional recording fixtures skipped, with no failures; four additional checks using the actual revised 2 X 4 backup passed. API and CDN CORS checks succeeded, and the live Drums-only search returned the explicit missing-Drums/available-parts result. Audio transcription outside the prior bounded Drum review remains estimated.
+
+## Version 79 — Community lookup on imported backups
+
+Problem: importing a `.riffpack` restored the old estimates without consulting the enabled community-first option. A failed manual check also left the prior lookup message in exported backups, making the file's provenance misleading.
+
+Requirements: save the restored backup before searching its eligible estimated parts. Use the backup's stored identity instead of unrelated upload-form text. Import only requested matching parts and preserve exact audio, unrelated instruments, authored difficulties, reviewed Drums and personal timing. Do not reanalyze the audio or replace notes on a missing match or failed search. Retain the latest result in song metadata and future exports. An unchecked option makes no requests; opening the setlist alone does not search again. Report alternate live/version titles without using their charts for a different arrangement. Apply the same behavior to desktop, mobile and offline updates.
+
+Actual file: Track 4 stores the lookup identity Until it sleeps / Metallica and an estimated Drums arrangement (Easy 435, Medium 739, Hard 1,219, Expert 2,025). The live catalog returns only Until It Sleeps (Live) by Youngblood. No matching studio Drum chart was found in that search, so every existing head is retained and the checked backup records that distinction. Both actual-file desktop/mobile adapters preserve its audio SHA-256 ea3ae6717f43e5d5d97e681e9e54f9fb64bccaf21f0be96d4eceb3ee34fd225f, all difficulties and one setlist identity with zero analysis jobs. This fixes lookup behavior; it does not turn this file's estimated Drums into a verified authored chart. Physical-phone codec/UI testing is unavailable.
+
+Release validation: nine new backup workflow checks pass on desktop/mobile adapters, including four independent instruments, stored identity, live-version rejection, protection of authored/reviewed/manual timing, opt-out and network failure. Existing community/parser/instrument-boundary checks pass. The two actual Track 4 checks confirm note and audio preservation through import and export. Runtime syntax and whitespace checks pass; browser/physical-phone QA is not available.
+
+Broader regression run: 237 checks, 232 passed, five optional reference-file checks skipped, zero failures. Final focused lookup/import/instrument-boundary checks also passed after the manual-result persistence change; two additional full-backup checks confirm four independent community instruments on both layouts.
+
+
+## Version 91 — Automatic audio discovery and upload recording checks
+
+Title/artist search retrieves chart and bundled audio together without an upload. Preserve the version 90 same-package source selection, playable save/reopen, backups and explicit chart-only fallback when bundled audio is unavailable.
+
+All uploaded-audio community lookups require a stable match using the requested instrument’s own reference stems, including equal-duration Guitar Hero World Tour through Warriors of Rock and ordinary community candidates. No metadata-only or cross-instrument evidence may apply their notes. Reuse requires exact-recording waveform evidence or a matching same-package audio receipt; manual imports remain reusable. Missing or mismatched source audio falls back to independent charting of the original upload, retaining its bytes and neighboring parts. Existing saved songs are not replaced on open.
+
+Validation: the production matcher verified King Nothing’s Guitar Hero: Metallica mixed audio against its own four Drum stems in four separated windows at zero offset. New regressions run the real matcher and real SNG/MIDI parsers on correct, incorrect and padded waveforms; positive UI/parser fixtures explicitly mock a verified provider. Desktop/mobile UI checks use deterministic adapters, with no physical-browser claim. Audio estimates remain estimates when a suitable authored recording cannot be verified.
+
+
+## Version 92 — Creeping Death chart and audio
+
+The actual Neversoft Guitar Hero: Metallica conversion was found, but roll modifiers and two sustained cymbal notes caused the entire Drum part to be rejected, preventing audio retrieval. Accept the existing supported five-lane note heads with explicit roll windows and supported MIDI roll modifiers. Preserve authored onsets, colors, all difficulty arrangements and tempo changes; do not synthesize unprovided roll strikes or turn Drums into fretted holds. Repeated taps are allowed inside the roll after hitting its head, without more scored notes or hold credit. Display the window and explain this gameplay adaptation. Retain windows through save/reopen, backups, chart export, timing shifts and clipped practice segments. Unsupported features must report their actual part failure.
+
+Live verification: Creeping Death’s Drum arrangements contain 1,059 Easy, 1,805 Medium, 2,321 Hard and 2,786 Expert heads. Its two Expert cymbal rolls start at 390.679896 seconds and last 4.199654 seconds. The same package’s eight music stems produce a valid 35,536,532-byte, 402.908027-second stereo PCM WAV. FFmpeg supplies the test decoding adapter; physical-browser codec behavior is not claimed. Runtime and saved-song playback tests use deterministic desktop/mobile DOM/audio/storage adapters. Source stems remain temporary test data outside the published game.
+
+
+## Version 93 — Wasteland audio when Drums is missing
+
+The actual Clone Hero search returned Wasteland / 10 Years with only Guitar. It must not block its bundled full-song audio when Drums is selected. Add a bounded exact instrument query for missing parts; use exact-identity package audio independently of supported chart availability when needed. Request only known full-song music files, retain all existing host/identity/budget bounds, and stop for access/rate blocks. Independently analyze missing requested parts from validated downloaded audio, label estimates honestly, and keep authored parts’ own notes and source receipts. Do not reuse Guitar notes, import identity or verification as Drums. Save the actual playable audio and all levels, allow portable backup and offline reopen, and preserve the current song on cancellation, audio failure or complete analysis failure.
+
+Live source validation: the specific Drum query found zero authored arrangements. Zantor’s Guitar-only package supplies a valid song.opus; the production mixer with FFmpeg decoding produced a 231.973333-second, 20,460,092-byte WAV. The production Drum analyzer on that audio produced 1,450 Expert events and all easier levels, explicitly estimated. This does not claim a genuine downloaded Drum chart or measured transcription accuracy. Runtime UI verification uses desktop/mobile adapters, without a physical-browser claim.
+
+
+## Version 94 — Drum colors and source audio
+
+Future uploads must use the same exact identity, bounded Guitar Hero setlist and per-instrument Clone Hero queries as song-name additions. Prefer real authored Drum arrangements; never turn Guitar notes or Guitar audio verification into Drums. If a Drum arrangement is unavailable, verify the package’s own named percussion audio against the upload before using it as estimation input. Align only its stable constant padding, preserve original playback bytes and duration, and retain independent neighboring parts. Same-package title additions may use their own Drum stems with explicit package provenance. All estimates remain labeled; no claim that every full-band mix can be transcribed accurately.
+
+Acceptance: genuine source lookup preserves the four authored Creeping Death Drum levels and verifies all four own Drum files at zero shift. Synthetic mixed-recording regressions preserve all 36 labeled strikes, all six colors and onset timing on desktop/mobile adapters, with correct two-second source padding. Multiple stems, stereo phase cancellation, resampling, fractional shifts, clipping bounds, wrong-source refusal, source-only ownership, saves and backups remain covered. No new music is bundled, and physical-phone execution is not claimed.
+
+
+## Version 95 — Broken, Beat & Scarred audio
+
+Title-only searches recognize `and` and `&` and recover punctuation from the catalog before empty setlist/instrument queries. The selected chart package can retain bounded near-silent end padding; verify every 100 ms tail window before trimming, preserving time zero and all authored notes. Musical tails still fail recording checks. See [bundled-audio-padding.md](bundled-audio-padding.md) for the live package and validation evidence. Game version 95 and offline cache v95-1.
+
+
+## Version 96 — Four-lane community drums
+
+Clone Hero community charts use Red/Yellow/Blue/Green hand pads plus kick, while Guitar Hero games with authored Drums keep Red/Yellow/Blue/Orange/Green. Raw Standard/Pro source colors are preserved; the actual highway, controls, scoring, saved layout and exports follow the source. Verified community-stem and package-audio estimates stay explicitly estimated and use four pads. See [four-lane-drums.md](four-lane-drums.md) for source boundaries, older saved-chart limits and validation. Game version 96, offline cache v96-1.
+
+
+## Version 97 — Orion full audio and chart
+
+Orion is present in the Guitar Hero: Metallica setlist, but its 507.896-second duration was silently excluded by the eight-minute limit. Catalog lookup, imports, audio preparation, uploads, analysis and portable songs now share a fifteen-minute ceiling with the existing 80 MB cap. Bundled audio requests retain a shared bounded deadline while excluding local decode/mix time. The live game conversion and all eight music tracks were verified through playback, save, backup and reopening. See [orion-long-songs.md](orion-long-songs.md). Ship Game version 97 and offline cache v97-1.

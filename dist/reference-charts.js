@@ -8,7 +8,13 @@
   const scoreCorrections={"revision":4,"additions":[[3051,1,0.3],[4128,0,0.25],[4325,0,0.25],[4707,2,0.25],[6265,1,0.3],[7333,0,0.25],[7525,0,0.25],[7936,2,0.25],[8308,4,0.25],[9504,1,0.3],[10594,0,0.25],[11190,2,0.25],[12754,1,0.3],[14021,0,0.25],[14417,2,0.25],[40488,1,0.3],[105567,1,0.3],[105751,1,0.2],[106567,1,0.3],[106963,1,0.2],[107208,1,0.3],[107377,1,0.2],[107767,1,0.2],[108216,1,0.3],[108570,1,0.2],[108824,1,0.3],[108979,1,0.2],[109805,1,0.3],[110184,1,0.2],[110426,1,0.3],[110606,1,0.2],[111006,1,0.2],[111439,1,0.3],[112045,1,0.3],[112202,1,0.2],[113067,1,0.3],[113399,1,0.2],[113638,1,0.3],[114194,1,0.2],[114666,1,0.3],[115008,1,0.2],[115262,1,0.3],[115434,1,0.2],[116248,1,0.3],[116655,1,0.2],[116899,1,0.3],[117104,1,0.3],[117293,1,0.3],[137568,1,0.3],[139141,1,0.3],[140724,1,0.3],[142287,1,0.3]],"removals":[[3243,1],[9702,1]]};
   if(typeof importScripts==='function'&&!root.RiffRoamReference)importScripts('roam-reference.js');
   const Roam=typeof module!=='undefined'&&module.exports?require('./roam-reference.js'):root.RiffRoamReference;
+  if(typeof importScripts==='function'&&!root.RiffHeroReference)importScripts('hero-reference.js');
+  const Hero=typeof module!=='undefined'&&module.exports?require('./hero-reference.js'):root.RiffHeroReference;
+  if(typeof importScripts==='function'&&!root.RiffTrackTwoReference)importScripts('track-two-reference.js');
+  const TrackTwo=typeof module!=='undefined'&&module.exports?require('./track-two-reference.js'):root.RiffTrackTwoReference;
   function match(audioId,duration){
+    const trackTwo=TrackTwo?.match(audioId,duration);if(trackTwo)return trackTwo;
+    const hero=Hero?.match(audioId,duration);if(hero)return hero;
     const roam=Roam?.match(audioId,duration);if(roam)return roam;
     if(audioId!==chart.audioId||!Number.isFinite(duration)||Math.abs(duration-chart.duration)>.02)return null;
     const fromHits=hits=>hits.map(([ms,lane,strength])=>({time:ms/1000,lane,strength}));

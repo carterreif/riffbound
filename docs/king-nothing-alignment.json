@@ -1,0 +1,220 @@
+{
+  "recordingSha256": "29095952ed5badc3d13ea508d3e2c817b77fcce5c399d2dd49d26f766a070c59",
+  "sourceMidiSha256": "8f355a693174847f32b07ecd34887674dfbf18980a6eced8244689df93644dfa",
+  "sampleRate": 22050,
+  "decodedDuration": 328.0718367346939,
+  "appliedSourceOffsetSeconds": -2.836281179138322,
+  "existingManualAdjustmentMs": -50,
+  "additionalShiftSeconds": -2.786281179138322,
+  "waveformWindows": [
+    {
+      "stem": "guitar",
+      "points": [
+        {
+          "time": 15,
+          "shift": -2.837551020408163,
+          "correlation": 0.3707974513943434
+        },
+        {
+          "time": 45,
+          "shift": -2.836281179138322,
+          "correlation": 0.5181729649620035
+        },
+        {
+          "time": 80,
+          "shift": -2.836281179138322,
+          "correlation": 0.2865047088368197
+        },
+        {
+          "time": 110,
+          "shift": -2.836281179138322,
+          "correlation": 0.2839382963634995
+        },
+        {
+          "time": 150,
+          "shift": -2.836235827664399,
+          "correlation": 0.20435743574977755
+        },
+        {
+          "time": 190,
+          "shift": -2.834875283446712,
+          "correlation": 0.124900557123836
+        },
+        {
+          "time": 230,
+          "shift": -2.836281179138322,
+          "correlation": 0.0855817456520082
+        },
+        {
+          "time": 270,
+          "shift": -2.836326530612245,
+          "correlation": 0.28967758676249716
+        },
+        {
+          "time": 305,
+          "shift": -2.836281179138322,
+          "correlation": 0.20573377960754102
+        }
+      ]
+    },
+    {
+      "stem": "drums_1",
+      "points": [
+        {
+          "time": 15,
+          "shift": -3.0,
+          "correlation": 0.0
+        },
+        {
+          "time": 45,
+          "shift": -2.82984126984127,
+          "correlation": 0.2570561723197835
+        },
+        {
+          "time": 80,
+          "shift": -2.829659863945578,
+          "correlation": 0.2650083554634606
+        },
+        {
+          "time": 110,
+          "shift": -2.82984126984127,
+          "correlation": 0.1883931676413898
+        },
+        {
+          "time": 150,
+          "shift": -2.8301133786848074,
+          "correlation": 0.1899662820662436
+        },
+        {
+          "time": 190,
+          "shift": -2.829614512471655,
+          "correlation": 0.21941308851308566
+        },
+        {
+          "time": 230,
+          "shift": -2.8298866213151928,
+          "correlation": 0.2605520564163374
+        },
+        {
+          "time": 270,
+          "shift": -2.8301133786848074,
+          "correlation": 0.13957590227412384
+        },
+        {
+          "time": 305,
+          "shift": -2.8298866213151928,
+          "correlation": 0.18524938680944672
+        }
+      ]
+    }
+  ],
+  "percussionEnvelopeWindows": [
+    {
+      "band": [
+        50,
+        150
+      ],
+      "points": [
+        {
+          "time": 5,
+          "shift": -2.8355555555555556,
+          "correlation": 0.2636494364248611
+        },
+        {
+          "time": 20,
+          "shift": -2.6370068027210887,
+          "correlation": 0.23315483578011598
+        },
+        {
+          "time": 50,
+          "shift": -2.8355555555555556,
+          "correlation": 0.331976542102446
+        },
+        {
+          "time": 90,
+          "shift": -2.8355555555555556,
+          "correlation": 0.4097347653127391
+        },
+        {
+          "time": 130,
+          "shift": -2.8355555555555556,
+          "correlation": 0.36003370129708695
+        },
+        {
+          "time": 170,
+          "shift": -2.8355555555555556,
+          "correlation": 0.40203698153114475
+        },
+        {
+          "time": 210,
+          "shift": -2.8355555555555556,
+          "correlation": 0.3834223353175407
+        },
+        {
+          "time": 250,
+          "shift": -2.8355555555555556,
+          "correlation": 0.3710867533918114
+        },
+        {
+          "time": 290,
+          "shift": -2.8355555555555556,
+          "correlation": 0.20395144486446792
+        }
+      ]
+    },
+    {
+      "band": [
+        1000,
+        8000
+      ],
+      "points": [
+        {
+          "time": 5,
+          "shift": -2.7457596371882085,
+          "correlation": 0.13633823868625214
+        },
+        {
+          "time": 20,
+          "shift": -2.8036281179138323,
+          "correlation": 0.15406085267433678
+        },
+        {
+          "time": 50,
+          "shift": -2.8355555555555556,
+          "correlation": 0.309784975679161
+        },
+        {
+          "time": 90,
+          "shift": -2.8355555555555556,
+          "correlation": 0.2421688573193008
+        },
+        {
+          "time": 130,
+          "shift": -2.8355555555555556,
+          "correlation": 0.2499581982542996
+        },
+        {
+          "time": 170,
+          "shift": -2.8365532879818596,
+          "correlation": 0.21769395039030953
+        },
+        {
+          "time": 210,
+          "shift": -2.8355555555555556,
+          "correlation": 0.25834915143023607
+        },
+        {
+          "time": 250,
+          "shift": -2.8355555555555556,
+          "correlation": 0.25057953585545856
+        },
+        {
+          "time": 290,
+          "shift": -2.8355555555555556,
+          "correlation": 0.13578188435234642
+        }
+      ]
+    }
+  ],
+  "limitations": "Source stems and uploaded master are different mixes; matches have moderate correlation. Alignment corrects uniform padding, not authored per-hit musical timing."
+}

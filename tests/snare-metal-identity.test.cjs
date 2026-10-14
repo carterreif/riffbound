@@ -10,7 +10,7 @@ function check(f,r){
   }
   for(const level of ['hard','medium','easy'])for(const n of r.charts.drums[level])
     assert.ok(expert.some(e=>e.lane===n.lane&&e.time===n.time),'Difficulty keeps the corrected voice and onset');
-  assert.equal(r.chartVersion,25);
+  assert.equal(r.chartVersion,26);
 }
 for(const bars of [6,16])for(const seed of [481,907,2611])for(const decay of [4,7,10])
   test(`${bars>6?'adaptive':'direct'} snare/open-hat overlap ${seed}/${decay}: red and yellow, no invented orange`,()=>{

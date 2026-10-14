@@ -160,3 +160,18 @@
 .backup-download{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:12px 18px;border:1px solid var(--acid);border-radius:4px;background:#263019;color:var(--acid);font-weight:700;text-decoration:none}#backupDialog a:focus-visible{outline:3px solid var(--acid);outline-offset:3px}#backupFileInfo,#backupStatus{overflow-wrap:anywhere}#backupStatus{color:#d5e6b5}
 
 .backup-save-page{max-width:680px;margin:clamp(24px,8vh,80px) auto;padding:24px;color:var(--ink)}.backup-save-page h1{font-size:clamp(28px,6vw,48px);line-height:1.1}.backup-save-page p{line-height:1.6;overflow-wrap:anywhere}.backup-save-page .secondary{color:#a8b49d}.backup-save-page a:focus-visible{outline:3px solid var(--acid);outline-offset:3px}
+
+/* Authored-chart matching controls, shared by phone and desktop. */
+.community-option{display:flex;align-items:center;gap:10px;margin:16px 0;color:var(--text,#eee);font-size:14px}.community-option input{width:18px;height:18px;flex:0 0 auto;accent-color:#dfff54}.song-identity{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.song-identity label{font-size:13px;color:#b5bbc1}.song-identity input{display:block;box-sizing:border-box;width:100%;min-width:0;padding:12px;margin-top:6px;border:1px solid #363c42;background:#15191d;color:#eee;border-radius:5px;font:inherit}.song-identity input:focus-visible{outline:2px solid #dfff54;outline-offset:2px}@media(max-width:480px){.song-identity{grid-template-columns:1fr}}
+
+#songTimingTools { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #ffffff20; }
+#songChartShift { width: 8rem; max-width: 100%; margin: .5rem 0; padding: .65rem; color: inherit; background: #15191d; border: 1px solid #ffffff30; border-radius: 5px; font: inherit; }
+#songTimingTools .tool-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+#songTimingTools .tool-actions button { min-height: 44px; }
+
+/* Available song parts sit beside the preview, before the highway. */
+.play-parts{padding:14px 0 18px;border-bottom:1px solid var(--line);margin-bottom:18px}.play-parts h3{font-size:16px;margin:0 0 12px}.play-part-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.play-part-grid button{min-height:58px;padding:10px 6px;border:1px solid #454d38;border-radius:5px;background:#141910;color:#d9dfcd;font-weight:700;text-align:center}.play-part-grid small{display:block;margin-top:6px;font-size:11px;font-weight:400;color:#aab49b}.play-part-grid button[aria-pressed=true]{border-color:var(--acid);background:#263214;color:var(--acid)}.play-part-grid button[aria-pressed=true] small{color:#d0dea1}.play-parts p{font-size:13px;line-height:1.5;color:#bdc8ac}
+@media(max-width:850px),(pointer:coarse) and (max-width:1180px){.mobile-session.previewing #instrumentGroup{display:flex;width:100%}.mobile-session.previewing .stage-top{flex-wrap:wrap}.mobile-session.previewing .instrument-picker label>span{justify-content:center;min-height:44px;padding:7px 5px}}
+
+/* Four source pads occupy the entire highway; the fifth control is absent. */
+.four-lane-drums .fret{width:25%;flex:1}.four-lane-drums .drum-labels span{width:25%;flex:1}.four-lane-drums .fret[hidden],.four-lane-drums .drum-labels span[hidden]{display:none}

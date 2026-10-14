@@ -1,0 +1,17 @@
+# Drum rolls and chart/audio discovery — version 92
+
+Creeping Death was found in the Guitar Hero: Metallica setlist, but its MIDI roll modifier and two sustained cymbal notes rejected the whole Drum part. Because chart acceptance precedes audio retrieval, the song's existing music stems were never reached.
+
+Five-lane MIDI and `.chart` drum sustains now keep their authored start hit and a separate `rollDuration` in seconds. Drum `duration` remains zero, with no pitched notes or fretted holds. MIDI modifiers 126/127 apply only to their applicable charted hand lanes, normally Expert, and also Hard for marker velocities 41–50. Single-lane markers use the first non-chord hand note to identify the lane; two-lane markers use the first two distinct hand lanes. Kicks are excluded from these modifiers, while explicit five-lane kick sustains are supported. Markers alone never create hits. Long Pro drum notes, ambiguous colors, freestyle endings and unsupported chart features retain their rejection rules.
+
+Roll windows follow the source tempo map, including changes inside a roll. On the highway, a colored ribbon marks the interval. Tap its authored heads normally; extra taps in that lane after a successful head are allowed until the window ends. Extra taps produce ROLL feedback but do not change hit counts, accuracy, score, energy or charge. Holding the pad does not earn points. Other lanes and taps after the roll keep normal off-beat rules. This is Riffbound's roll adaptation; it does not recreate every Guitar Hero or Rock Band roll mechanic or add estimated strikes.
+
+The interval survives all supplied difficulties, derived levels, setlist saves, fresh reopen, riffpack backups and `.chart` export/import. Audio bounds include the roll end; manual timing shifts validate both ends, and practice clips windows at its end. Unsupported parts now expose their parser failure in search results and attempts, instead of only saying that parts are missing.
+
+Audio continues to come from the same accepted chart package. Eight live Creeping Death music stems (backing, Guitar, Bass, Vocals and four Drums) produced a valid 402.908027-second, 35,536,532-byte stereo PCM WAV with the production mixer and FFmpeg decoding adapter. No commercial recording is added to the deployed game. Actual source MIDI retains 1,059 Easy, 1,805 Medium, 2,321 Hard and 2,786 Expert Drum heads; only the two Expert heads at 390.679896 seconds have the 4.199654-second roll interval in this conversion.
+
+Release checks: all 11 new roll tests pass. The affected 150-test suite passed 147 checks with three optional recording fixtures skipped; final roll/offline/update checks passed 44 of 45 with one optional WAV fixture skipped. Runtime syntax, local assets, unique HTML IDs and whitespace checks pass. The actual-source mobile UI adapter saved the same full WAV as the live mixer, enabled playback and previewed the 402.908-second audio with both roll intervals retained.
+
+Regression coverage uses real parsers and the production mixer with synthetic audio, plus deterministic desktop/mobile UI/storage adapters. It covers all levels, tempo changes, modifier ownership, repeat tapping, wrong-lane/end rejection, no hold credit, bounds, portable export, automatic audio discovery, playback and fresh reopen. Physical-browser/phone execution is not claimed.
+
+Format reference: [Guitar Game Chart Formats — MIDI Drums](https://thenathannator.github.io/GuitarGame_ChartFormats/Chart-File-Formats/mid-format/Tracks/Drums/).

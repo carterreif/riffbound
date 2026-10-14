@@ -4,10 +4,10 @@ const E=require('../dist/engine.js');
 const html=fs.readFileSync(require.resolve('../dist/index.html'),'utf8');
 const game=fs.readFileSync(require.resolve('../dist/game.js'),'utf8');
 const workerCode=fs.readFileSync(require.resolve('../dist/autochart.js'),'utf8');
-function setup({mobile=false,chartFixture=null,chartResultExtras={},chartFailures={},preferences={},savedSongs=new Map(),storageFailure=false,libraryOverrides={},audioSamples=null,uploadBytes=null,resumeStorage=new Map(),browserOverrides={},urlApi=URL}={}){
-  const lines=[],noop=()=>{},gradient={addColorStop:noop},context=new Proxy({createLinearGradient:()=>gradient,createRadialGradient:()=>gradient,lineTo:(x,y)=>lines.push([x,y])},{get:(o,k)=>o[k]??noop});
+function setup({mobile=false,chartFixture=null,chartResultExtras={},chartFailures={},workerResult=null,preferences={},savedSongs=new Map(),storageFailure=false,libraryOverrides={},audioSamples=null,uploadBytes=null,resumeStorage=new Map(),browserOverrides={},urlApi=URL,referenceDecoder=null,missingControls=[]}={}){
+  const lines=[],translations=[],noop=()=>{},gradient={addColorStop:noop},context=new Proxy({createLinearGradient:()=>gradient,createRadialGradient:()=>gradient,lineTo:(x,y)=>lines.push([x,y]),translate:(x,y)=>translations.push([x,y])},{get:(o,k)=>o[k]??noop});
   class Element{
-    constructor(id=''){this.id=id;this.listeners={};this.style={setProperty:noop};this.dataset={};this.value='';this.textContent='';this.innerHTML='';this.open=false;this.disabled=false;this.hidden=false;this.children=[];this.classes=new Set();this.classList={add:(...v)=>v.forEach(s=>this.classes.add(s)),remove:(...v)=>v.forEach(s=>this.classes.delete(s)),contains:s=>this.classes.has(s),toggle:(s,on)=>{if(on??!this.classes.has(s))this.classes.add(s);else this.classes.delete(s);}};}
+    constructor(id=''){this.id=id;this.listeners={};this.style={setProperty(key,value){this[key]=value;}};this.dataset={};this.value='';this.textContent='';this.innerHTML='';this.open=false;this.disabled=false;this.hidden=false;this.children=[];this.classes=new Set();this.classList={add:(...v)=>v.forEach(s=>this.classes.add(s)),remove:(...v)=>v.forEach(s=>this.classes.delete(s)),contains:s=>this.classes.has(s),toggle:(s,on)=>{if(on??!this.classes.has(s))this.classes.add(s);else this.classes.delete(s);}};}
     addEventListener(type,fn){(this.listeners[type]??=[]).push(fn);}
     emit(type,event={}){return Promise.all((this.listeners[type]||[]).map(fn=>fn({target:this,currentTarget:this,preventDefault:noop,...event})));}
     click(){this.clicked=true;return this.emit('click');}blur(){}setAttribute(key,value){this[key]=value;}querySelectorAll(){return this.children;}append(...children){this.children.push(...children);}replaceChildren(...children){this.children=children;}remove(){}
@@ -20,34 +20,35 @@ function setup({mobile=false,chartFixture=null,chartResultExtras={},chartFailure
   nodes.drumLabels.children=Array.from({length:5},()=>new Element());nodes.driveBars.children=Array.from({length:8},()=>new Element());
   const frets=Array.from({length:5},(_,i)=>{const b=new Button();b.dataset.lane=String(i);return b;}),smalls=Array.from({length:4},()=>new Element());
   const radios=Object.fromEntries(Object.entries({difficulty:['easy','medium','hard','expert'],mode:['tap','strum'],instrument:['guitar','drums','bass','vocals'],chartTarget:['guitar','drums','bass','vocals']}).map(([name,values])=>[name,values.map(value=>{const n=new Input();n.value=value;return n;})]));
-  const document={body:new Element(),hidden:false,listeners:{},createElement:tag=>tag==='button'?new Button():new Element(),getElementById:id=>{assert.ok(nodes[id],`Missing DOM id ${id}`);return nodes[id];},querySelectorAll:selector=>selector==='[data-lane]'?frets:selector==='.difficulty-row small'?smalls:selector==='[data-close]'?[]:radios[selector.match(/input\[name=(\w+)\]/)?.[1]]||[],addEventListener(type,fn){(this.listeners[type]??=[]).push(fn);}};
+  const document={body:new Element(),hidden:false,listeners:{},createElement:tag=>tag==='button'?new Button():new Element(),getElementById:id=>{if(missingControls.includes(id))return null;assert.ok(nodes[id],`Missing DOM id ${id}`);return nodes[id];},querySelectorAll:selector=>selector==='[data-lane]'?frets:selector==='.difficulty-row small'?smalls:selector==='[data-close]'?[]:radios[selector.match(/input\[name=(\w+)\]/)?.[1]]||[],addEventListener(type,fn){(this.listeners[type]??=[]).push(fn);}};
   const sampleRate=22050,samples=audioSamples||new Float32Array(sampleRate*16);let seed=91;
   if(!audioSamples)for(let time=.5;time<15.5;time+=.25)for(let i=0;i<sampleRate*.12;i++){seed=(Math.imul(seed,1664525)+1013904223)>>>0;const t=i/sampleRate;samples[Math.round(time*sampleRate)+i]+=(Math.sin(2*Math.PI*(220+time*13)*t)*.4+(seed/2147483648-1)*.15)*Math.exp(-t*40);}
   const buffer={sampleRate,numberOfChannels:1,length:samples.length,duration:samples.length/sampleRate,getChannelData:()=>samples};
-  const sources=[],writes=[],requests=[],requestIds=[];let decodes=0,audio=null,deferDecode=null,raf=null;
+  const sources=[],writes=[],requests=[],requestIds=[],requestModes=[];let decodes=0,audio=null,deferDecode=null,raf=null;
   const makeNode=()=>({connect:noop,disconnect:noop,start:noop,stop:noop,playbackRate:{value:1},frequency:{value:0},gain:{value:0,setValueAtTime:noop,exponentialRampToValueAtTime:noop,setTargetAtTime:noop}});
   class AudioContext{
     constructor(){audio=this;this.currentTime=0;this.sampleRate=sampleRate;this.destination={};this.state='suspended';}
     createGain(){return makeNode();}createOscillator(){return makeNode();}
+    createBuffer(channels,length,rate){const data=Array.from({length:channels},()=>new Float32Array(length));return {sampleRate:rate,length,duration:length/rate,numberOfChannels:channels,getChannelData:index=>data[index]};}
     createBufferSource(){const node=makeNode();node.start=(when,offset)=>{node.when=when;node.offset=offset;};node.stop=()=>node.stopped=true;sources.push(node);return node;}
-    async decodeAudioData(bytes){decodes++;const firstByte=new Uint8Array(bytes)[0];structuredClone(bytes,{transfer:[bytes]});if(firstByte===0)throw Error('codec');if(deferDecode)return new Promise(resolve=>{deferDecode.resolve=()=>resolve(buffer);});return buffer;}
+    async decodeAudioData(bytes){decodes++;const firstByte=new Uint8Array(bytes)[0],reference=referenceDecoder?.(new Uint8Array(bytes));structuredClone(bytes,{transfer:[bytes]});if(reference)return reference;if(firstByte===0)throw Error('codec');if(deferDecode)return new Promise(resolve=>{deferDecode.resolve=()=>resolve(buffer);});return buffer;}
     async resume(){this.state='running';}async suspend(){this.state='suspended';}
   }
   class OfflineAudioContext{createBufferSource(){return makeNode();}createChannelSplitter(){return makeNode();}async startRendering(){return buffer;}}
   class Worker{
-    constructor(path){assert.equal(path,'autochart.js');this.dead=false;if(chartFixture)return;const sandbox={Math,Float32Array,postMessage:data=>{if(!this.dead)this.onmessage?.({data});}};sandbox.self=sandbox;vm.createContext(sandbox);sandbox.importScripts=path=>{assert.ok(['drum-separation.js','roam-reference.js','reference-charts.js','chart-difficulties.js'].includes(path));vm.runInContext(fs.readFileSync(require.resolve('../dist/'+path),'utf8'),sandbox);};vm.runInContext(workerCode,sandbox);this.sandbox=sandbox;}
-    postMessage(data){requests.push(data.instrument);requestIds.push(data.audioId);setImmediate(()=>{if(this.dead)return;if(chartFailures[data.instrument]){this.onmessage({data:{type:'error',message:chartFailures[data.instrument]}});return;}const fixture=typeof chartFixture==='function'?chartFixture(data.instrument):chartFixture;if(chartFixture)this.onmessage({data:{type:'complete',result:{...(typeof chartResultExtras==='function'?chartResultExtras(data.instrument):chartResultExtras),charts:{[data.instrument]:Array.isArray(fixture)?{easy:fixture,normal:fixture,expert:fixture}:fixture},waveform:[0,.5,1,.5],bpm:120,beat:.5}}});else this.sandbox.onmessage({data});});}terminate(){this.dead=true;}
+    constructor(path){assert.equal(path,'autochart.js');this.dead=false;if(chartFixture)return;const sandbox={Math,Float32Array,postMessage:data=>{if(!this.dead)this.onmessage?.({data});}};sandbox.self=sandbox;vm.createContext(sandbox);sandbox.importScripts=path=>{assert.ok(['drum-separation.js','hero-reference.js','track-two-reference.js','roam-reference.js','reference-charts.js','chart-difficulties.js'].includes(path));vm.runInContext(fs.readFileSync(require.resolve('../dist/'+path),'utf8'),sandbox);};vm.runInContext(workerCode,sandbox);this.sandbox=sandbox;}
+    postMessage(data){requests.push(data.instrument);requestIds.push(data.audioId);requestModes.push(data.wholeSong===true);setImmediate(()=>{if(this.dead)return;if(workerResult){this.onmessage({data:{type:'complete',result:workerResult(data.instrument)}});return;}if(chartFailures[data.instrument]){this.onmessage({data:{type:'error',message:chartFailures[data.instrument]}});return;}const fixture=typeof chartFixture==='function'?chartFixture(data.instrument):chartFixture;if(chartFixture)this.onmessage({data:{type:'complete',result:{...(typeof chartResultExtras==='function'?chartResultExtras(data.instrument):chartResultExtras),charts:{[data.instrument]:Array.isArray(fixture)?{easy:fixture,normal:fixture,expert:fixture}:fixture},waveform:[0,.5,1,.5],bpm:120,beat:.5}}});else this.sandbox.onmessage({data});});}terminate(){this.dead=true;}
   }
   const libraryCode=require('../dist/song-library.js'),library={...libraryCode,list:async()=>[...savedSongs.values()],get:async id=>savedSongs.get(id),save:async song=>{if(storageFailure)throw Error('Quota exceeded');savedSongs.set(song.id,{...libraryCode.metadata(song),audioBlob:song.audioBlob});},remove:async id=>savedSongs.delete(id),...libraryOverrides};
-  const window={RiffReferenceUpdates:require('../dist/reference-updates.js'),RiffEngine:E,RiffChartExchange:require('../dist/chart-exchange.js'),RiffPlayback:require('../dist/playback-tools.js'),RiffLibrary:library,RiffMotion:require('../dist/performance-motion.js'),RiffAudioClock:require('../dist/audio-clock.js'),RiffStage:{create:()=>({resize:noop,draw:noop})},AudioContext,OfflineAudioContext,Worker,matchMedia:q=>({matches:mobile&&!q.includes('reduced-motion')}),devicePixelRatio:1,location:{origin:'https://riffbound.example'},addEventListener:noop,removeEventListener:noop,...browserOverrides};
+  const window={RiffSongAudio:require('../dist/song-audio.js'),RiffPartCharts:require('../dist/part-charts.js'),RiffAuthoredReuse:require('../dist/authored-chart-reuse.js'),RiffReferenceCharts:require('../dist/reference-charts.js'),RiffReferenceUpdates:require('../dist/reference-updates.js'),RiffEngine:E,RiffChartExchange:require('../dist/chart-exchange.js'),RiffMidiChart:require('../dist/midi-chart.js'),RiffChartTiming:require('../dist/chart-timing.js'),RiffPlayback:require('../dist/playback-tools.js'),RiffLibrary:library,RiffMotion:require('../dist/performance-motion.js'),RiffAudioClock:require('../dist/audio-clock.js'),RiffStage:{create:()=>({resize:noop,draw:noop})},AudioContext,OfflineAudioContext,Worker,matchMedia:q=>({matches:mobile&&!q.includes('reduced-motion')}),devicePixelRatio:1,location:{origin:'https://riffbound.example'},addEventListener:noop,removeEventListener:noop,...browserOverrides};
   let resize=()=>{};
   let calibrationTimer=null;
-  const sandbox={window,document,sessionStorage:{getItem:key=>resumeStorage.get(key)||null,setItem:(key,value)=>resumeStorage.set(key,value),removeItem:key=>resumeStorage.delete(key)},Worker,Blob,URL:urlApi,TextEncoder,performance:{now:()=>(audio?.currentTime||0)*1000},crypto:webcrypto,Float32Array,Uint8Array,HTMLInputElement:Input,HTMLButtonElement:Button,ResizeObserver:class{constructor(fn){resize=fn;}observe(){}},getComputedStyle:()=>({height:'58px',columnGap:'4px'}),localStorage:{getItem:key=>key==='riffbound-preferences-v1'?JSON.stringify(preferences):null,setItem:(...args)=>writes.push(args)},requestAnimationFrame:fn=>{raf=fn;},setTimeout:(fn,delay)=>{if(delay===6750){calibrationTimer=fn;return -1;}return setTimeout(fn,delay);},clearTimeout};
+  const sandbox={window,document,sessionStorage:{getItem:key=>resumeStorage.get(key)||null,setItem:(key,value)=>resumeStorage.set(key,value),removeItem:key=>resumeStorage.delete(key)},Worker,Blob,URL:urlApi,TextEncoder,AbortController,performance:{now:()=>(audio?.currentTime||0)*1000},crypto:webcrypto,Float32Array,Uint8Array,HTMLInputElement:Input,HTMLButtonElement:Button,ResizeObserver:class{constructor(fn){resize=fn;}observe(){}},getComputedStyle:()=>({height:'58px',columnGap:'4px'}),localStorage:{getItem:key=>key==='riffbound-preferences-v1'?JSON.stringify(preferences):null,setItem:(...args)=>writes.push(args)},requestAnimationFrame:fn=>{raf=fn;},setTimeout:(fn,delay)=>{if(delay===6750){calibrationTimer=fn;return -1;}return setTimeout(fn,delay);},clearTimeout};
   vm.createContext(sandbox);vm.runInContext(game,sandbox);
   const upload=async(name='My original.wav',flag=1)=>{nodes.songFile.files=[{name,size:uploadBytes?.length||100,arrayBuffer:async()=>new Uint8Array(uploadBytes||[flag,1,2,3]).buffer}];await nodes.songFile.emit('change');};
   const tick=t=>{audio.currentTime=t;raf(t*1000);};
   const key=async(type,code,options={})=>Promise.all((document.listeners[type]||[]).map(fn=>fn({code,repeat:false,target:document.body,preventDefault:noop,...options})));
-  return {updateSafety:window.RiffUpdateSafety,resumeStorage,nodes,radios,frets,smalls,sources,writes,requests,requestIds,savedSongs,runCalibrationTimer:()=>calibrationTimer?.(),body:document.body,lines,key,resize:()=>resize(),get decodes(){return decodes;},upload,tick,get audio(){return audio;},defer:()=>{deferDecode={};return deferDecode;},clearDefer:()=>{deferDecode=null;}};
+  return {updateSafety:window.RiffUpdateSafety,resumeStorage,nodes,radios,frets,smalls,sources,writes,requests,requestIds,requestModes,savedSongs,runCalibrationTimer:()=>calibrationTimer?.(),body:document.body,lines,translations,key,resize:()=>resize(),get decodes(){return decodes;},upload,tick,get audio(){return audio;},defer:()=>{deferDecode={};return deferDecode;},clearDefer:()=>{deferDecode=null;}};
 }
 const settle=()=>new Promise(resolve=>setImmediate(resolve));
 async function until(predicate){
@@ -157,6 +158,51 @@ for(const [instrument,index] of [['guitar',0],['bass',2],['vocals',3]])test(`mob
   const rebuilt=await storage.library.get(id);assert.deepEqual(rebuilt.charts,record.charts);assert.deepEqual(rebuilt.quality.audioReviews,record.quality.audioReviews);
 });
 
+for(const mobile of [false,true])test(`${mobile?'mobile':'desktop'} Guitar upload preserves independent chords and tails through preview, save, reopen and rebuild`,async()=>{
+  const f=require('./fixtures/guitar-chords.cjs').recording(),storage=require('./helpers/song-storage.cjs').storage({rejectBlobs:true});
+  const app=setup({mobile,audioSamples:f.samples,libraryOverrides:storage.library});
+  await app.radios.instrument[0].emit('change');await app.radios.difficulty[3].emit('change');await app.upload('Guitar chord test.wav');
+  await until(()=>app.nodes.saveStatus.textContent.includes('Added to your setlist'));
+  const id=(await storage.library.list())[0].id,record=await storage.library.get(id);
+  assert.equal(record.charts.guitar.expert.length,f.truth.length);assert.equal(record.quality.audioReviews.guitar.chordAttacks,4);
+  assert.equal(record.charts.guitar.expert.filter(n=>n.time<.55&&n.duration>2.5).length,2);
+  assert.match(app.nodes.chartDetails.textContent,/4 measured chord attacks/);
+  await app.nodes.previewButton.click();await until(()=>app.nodes.previewButton.textContent.includes('Stop'));await app.nodes.previewButton.click();
+  const fresh=setup({mobile,audioSamples:f.samples,libraryOverrides:storage.fresh()});
+  await until(()=>fresh.nodes.setlistEntries.children.length===2);await fresh.nodes.setlistEntries.children[1].click();await fresh.radios.difficulty[3].emit('change');
+  assert.deepEqual(fresh.requests,[]);assert.deepEqual((await storage.library.get(id)).charts,record.charts);
+  await fresh.nodes.rechartButton.click();await until(()=>fresh.nodes.saveStatus.textContent.includes('Added to your setlist'));
+  assert.deepEqual(fresh.requests,['guitar']);assert.deepEqual((await storage.library.get(id)).charts,record.charts);
+});
+
+for(const mobile of [false,true])test(`${mobile?'mobile':'desktop'} every Guitar upload uses the guide review and retains it after reopen/rebuild`,async()=>{
+  const f=require('./fixtures/guitar-chords.cjs').overlapping({quiet:true}),storage=require('./helpers/song-storage.cjs').storage({rejectBlobs:true});
+  const app=setup({mobile,audioSamples:f.samples,libraryOverrides:storage.library});
+  await app.radios.instrument[0].emit('change');await app.radios.difficulty[3].emit('change');await app.upload('Different guitar recording.wav');
+  await until(()=>app.nodes.saveStatus.textContent.includes('Added to your setlist'));
+  const id=(await storage.library.list())[0].id,record=await storage.library.get(id);
+  assert.equal(record.charts.guitar.expert.length,f.truth.length);assert.equal(record.chartVersion,11);
+  assert.equal(record.quality.audioReviews.guitar.fretPolicy,'ordered-distinct-pitch-groups-v2');
+  assert.match(app.nodes.chartMapping.textContent,/hold ends before another note reuses that fret/);
+  assert.equal(record.quality.audioReviews.guitar.arrangementPolicy,'reference-guided-audio-v1');
+  assert.match(app.nodes.chartDetails.textContent,/New tones are checked while earlier notes ring/);
+  const fresh=setup({mobile,audioSamples:f.samples,libraryOverrides:storage.fresh()});
+  await until(()=>fresh.nodes.setlistEntries.children.length===2);await fresh.nodes.setlistEntries.children[1].click();
+  assert.deepEqual(fresh.requests,[]);assert.deepEqual((await storage.library.get(id)).charts,record.charts);
+  for(const radio of fresh.radios.difficulty)await radio.emit('change');
+  await fresh.nodes.rechartButton.click();await until(()=>fresh.nodes.saveStatus.textContent.includes('Added to your setlist'));
+  assert.deepEqual(fresh.requests,['guitar']);assert.deepEqual((await storage.library.get(id)).charts,record.charts);
+});
+
+for(const scope of ['separate','whole'])test(`${scope} upload applies the same independent Guitar tone review`,async()=>{
+  const f=require('./fixtures/guitar-chords.cjs').overlapping(),app=setup({mobile:true,audioSamples:f.samples}),n=app.nodes;
+  n.chartScope.value=scope;await n.chartScope.emit('change');n.partDrums.checked=false;
+  await app.upload('Another full recording.wav');await until(()=>app.savedSongs.size===1&&!n.songFile.disabled);
+  const saved=[...app.savedSongs.values()][0];assert.equal(saved.charts.guitar.expert.length,f.truth.length);
+  assert.equal(saved.quality.audioReviews.guitar.onsetPolicy,'own-tone-attack-v1');assert.equal(saved.quality.audioReviews.guitar.arrangementPolicy,'reference-guided-audio-v1');
+  assert.equal(app.requests.filter(part=>part==='guitar').length,1);
+});
+
 for(const snareOverlap of [false,true])test(`mobile upload and rebuild keep open hats yellow${snareOverlap?' with simultaneous snares':''} and persist the timbre review`,async()=>{
   const f=require('./fixtures/open-hat-identity.cjs').fixture({snareOverlap}),storage=require('./helpers/song-storage.cjs').storage({rejectBlobs:true});
   const app=setup({mobile:true,audioSamples:f.samples,libraryOverrides:storage.library});
@@ -165,7 +211,7 @@ for(const snareOverlap of [false,true])test(`mobile upload and rebuild keep open
   const id=(await storage.library.list())[0].id;
   const check=record=>{
     for(const m of require('./chart-metrics.cjs').measureChart(f.expected,record.charts.drums.expert)){assert.equal(m.matched,m.expected);assert.equal(m.extra,0);}
-    assert.equal(record.chartVersion,25);assert.equal(record.quality.audioReviews.drums.metalIdentityPolicy,'attack-release-timbre-v2');
+    assert.equal(record.chartVersion,26);assert.equal(record.quality.audioReviews.drums.metalIdentityPolicy,'attack-release-timbre-v2');
     assert.equal(record.quality.audioReviews.drums.snareOverlapPolicy,'independent-metal-timbre-v1');
     if(!snareOverlap)assert.equal(record.quality.audioReviews.drums.metalCorrections,6);
   };
@@ -184,7 +230,7 @@ test('mobile overlap upload keeps a ringing hat before its crash through chunked
   await until(()=>app.nodes.saveStatus.textContent.includes('Added to your setlist'));
   const id=(await storage.library.list())[0].id,record=await storage.library.get(id);
   for(const m of require('./chart-metrics.cjs').measureChart(f.expected,record.charts.drums.expert)){assert.equal(m.matched,m.expected);assert.equal(m.extra,0);}
-  assert.equal(record.chartVersion,25);assert.equal(record.quality.audioReviews.drums.metalIdentityPolicy,'attack-release-timbre-v2');
+  assert.equal(record.chartVersion,26);assert.equal(record.quality.audioReviews.drums.metalIdentityPolicy,'attack-release-timbre-v2');
   const fresh=setup({mobile:true,audioSamples:f.samples,libraryOverrides:storage.fresh()});
   await until(()=>fresh.nodes.setlistEntries.children.length===2);await fresh.nodes.setlistEntries.children[1].click();
   await fresh.radios.difficulty[3].emit('change');assert.deepEqual(fresh.requests,[]);
@@ -294,12 +340,12 @@ test('choose before upload, then rebuild the same audio for one different instru
   const app=setup();await app.radios.chartTarget[1].emit('change');assert.match(app.nodes.uploadButton.textContent,/Drums/);
   await app.upload();assert.deepEqual(app.requests,['drums']);assert.match(app.nodes.chartSummary.textContent,/Drums/);
   assert.equal(app.radios.instrument[1].checked,true);
-  await app.radios.chartTarget[0].emit('change');assert.deepEqual(app.requests,['drums','guitar']);assert.equal(app.decodes,1);
+  await app.radios.instrument[0].emit('change');assert.deepEqual(app.requests,['drums','guitar']);assert.equal(app.decodes,1);
   assert.match(app.nodes.chartSummary.textContent,/Guitar/);assert.equal(app.radios.instrument[0].checked,true);assert.equal(app.nodes.playButton.disabled,false);
 });
 
 test('canceling an instrument rebuild restores the previous instrument and chart',async()=>{
-  const app=setup();await app.upload();const pending=app.radios.chartTarget[1].emit('change');
+  const app=setup();await app.upload();const pending=app.radios.instrument[1].emit('change');
   assert.equal(app.nodes.playButton.disabled,true);await app.nodes.cancelUpload.click();await pending;
   assert.equal(app.radios.chartTarget[0].checked,true);assert.equal(app.radios.instrument[0].checked,true);
   assert.match(app.nodes.chartSummary.textContent,/Guitar/);assert.equal(app.nodes.playButton.disabled,false);
@@ -402,6 +448,35 @@ test('practice uses one looping audio source, scales time with speed, and never 
   assert.equal(n.resultDialog.open,false);assert.equal(app.writes.length,0);await n.mobileBackButton.click();assert.ok(source.stopped);assert.equal(app.body.classList.contains('practicing'),false);
 });
 
+function publishedDemos(){
+  const catalog=require('../dist/demo-catalog.js'),requests=[];
+  const api=require('../dist/public-demos.js').create(catalog,{crypto:webcrypto,fetcher:async url=>{requests.push(url);return new Response(fs.readFileSync(require('node:path').join(__dirname,'../dist',url)));}});
+  return {api,catalog,requests};
+}
+for(const mobile of [false,true])test(`public demos: ${mobile?'mobile':'desktop'} setlist plays reviewed charts, preserves personal songs and adds new uploads`,async()=>{
+  const p=publishedDemos(),last=p.catalog.at(-1),notes=[{id:0,lane:0,time:1,duration:0}],own={id:'a'.repeat(64),title:'Keep my song',instrument:'drums',filename:'personal.wav',musicEnd:last.musicEnd,bpm:120,beat:.5,charts:{drums:{easy:notes,medium:notes,hard:notes,expert:notes}},waveform:[.5],audioBlob:new Blob(['original audio'])};
+  const savedSongs=new Map([[own.id,own]]),snapshot=JSON.stringify(own.charts),app=setup({mobile,chartFixture:notes,savedSongs,audioSamples:new Float32Array(Math.round(last.musicEnd*22050)),browserOverrides:{RiffPublicDemos:p.api}}),n=app.nodes;
+  await until(()=>n.setlistEntries.children.length===5);assert.equal(p.requests.length,0);
+  for(const entry of p.catalog){
+    // The deterministic decoder has the matching timeline for each selected demo.
+    const current=entry===last?app:setup({mobile,chartFixture:notes,savedSongs,audioSamples:new Float32Array(Math.round(entry.musicEnd*22050)),browserOverrides:{RiffPublicDemos:p.api}}),ui=current.nodes;
+    await until(()=>ui.setlistEntries.children.length===5);const row=ui.setlistEntries.children.find(b=>b.dataset.songId===entry.id);assert.match(row.children[1].textContent,/Public demo/);await row.click();
+    assert.equal(ui.trackTitle.textContent,entry.title);assert.equal(ui.trackKind.textContent,'PUBLIC DEMO');assert.match(ui.saveStatus.textContent,/Public demo ready/);assert.equal(savedSongs.size,1);
+    const record=await p.api.get(entry.id);
+    for(const level of ['easy','medium','hard','expert']){await current.radios.difficulty.find(r=>r.value===level).emit('change');assert.match(ui.chartSummary.textContent,new RegExp(record.charts.drums[level].length+' notes'));}
+    await ui.previewButton.click();await until(()=>ui.previewButton.textContent.includes('Stop'));assert.ok(current.body.classList.contains('previewing'));await ui.previewButton.click();assert.equal(current.requests.length,0);
+    await ui.playButton.click();await until(()=>ui.playText.textContent==='RESTART TRACK');assert.equal(current.sources.at(-1).playbackRate.value,1);await ui.mobileBackButton.click();
+  }
+  assert.equal(JSON.stringify(savedSongs.get(own.id).charts),snapshot);assert.equal(app.updateSafety.canReload(),true);assert.equal(app.updateSafety.prepareReload(),true);
+  const fresh=setup({mobile,chartFixture:notes,savedSongs,audioSamples:new Float32Array(Math.round(last.musicEnd*22050)),resumeStorage:app.resumeStorage,browserOverrides:{RiffPublicDemos:p.api}});await until(()=>fresh.nodes.trackTitle.textContent===last.title);assert.equal(fresh.requests.length,0);assert.equal(fresh.sources.length,0);
+  await n.saveCurrentButton.click();await until(()=>savedSongs.size===2);assert.equal(n.setlistEntries.children.length,5,'Saving a demo copy must not duplicate its row');
+  await app.upload('New personal song.wav',2);await until(()=>savedSongs.size===3&&n.setlistEntries.children.length===6);assert.equal(JSON.stringify(savedSongs.get(own.id).charts),snapshot);assert.equal(app.requests.length,1);assert.equal(p.api.list().length,3,'Personal uploads must never enter the published catalog');
+});
+test('public demos: play without device song storage, and a failed download leaves the current track intact',async()=>{
+  const p=publishedDemos(),entry=p.catalog[2],app=setup({audioSamples:new Float32Array(Math.round(entry.musicEnd*22050)),browserOverrides:{RiffPublicDemos:p.api},libraryOverrides:{get:async()=>{throw Error('Storage unavailable');},list:async()=>{throw Error('Storage unavailable');}}});
+  await app.nodes.setlistEntries.children.find(b=>b.dataset.songId===entry.id).click();assert.equal(app.nodes.trackTitle.textContent,entry.title);assert.equal(app.nodes.playButton.disabled,false);assert.equal(app.requests.length,0);
+  const bad=setup({browserOverrides:{RiffPublicDemos:{list:p.api.list,get:async()=>{throw Error('The demo audio could not download.');}}}});await bad.nodes.setlistEntries.children.find(b=>b.dataset.songId===entry.id).click();assert.match(bad.nodes.libraryStatus.textContent,/could not download/);assert.match(bad.nodes.trackTitle.innerHTML,/VOLTAGE/);assert.equal(bad.nodes.playButton.disabled,false);assert.equal(bad.savedSongs.size,0);
+});
 test('settings: typing in search and form fields never activates instrument shortcuts',async()=>{
   const app=setup();let prevented=0;
   for(const target of [app.nodes.setlistSearch,app.nodes.highwaySpeed,{tagName:'TEXTAREA'},{tagName:'SELECT'},{isContentEditable:true}]){
@@ -456,7 +531,7 @@ test('uploaded audio survives decoder buffer detachment, saving, backup, and reo
   assert.deepEqual([...new Uint8Array(await saved.audioBlob.arrayBuffer())],[1,1,2,3]);
   assert.equal(saved.id,Buffer.from(await webcrypto.subtle.digest('SHA-256',await saved.audioBlob.arrayBuffer())).toString('hex'));
   const backup=await L.unpack(L.pack(saved));assert.deepEqual([...new Uint8Array(await backup.audioBlob.arrayBuffer())],[1,1,2,3]);
-  await app.radios.chartTarget[0].emit('change');await settle();saved=[...savedSongs.values()][0];
+  await app.radios.instrument[0].emit('change');await settle();saved=[...savedSongs.values()][0];
   assert.deepEqual(Object.keys(saved.charts).sort(),['drums','guitar']);assert.equal(saved.audioBlob.size,4);
   const fresh=setup({savedSongs,chartFixture:[]});await until(()=>fresh.nodes.setlistEntries.children.length===2);
   await fresh.nodes.setlistEntries.children[1].click();await fresh.nodes.saveCurrentButton.click();
@@ -467,7 +542,7 @@ test('uploaded audio survives decoder buffer detachment, saving, backup, and reo
 test('chart rebuilds cannot overwrite original audio or song identity from a worker result',async()=>{
   const app=setup({chartFixture:[{lane:1,time:1,duration:0}],chartResultExtras:{audioBlob:undefined,id:'wrong-id',title:'wrong-title',buffer:null,filename:'wrong.wav',musicEnd:1}});
   await app.upload('Keep original.wav');await settle();const original=[...app.savedSongs.values()][0];
-  await app.radios.chartTarget[1].emit('change');await settle();
+  await app.radios.instrument[1].emit('change');await settle();
   assert.equal(app.savedSongs.size,1);const saved=[...app.savedSongs.values()][0];
   assert.equal(saved.id,original.id);assert.equal(saved.title,'Keep original');assert.equal(saved.musicEnd,16);
   assert.equal(saved.filename,'Keep original.wav');assert.equal(saved.audioBlob.size,4);
@@ -482,7 +557,7 @@ test('missing audio reconnects only to matching original bytes and preserves bot
     const status=L.audioStatus(record.audioBlob);if(!status.ok)throw Error(status.message);
     savedSongs.set(record.id,{...L.metadata(record),audioBlob:record.audioBlob});
   }}}),n=app.nodes;
-  await app.upload('Original.wav');await settle();await app.radios.chartTarget[1].emit('change');await settle();
+  await app.upload('Original.wav');await settle();await app.radios.instrument[1].emit('change');await settle();
   await n.libraryButton.click();await settle();
   assert.match(n.librarySaveStatus.textContent,/Could not save.*Reconnect original audio/);
   assert.doesNotMatch(n.librarySaveStatus.textContent,/export a backup|too large/);
@@ -648,7 +723,7 @@ test('original In Bloom upload, preview, save, reopen and rebuild retain its mat
   const rebuilt=await s.fresh().get(id);assert.deepEqual(JSON.parse(JSON.stringify(rebuilt.charts.drums)),JSON.parse(JSON.stringify(packed.charts.drums)));
 });
 
-const fourPartFixture=part=>[{lane:{guitar:0,drums:1,bass:2,vocals:3}[part],time:1,duration:part==='vocals'?.7:0,pitch:part==='bass'?35:67}];
+const fourPartFixture=part=>[{lane:{guitar:0,drums:1,bass:2,vocals:3}[part],time:1,duration:part==='vocals'?.7:0,...(part==='drums'?{}:{pitch:part==='bass'?35:67})}];
 test('whole-song upload builds four distinct charts, saves them and reopens without reanalysis',async()=>{
   const s=require('./helpers/song-storage.cjs').storage({rejectBlobs:true}),app=setup({chartFixture:fourPartFixture,libraryOverrides:s.library});
   app.nodes.chartScope.value='whole';await app.nodes.chartScope.emit('change');
@@ -728,6 +803,24 @@ test('a mixed full-band audio upload runs all four real analyzers and can previe
   assert.equal(app.requests.length,4,'Preview and switching reuse the independently generated parts');
   assert.notEqual(JSON.stringify(saved.charts.bass),JSON.stringify(saved.charts.vocals));assert.equal(app.writes.length,0);
 });
+for(const mobile of [false,true])test(`whole-song mix focus: ${mobile?'mobile':'desktop'} saves, previews, reopens and rebuilds each part without replacing the audio`,async()=>{
+  const fixture=require('./fixtures/melody-parts.cjs').fullBand(),app=setup({mobile,audioSamples:fixture.samples}),n=app.nodes;
+  n.chartScope.value='whole';await n.chartScope.emit('change');await app.upload('Full mix.wav');await until(()=>app.savedSongs.size===1&&!n.saveCurrentButton.disabled);
+  assert.deepEqual(app.requestModes,[true,true,true,true]);const first=[...app.savedSongs.values()][0];
+  assert.deepEqual(Object.keys(first.charts).sort(),['bass','drums','guitar','vocals']);
+  assert.deepEqual(Object.keys(first.quality.mixAnalysis).sort(),['bass','vocals']);
+  for(const radio of app.radios.instrument){await radio.emit('change');await until(()=>!n.saveCurrentButton.disabled);assert.match(n.chartSummary.textContent,new RegExp(radio.value,'i'));await n.previewButton.click();await until(()=>n.previewButton.textContent.includes('Stop'));await n.previewButton.click();}
+  assert.equal(app.requests.length,4);assert.equal(app.decodes,1);
+  await app.radios.instrument[2].emit('change');await until(()=>!n.saveCurrentButton.disabled);
+  const untouched=JSON.stringify({drums:first.charts.drums,guitar:first.charts.guitar,vocals:first.charts.vocals});
+  await n.rechartButton.click();await until(()=>!n.saveCurrentButton.disabled);
+  let saved=[...app.savedSongs.values()][0];assert.equal(app.requestModes.at(-1),true);assert.equal(app.requests.at(-1),'bass');assert.equal(JSON.stringify({drums:saved.charts.drums,guitar:saved.charts.guitar,vocals:saved.charts.vocals}),untouched);
+  const L=require('../dist/song-library.js'),packed=await L.unpack(L.pack(saved));assert.deepEqual(packed.quality.mixAnalysis,JSON.parse(JSON.stringify(saved.quality.mixAnalysis)));assert.deepEqual(Buffer.from(await packed.audioBlob.arrayBuffer()),Buffer.from([1,1,2,3]));
+  const reopened=setup({mobile,audioSamples:fixture.samples,savedSongs:app.savedSongs});await until(()=>reopened.nodes.setlistEntries.children.length===2);await reopened.nodes.setlistEntries.children[1].click();await reopened.radios.instrument[3].emit('change');await until(()=>!reopened.nodes.saveCurrentButton.disabled);assert.equal(reopened.requests.length,0);
+  await reopened.nodes.rechartButton.click();await until(()=>!reopened.nodes.saveCurrentButton.disabled);assert.deepEqual(reopened.requestModes,[true]);assert.ok([...reopened.savedSongs.values()][0].quality.mixAnalysis.bass);
+  n.chartScope.value='single';await n.chartScope.emit('change');await app.upload('Full mix.wav');await until(()=>!n.saveCurrentButton.disabled);
+  saved=[...app.savedSongs.values()][0];assert.equal(app.requestModes.at(-1),false);assert.equal(saved.quality.mixAnalysis.bass,undefined,'An explicit one-part reupload must not retain a stale whole-song mode');assert.ok(saved.quality.mixAnalysis.vocals);
+});
 test('cancel after one batch part completes never commits a partial replacement',async()=>{
   const app=setup({chartFixture:fourPartFixture}),n=app.nodes;await app.upload('Keep original.wav');await until(()=>app.savedSongs.size===1);
   n.chartScope.value='whole';const task=n.buildPartsButton.click();await until(()=>app.requests.length===3);
@@ -736,7 +829,7 @@ test('cancel after one batch part completes never commits a partial replacement'
 });
 
 test('all four difficulties are ready after a whole-song upload, and switching never reanalyzes',async()=>{
-  const D=E.Difficulties,chartFixture=part=>Array.from({length:80},(_,i)=>({time:1+i*.065,lane:i%5,pitch:50+i%5*3,duration:0}));
+  const D=E.Difficulties,chartFixture=part=>Array.from({length:80},(_,i)=>({time:1+i*.065,lane:i%5,...(part==='drums'?{}:{pitch:50+i%5*3}),duration:0}));
   const app=setup({mobile:true,chartFixture}),n=app.nodes;n.chartScope.value='whole';await app.upload();await until(()=>app.savedSongs.size===1);
   const saved=[...app.savedSongs.values()][0];assert.equal(app.decodes,1);assert.equal(app.requests.length,4);
   for(const radio of app.radios.instrument){
@@ -975,7 +1068,7 @@ test('Add song whole-song mode builds four independent parts; readding identical
 test('Add song rejects empty, oversized and undecodable files without replacing the current song',async()=>{
   const app=setup({chartFixture:addedLevels}),n=app.nodes;
   await app.upload('Keep my song.wav');await until(()=>!n.addSongButton.disabled);
-  await n.addSongButton.click();n.addSongFile.files=[];await n.confirmAddSong.click();assert.match(n.addSongError.textContent,/Choose an audio/);
+  await n.addSongButton.click();n.addSongFile.files=[];await n.addSongFile.emit('change');assert.equal(n.confirmAddSong.disabled,false,'The open recording can be reused without a new file');
   for(const size of [0,80*1024*1024+1]){
     n.addSongFile.files=[addedAudio('Bad.wav',2,size)];await n.addSongFile.emit('change');await n.confirmAddSong.click();
     assert.match(n.addSongError.textContent,/80 MB/);assert.equal(n.addSongDialog.open,true);
@@ -984,7 +1077,57 @@ test('Add song rejects empty, oversized and undecodable files without replacing 
   assert.match(n.setlistAddStatus.textContent,/could not be opened/);assert.equal(n.trackTitle.textContent,'Keep my song');
   assert.equal(app.savedSongs.size,1);assert.deepEqual(app.requests,['guitar']);
   await n.addSongButton.click();n.addSongFile.files=[];await n.addSongFile.emit('change');
-  assert.equal(n.confirmAddSong.disabled,true);n.addSongDialog.close();assert.equal(n.trackTitle.textContent,'Keep my song');
+  assert.equal(n.confirmAddSong.disabled,false);n.addSongDialog.close();assert.equal(n.trackTitle.textContent,'Keep my song');
+});
+
+test('Add song still needs audio when no uploaded recording is open',async()=>{
+  const app=setup({chartFixture:addedLevels}),n=app.nodes;
+  await n.addSongButton.click();n.addSongFile.files=[];await n.addSongFile.emit('change');
+  assert.equal(n.confirmAddSong.disabled,true);assert.match(n.addSongAudioHint.textContent,/enter song title and artist/i);
+  await n.confirmAddSong.click();assert.match(n.addSongError.textContent,/Enter both song title and artist/);
+  assert.equal(n.addSongDialog.open,true);assert.deepEqual(app.requests,[]);assert.equal(app.savedSongs.size,0);
+});
+
+for(const mobile of [false,true])test(`${mobile?'mobile':'desktop'} Add song without a file charts the open recording and preserves Guitar and audio`,async()=>{
+  const C=require('../dist/community-charts.js'),F=require('./helpers/community-fixture.cjs'),net=F.network({rows:[{...F.row,icon:'ghm'}]}),storage=require('./helpers/song-storage.cjs').storage({rejectBlobs:true});
+  const app=setup({mobile,chartFixture:addedLevels,preferences:{communityLookup:false},libraryOverrides:storage.library,browserOverrides:{RiffCommunityCharts:{identify:C.identify,lookup:q=>C.lookup({...F.verifiedLookup(q),fetcher:net.fetcher})}}}),n=app.nodes;
+  await app.upload('Fixture Artist - Fixture Song.wav');await until(()=>!n.saveCurrentButton.disabled);
+  const before=(await storage.library.list())[0],original=await storage.library.get(before.id),decodes=app.decodes;
+  await n.addSongButton.click();n.addSongFile.files=[];n.addSongPart.value='drums';n.addCommunityLookup.checked=true;await n.addCommunityLookup.emit('change');
+  assert.equal(n.confirmAddSong.disabled,false);assert.equal(n.confirmAddSong.textContent,'Chart open song');assert.match(n.addSongAudioHint.textContent,/Fixture Artist - Fixture Song/);
+  await n.confirmAddSong.click();await until(()=>!n.saveCurrentButton.disabled);
+  const saved=await storage.library.get(before.id);
+  assert.equal((await storage.library.list()).length,1);assert.equal(saved.id,original.id);assert.equal(saved.title,original.title);assert.equal(saved.filename,original.filename);
+  assert.deepEqual(saved.charts.guitar,original.charts.guitar);assert.deepEqual(Buffer.from(await saved.audioBlob.arrayBuffer()),Buffer.from(await original.audioBlob.arrayBuffer()));
+  assert.equal(saved.quality.communityReferences.drums.game,'Guitar Hero: Metallica');assert.deepEqual(app.requests,['guitar']);assert.equal(app.decodes,decodes,'Use the open decoded buffer');assert.match(n.chartSummary.textContent,/Drums/);
+  const fresh=setup({mobile,chartFixture:addedLevels,libraryOverrides:storage.fresh()});await until(()=>fresh.nodes.setlistEntries.children.length===2);await fresh.nodes.setlistEntries.children[1].click();
+  assert.match(fresh.nodes.chartSummary.textContent,/Drums/);assert.deepEqual(fresh.requests,[]);assert.deepEqual((await storage.library.get(before.id)).charts,saved.charts);
+});
+
+test('Add song without a file supports Whole song and independent audio fallback',async()=>{
+  const app=setup({chartFixture:addedLevels}),n=app.nodes;
+  await app.upload('Whole open.wav');await until(()=>!n.saveCurrentButton.disabled);const before=[...app.savedSongs.values()][0],decodes=app.decodes;
+  await n.addSongButton.click();n.addSongFile.files=[];n.addSongPart.value='whole';await n.confirmAddSong.click();
+  assert.equal(app.savedSongs.size,1);const saved=[...app.savedSongs.values()][0];assert.equal(saved.id,before.id);assert.equal(saved.audioBlob,before.audioBlob);assert.equal(app.decodes,decodes);
+  assert.deepEqual(Object.keys(saved.charts).sort(),['bass','drums','guitar','vocals']);assert.deepEqual(app.requests.slice(1),['guitar','drums','bass','vocals']);
+});
+
+test('canceling charting of open audio retains the saved song and ignores a late lookup result',async()=>{
+  let release,captured;
+  const app=setup({chartFixture:addedLevels,preferences:{communityLookup:false},browserOverrides:{RiffCommunityCharts:{lookup:q=>{if(!q.enabled)return Promise.resolve({charts:{},message:''});captured=q;return new Promise(resolve=>release=resolve);}}}}),n=app.nodes;
+  await app.upload('Keep open.wav');await until(()=>!n.saveCurrentButton.disabled);
+  const original=[...app.savedSongs.values()][0];release=null;
+  await n.addSongButton.click();n.addSongFile.files=[];n.addSongPart.value='drums';n.addCommunityLookup.checked=true;await n.addCommunityLookup.emit('change');const task=n.confirmAddSong.click();await until(()=>release);
+  await n.setlistCancelUpload.click();assert.equal(captured.signal.aborted,true);release({charts:{},message:''});await task;
+  assert.equal(app.savedSongs.size,1);assert.deepEqual([...app.savedSongs.values()][0],original);assert.deepEqual(app.requests,['guitar']);assert.match(n.chartStatus.textContent,/canceled/);assert.equal(n.setlistUploadProgress.hidden,true);
+});
+
+test('failed charting of open audio keeps its saved charts and offers another attempt',async()=>{
+  const app=setup({chartFixture:addedLevels,chartFailures:{drums:'No usable percussion detected'}}),n=app.nodes;
+  await app.upload('Keep Guitar.wav');await until(()=>!n.saveCurrentButton.disabled);const before=[...app.savedSongs.values()][0];
+  await n.addSongButton.click();n.addSongFile.files=[];n.addSongPart.value='drums';await n.confirmAddSong.click();
+  assert.deepEqual([...app.savedSongs.values()][0],before);assert.match(n.chartStatus.textContent,/No usable percussion detected.*current chart is kept/);assert.equal(n.setlistUploadProgress.hidden,true);
+  await n.addSongButton.click();assert.equal(n.confirmAddSong.disabled,false);assert.equal(n.confirmAddSong.textContent,'Chart open song');assert.equal(n.trackTitle.textContent,'Keep Guitar');
 });
 
 test('setlist cancel stops new-song decoding and ignores its late result',async()=>{
@@ -1009,4 +1152,106 @@ test('setlist shows failed persistence and Retry save commits audio without rech
   assert.equal(n.setlistEntries.children.length,2);assert.deepEqual(app.requests,['drums']);
   const fresh=setup({libraryOverrides:storage.fresh(),chartFixture:addedLevels});await until(()=>fresh.nodes.setlistEntries.children.length===2);
   await fresh.nodes.setlistEntries.children[1].click();assert.equal(fresh.nodes.trackTitle.textContent,'Retry my song');
+});
+
+// Real catalog client + real SNG/MIDI import exercised through both upload UIs.
+for(const mobile of [false,true])test(`${mobile?'mobile':'desktop'} upload fetches four authored parts, preserves supplied Easy frets and original audio through setlist reopen`,async()=>{
+  const C=require('../dist/community-charts.js'),F=require('./helpers/community-fixture.cjs'),net=F.network();
+  const app=setup({mobile,chartFixture:[{lane:0,time:1,duration:0}],browserOverrides:{RiffCommunityCharts:{lookup:q=>C.lookup({...F.verifiedLookup(q),fetcher:net.fetcher})}}}),n=app.nodes;
+  if(mobile){await n.addSongButton.click();n.addSongPart.value='whole';n.addLookupTitle.value='Fixture Song';n.addLookupArtist.value='Fixture Artist';n.addSongFile.files=[{name:'Original.wav',size:4,arrayBuffer:async()=>new Uint8Array([9,8,7,6]).buffer}];await n.confirmAddSong.click();}
+  else{n.chartScope.value='whole';await n.chartScope.emit('change');await app.upload('Fixture Artist - Fixture Song.wav');}
+  await until(()=>app.savedSongs.size===1&&!n.saveCurrentButton.disabled);
+  assert.deepEqual(app.requests,[],'Authored parts must not be reanalyzed');assert.equal(net.requests.length,5);
+  const saved=[...app.savedSongs.values()][0];assert.deepEqual(Object.keys(saved.charts).sort(),['bass','drums','guitar','vocals']);assert.equal(saved.charts.guitar.easy[0].lane,4);
+  assert.match(n.chartStatus.textContent,/Authored/);assert.match(n.chartDetails.textContent,/Community chart by/);assert.ok(saved.quality.imports.vocals.id.length===64);
+  const before=JSON.stringify(saved.charts);await n.demoButton.click();await n.libraryButton.click();await until(()=>n.songList.children.length===1);await n.songList.children[0].children[2].children[0].click();
+  assert.match(n.chartDetails.textContent,/Community chart by/);assert.equal(JSON.stringify([...app.savedSongs.values()][0].charts),before);assert.equal(net.requests.length,5,'Reopening saved songs must not fetch or replace their charts');
+});
+test('community partial-match charts only missing parts from whole audio and keeps previous imported parts on same-file reupload',async()=>{
+  const D=require('../dist/chart-difficulties.js'),notes=[{id:0,lane:4,time:1,duration:0}],charts={guitar:D.build(notes,'guitar',.5)},lookup={charts,imports:{guitar:{filename:'Community notes.chart',layout:'five',levels:['expert'],derived:['hard','medium','easy']}},sources:{guitar:'Community'},bpm:120,beat:.5,reference:{charter:'Tester'},message:'Authored guitar fetched.'};
+  const app=setup({chartFixture:[{lane:0,time:2,duration:0}],browserOverrides:{RiffCommunityCharts:{lookup:async q=>q.parts.includes('guitar')?lookup:{charts:{},imports:{},sources:{},message:'No matching part.'}}}}),n=app.nodes;
+  n.chartScope.value='whole';await app.upload('same.wav');await until(()=>app.savedSongs.size===1&&!n.saveCurrentButton.disabled);
+  assert.deepEqual(app.requests,['drums','bass','vocals']);let r=[...app.savedSongs.values()][0];assert.ok(r.quality.imports.guitar);const imported=JSON.stringify(r.charts.guitar);
+  await app.radios.chartTarget.find(x=>x.value==='drums').emit('change');n.chartScope.value='single';await app.upload('same.wav');await until(()=>!n.saveCurrentButton.disabled);
+  r=[...app.savedSongs.values()][0];assert.ok(r.quality.imports.guitar,'Reupload of another part must keep imported provenance');assert.equal(JSON.stringify(r.charts.guitar),imported);
+});
+test('offline catalog and opt-out leave new uploads playable and save audio estimates',async()=>{
+  const C=require('../dist/community-charts.js'),F=require('./helpers/community-fixture.cjs'),net=F.network({blocked:true});
+  const app=setup({chartFixture:[{lane:0,time:1,duration:0}],browserOverrides:{RiffCommunityCharts:{lookup:q=>C.lookup({...F.verifiedLookup(q),fetcher:net.fetcher})}}}),n=app.nodes;
+  await app.upload('Fixture Artist - Fixture Song.wav');await until(()=>app.savedSongs.size===1&&!n.saveCurrentButton.disabled);assert.match(n.chartStatus.textContent,/Could not fetch/);assert.deepEqual(app.requests,['guitar']);
+  n.communityLookup.checked=false;await n.communityLookup.emit('change');assert.equal(n.addCommunityLookup.checked,false);const calls=net.requests.length;await app.upload('Fixture Artist - Fixture Song.wav',2);await until(()=>app.savedSongs.size===2&&!n.saveCurrentButton.disabled);assert.equal(net.requests.length,calls);assert.match(n.chartStatus.textContent,/lookup is off/);
+});
+test('cancel during online lookup aborts it and cannot replace the current song',async()=>{
+  let canceled=false,started=false;const app=setup({chartFixture:[{lane:0,time:1,duration:0}],browserOverrides:{RiffCommunityCharts:{lookup:({signal})=>{started=true;return new Promise((resolve,reject)=>signal.addEventListener('abort',()=>{canceled=true;reject(Error('Canceled'));},{once:true}));}}}});
+  const pending=app.upload('Artist - Song.wav');await until(()=>started);await app.nodes.cancelUpload.click();await pending;assert.equal(canceled,true);assert.equal(app.savedSongs.size,0);assert.equal(app.nodes.playButton.disabled,false);
+});
+
+for(const mobile of [false,true])test(`${mobile?'mobile':'desktop'} imported chart timing shifts all levels for one part, persists, reopens and resets without refetch`,async()=>{
+ const C=require('../dist/community-charts.js'),F=require('./helpers/community-fixture.cjs'),net=F.network();
+ const app=setup({mobile,chartFixture:[{time:1,lane:0,duration:0}],browserOverrides:{RiffCommunityCharts:{lookup:q=>C.lookup({...F.verifiedLookup(q),fetcher:net.fetcher})}}}),n=app.nodes;
+ n.chartScope.value='whole';await n.chartScope.emit('change');await app.upload('Fixture Artist - Fixture Song.wav');await until(()=>app.savedSongs.size===1&&!n.saveCurrentButton.disabled);
+ const original=[...app.savedSongs.values()][0],before=JSON.parse(JSON.stringify(original.charts));assert.match(n.chartDifficultySummary.textContent,/derived from Expert/);
+ n.songChartShift.value='100';await n.applySongChartShift.click();assert.equal(n.songChartShift.value,'100');const shifted=[...app.savedSongs.values()][0];assert.equal(shifted.quality.chartAdjustments.guitar,100);
+ for(const level of ['expert','hard','medium','easy'])shifted.charts.guitar[level].forEach((hit,i)=>{assert.ok(Math.abs(hit.time-before.guitar[level][i].time-.1)<1e-12);assert.equal(hit.lane,before.guitar[level][i].lane);assert.equal(hit.duration,before.guitar[level][i].duration);});
+ assert.equal(JSON.stringify(shifted.charts.drums),JSON.stringify(before.drums));assert.equal(JSON.stringify(shifted.charts.vocals),JSON.stringify(before.vocals));assert.equal(await shifted.audioBlob.text(),await original.audioBlob.text());
+ const fresh=setup({mobile,savedSongs:app.savedSongs,chartFixture:[{time:1,lane:0,duration:0}]}),fn=fresh.nodes;await until(()=>fn.setlistEntries.children.length===2);await fn.setlistEntries.children[1].click();assert.equal(fn.songChartShift.value,'100');assert.deepEqual(fresh.requests,[]);assert.equal(net.requests.length,5);
+ await fn.reviewSongTiming.click();assert.ok(fn.songTimingStatus.textContent.length>0);assert.deepEqual(JSON.parse(JSON.stringify([...fresh.savedSongs.values()][0].charts)),JSON.parse(JSON.stringify(shifted.charts)),'Review must not auto-shift');
+ fn.songChartShift.value='-2000';await fn.applySongChartShift.click();assert.match(fn.songTimingStatus.textContent,/outside the audio/);assert.equal([...fresh.savedSongs.values()][0].quality.chartAdjustments.guitar,100);
+ await fn.resetSongChartShift.click();const reset=[...fresh.savedSongs.values()][0];for(const level of ['expert','hard','medium','easy'])reset.charts.guitar[level].forEach((hit,i)=>assert.ok(Math.abs(hit.time-before.guitar[level][i].time)<1e-12));assert.equal(fn.songChartShift.value,'0');
+ await fn.previewButton.click();await until(()=>!fn.applySongChartShift.disabled);assert.equal(fn.reviewSongTiming.disabled,true);await fn.previewButton.click();assert.equal(fn.applySongChartShift.disabled,false);
+});
+test('manual MIDI review imports all supported parts and authored difficulties with matching local audio',async()=>{
+ const F=require('./helpers/community-fixture.cjs'),app=setup({chartFixture:[{lane:0,time:1,duration:0}]}),n=app.nodes;await app.upload('Local recording.wav');await until(()=>!n.saveCurrentButton.disabled);
+ await n.chartFilesButton.click();n.chartAudioMode.value='current';n.chartDrumLayout.value='five';const bytes=F.fullMidi();n.authoredChartFile.files=[{name:'notes.mid',size:bytes.length,arrayBuffer:async()=>Uint8Array.from(bytes).buffer}];await n.authoredChartFile.emit('change');await n.reviewChartButton.click();assert.match(n.chartFileStatus.textContent,/guitar easy/);assert.equal(n.loadChartButton.disabled,false);
+ await n.loadChartButton.click();assert.equal(n.chartFilesDialog.open,false);const imported=[...app.savedSongs.values()][0];assert.deepEqual(Object.keys(imported.charts).sort(),['bass','drums','guitar','vocals']);assert.equal(imported.charts.guitar.easy[0].lane,4);assert.equal(imported.quality.imports.guitar.filename,'notes.mid');assert.ok(imported.quality.chartTimings.vocals);assert.deepEqual(app.requests,['guitar']);
+});
+
+for(const mobile of [false,true])test(`${mobile?'mobile':'desktop'} matching song.ini aligns manual Clone Hero import with local audio and survives save/reopen`,async()=>{
+ const F=require('./helpers/community-fixture.cjs'),app=setup({mobile,chartFixture:[{lane:0,time:1,duration:0}]}),n=app.nodes;await app.upload('My recording.wav');await until(()=>!n.saveCurrentButton.disabled);
+ await n.chartFilesButton.click();n.chartAudioMode.value='current';n.chartDrumLayout.value='auto';n.chartShift.value='25';
+ const bytes=F.fullMidi(),ini='[song]\nname=Fixture Song\nartist=Fixture Artist\ndelay=125\nfive_lane_drums=True\nsustain_cutoff_threshold=80';
+ n.authoredChartFile.files=[{name:'notes.mid',size:bytes.length,arrayBuffer:async()=>Uint8Array.from(bytes).buffer}];n.chartIniFile.files=[{name:'song.ini',size:ini.length,text:async()=>ini}];await n.authoredChartFile.emit('change');await n.reviewChartButton.click();assert.match(n.chartFileStatus.textContent,/125 ms chart delay plus 25 ms/);await n.loadChartButton.click();
+ const saved=[...app.savedSongs.values()][0];assert.equal(saved.quality.chartTiming.offset,.15);assert.equal(saved.quality.chartTimings.drums.offset,.15);assert.equal(saved.charts.guitar.expert[0].time,1.15);assert.equal(saved.charts.drums.expert[0].time,1.15);assert.deepEqual(saved.charts.drums.expert.map(n=>n.lane),[0,5,1,2,3,4]);assert.equal(saved.charts.guitar.easy[0].lane,4);assert.match(saved.quality.imports.guitar.filename,/notes.mid \+ song.ini/);
+ const fresh=setup({mobile,savedSongs:app.savedSongs,chartFixture:[{lane:0,time:1,duration:0}]});await until(()=>fresh.nodes.setlistEntries.children.length===2);await fresh.nodes.setlistEntries.children[1].click();assert.match(fresh.nodes.chartSummary.textContent,/Guitar/);assert.deepEqual(fresh.requests,[]);assert.equal([...fresh.savedSongs.values()][0].charts.guitar.expert[0].time,1.15);
+ await n.chartFilesButton.click();await n.reviewChartButton.click();assert.equal(n.loadChartButton.disabled,false);await n.chartIniFile.emit('change');assert.equal(n.loadChartButton.disabled,true,'Replacing settings requires another review');
+ n.chartIniFile.files=[{name:'song.ini',size:20,text:async()=>'[song]\ndelay=NaN'}];await n.reviewChartButton.click();assert.match(n.chartFileStatus.textContent,/Invalid song.ini delay/);assert.equal(n.loadChartButton.disabled,true);assert.equal([...app.savedSongs.values()][0].charts.guitar.expert[0].time,1.15);
+});
+
+for(const mobile of [false,true])test(`${mobile?'mobile':'desktop'} future uploads try alternate community charts and save each instrument's source without refetch on reopen`,async()=>{
+ const C=require('../dist/community-charts.js'),F=require('./helpers/community-fixture.cjs'),second={...F.row,md5:'b'.repeat(32),charter:'Alternate Charter'};
+ const first=F.sng(F.midi([{name:'PART GUITAR',notes:[{tick:960,code:99,length:480},{tick:960,code:63,length:240}]}]));
+ const net=F.network({rows:[F.row,second],containers:{[F.row.md5]:first,[second.md5]:F.sng()}}),app=setup({mobile,chartFixture:[{time:1,lane:0,duration:0}],browserOverrides:{RiffCommunityCharts:{lookup:q=>C.lookup({...F.verifiedLookup(q),fetcher:net.fetcher})}}}),n=app.nodes;
+ if(mobile){await n.addSongButton.click();n.addSongPart.value='whole';n.addLookupTitle.value='Fixture Song';n.addLookupArtist.value='Fixture Artist';n.addSongFile.files=[{name:'Original.wav',size:4,arrayBuffer:async()=>new Uint8Array([9,8,7,6]).buffer}];await n.confirmAddSong.click();}
+ else{n.chartScope.value='whole';await n.chartScope.emit('change');await app.upload('Fixture Artist - Fixture Song.wav');}
+ await until(()=>app.savedSongs.size===1&&!n.saveCurrentButton.disabled);
+ const saved=[...app.savedSongs.values()][0];assert.deepEqual(app.requests,[]);assert.equal(net.requests.length,9);assert.equal(saved.quality.communityReferences.guitar.md5,F.row.md5);assert.equal(saved.quality.communityReferences.drums.md5,second.md5);assert.equal(saved.charts.guitar.expert[0].lane,3);assert.equal(saved.charts.guitar.easy[0].lane,3);assert.equal(saved.quality.onlineLookup.attempts.length,2);
+ const fresh=setup({mobile,savedSongs:app.savedSongs,chartFixture:[{time:1,lane:0,duration:0}]}),fn=fresh.nodes;await until(()=>fn.setlistEntries.children.length===2);await fn.setlistEntries.children[1].click();assert.match(fn.chartDetails.textContent,/Fixture Charter/);await fresh.radios.instrument.find(x=>x.value==='drums').emit('change');assert.match(fn.chartDetails.textContent,/Alternate Charter/);assert.deepEqual(fresh.requests,[]);assert.equal(net.requests.length,9);
+ n.chartScope.value='whole';await app.upload('Fixture Artist - Fixture Song.wav',2);await until(()=>app.savedSongs.size===2&&!n.saveCurrentButton.disabled);assert.equal(net.requests.length,18,'Each new upload performs its own lookup');assert.deepEqual(app.requests,[]);assert.equal([...app.savedSongs.values()][1].quality.communityReferences.vocals.md5,second.md5);
+});
+
+for(const mobile of [false,true])test(`${mobile?'mobile':'desktop'} adding missing Drums finds its own community track and preserves saved guitar timing and audio`,async()=>{
+ const C=require('../dist/community-charts.js'),F=require('./helpers/community-fixture.cjs'),net=F.network(),app=setup({mobile,chartFixture:[{lane:4,time:3,duration:0}],browserOverrides:{RiffCommunityCharts:{lookup:q=>C.lookup({...F.verifiedLookup(q),fetcher:net.fetcher})}}}),n=app.nodes;
+ await app.upload('Fixture Artist - Fixture Song.wav');await until(()=>!n.saveCurrentButton.disabled);
+ n.songChartShift.value='100';await n.applySongChartShift.click();const before=[...app.savedSongs.values()][0],guitar=JSON.stringify(before.charts.guitar),audio=await before.audioBlob.arrayBuffer();
+ n.lookupTitle.value='Unrelated title';n.lookupArtist.value='Unrelated artist';await app.radios.instrument.find(x=>x.value==='drums').emit('change');await until(()=>!n.saveCurrentButton.disabled);
+ const saved=[...app.savedSongs.values()][0];assert.deepEqual(app.requests,[]);assert.equal(JSON.stringify(saved.charts.guitar),guitar);assert.equal(saved.quality.chartAdjustments.guitar,100);assert.deepEqual(saved.charts.drums.expert.map(x=>x.lane),[0,5,1,2,3,4]);assert.equal(saved.quality.communityReferences.drums.md5,F.row.md5);assert.deepEqual(await saved.audioBlob.arrayBuffer(),audio);assert.equal(net.requests.length,10);assert.equal(JSON.parse(net.requests[5].options.body).search,'Fixture Artist Fixture Song','Saved song identity takes precedence over stale upload fields');
+});
+for(const mobile of [false,true])test(`${mobile?'mobile':'desktop'} authored-only retry keeps existing drums on no match, then replaces only drums when a supported chart is available`,async()=>{
+ const C=require('../dist/community-charts.js'),F=require('./helpers/community-fixture.cjs'),guitarOnly={...F.row,notesData:{noteCounts:[{instrument:'guitar',difficulty:'expert',count:10}]}},missing=F.network({rows:[guitarOnly]}),found=F.network();let available=false;
+ const app=setup({mobile,chartFixture:[{lane:0,time:3,duration:0}],browserOverrides:{RiffCommunityCharts:{lookup:q=>C.lookup({...F.verifiedLookup(q),fetcher:available?found.fetcher:missing.fetcher})}}}),n=app.nodes;
+ n.lookupTitle.value='Fixture Song';n.lookupArtist.value='Fixture Artist';n.chartScope.value='whole';await app.upload('Track 6.wav');await until(()=>!n.saveCurrentButton.disabled);await app.radios.instrument.find(x=>x.value==='drums').emit('change');await until(()=>!n.findAuthoredChart.disabled);
+ const original=[...app.savedSongs.values()][0],before=JSON.stringify(original.charts),workers=app.requests.length;n.lookupTitle.value='';n.lookupArtist.value='';await n.findAuthoredChart.click();assert.equal(JSON.stringify([...app.savedSongs.values()][0].charts),before);assert.equal(app.requests.length,workers);assert.match(n.chartStatus.textContent,/current chart is kept/);assert.doesNotMatch(n.chartStatus.textContent,/chart ready|Used audio charting/);
+ available=true;await n.findAuthoredChart.click();await until(()=>!n.saveCurrentButton.disabled);const saved=[...app.savedSongs.values()][0];assert.equal(JSON.stringify(saved.charts.guitar),JSON.stringify(original.charts.guitar));assert.deepEqual(saved.charts.drums.expert.map(x=>x.lane),[0,5,1,2,3,4]);assert.equal(saved.quality.imports.drums.levels[0],'expert');assert.equal(saved.quality.communityReferences.drums.md5,F.row.md5);assert.equal(saved.quality.lookupIdentity.artist,'Fixture Artist');assert.equal(app.requests.length,workers);assert.equal(saved.id,original.id);assert.equal(saved.filename,'Track 6.wav');assert.equal(await saved.audioBlob.text(),await original.audioBlob.text());
+ const fresh=setup({mobile,savedSongs:app.savedSongs,chartFixture:[]});await until(()=>fresh.nodes.setlistEntries.children.length===2);await fresh.nodes.setlistEntries.children[1].click();await fresh.radios.instrument.find(x=>x.value==='drums').emit('change');assert.match(fresh.nodes.chartDetails.textContent,/Community chart by Fixture Charter/);assert.deepEqual(fresh.requests,[]);
+});
+test('building selected parts looks up drums first while explicit audio rebuild remains local',async()=>{
+ const C=require('../dist/community-charts.js'),F=require('./helpers/community-fixture.cjs'),net=F.network(),app=setup({chartFixture:[{lane:0,time:3,duration:0}],browserOverrides:{RiffCommunityCharts:{lookup:q=>C.lookup({...F.verifiedLookup(q),fetcher:net.fetcher})}}}),n=app.nodes;
+ await app.upload('Fixture Artist - Fixture Song.wav');await until(()=>!n.saveCurrentButton.disabled);const before=JSON.stringify([...app.savedSongs.values()][0].charts.guitar);
+ n.chartScope.value='separate';n.partGuitar.checked=false;n.partDrums.checked=true;n.partBass.checked=false;n.partVocals.checked=false;await n.buildPartsButton.click();await until(()=>!n.saveCurrentButton.disabled);
+ assert.deepEqual(app.requests,[]);assert.equal(net.requests.length,10);const saved=[...app.savedSongs.values()][0];assert.equal(JSON.stringify(saved.charts.guitar),before);assert.ok(saved.quality.imports.drums);
+ await app.radios.instrument.find(x=>x.value==='drums').emit('change');const requests=net.requests.length;await n.rechartButton.click();await until(()=>!n.saveCurrentButton.disabled);assert.equal(net.requests.length,requests);assert.deepEqual(app.requests,['drums']);assert.equal([...app.savedSongs.values()][0].quality.imports.drums,undefined);assert.ok([...app.savedSongs.values()][0].quality.imports.guitar);
+});
+test('canceling an authored-only retry cannot replace current drum notes or audio',async()=>{
+ let waiting=false;const app=setup({chartFixture:[{lane:0,time:3,duration:0}],preferences:{communityLookup:false},browserOverrides:{RiffCommunityCharts:{lookup:q=>{if(!q.enabled)return Promise.resolve({charts:{},imports:{},sources:{},identity:{title:'Hero Of The Day',artist:'Metallica'},message:'Lookup off.'});waiting=true;return new Promise((resolve,reject)=>q.signal.addEventListener('abort',()=>reject(Error('Canceled')),{once:true}));}}}}),n=app.nodes;
+ await app.radios.instrument.find(x=>x.value==='drums').emit('change');await app.upload('Hero Of The Day (Track 6).wav');await until(()=>!n.saveCurrentButton.disabled);const before=JSON.stringify([...app.savedSongs.values()][0].charts),pending=n.findAuthoredChart.click();await until(()=>waiting);await n.cancelUpload.click();await pending;assert.equal(JSON.stringify([...app.savedSongs.values()][0].charts),before);assert.match(n.chartStatus.textContent,/canceled/i);assert.equal(n.playButton.disabled,false);assert.equal(n.findAuthoredChart.disabled,false);
 });
