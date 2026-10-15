@@ -170,7 +170,9 @@
     <button id="backgroundPreviewTiming" class="upload-button" disabled>Preview timing with chart</button>
     <p class="secondary">Replays the lead-in to the first note with your selected instrument, difficulty and video timing. No score is saved. Open Backgrounds / video again to adjust and retry.</p>
     <label class="highway-speed" for="backgroundDim">Video darkness <span id="backgroundDimValue">35%</span><input id="backgroundDim" type="range" min="0" max="80" step="5" value="35"></label>
-    <p class="secondary">Backgrounds save separately for each song on this device. Video files are not included in .riffpack backups.</p>
+    <button id="backgroundExportVideo" class="upload-button" disabled>Save chart + video backup</button>
+    <p class="secondary">Save the selected video, timing, song audio and all charts together in one .riffpack file. Import it through Manage songs to restore them. Video limit: 2 GB. Regular Export current song keeps the smaller chart-and-audio backup.</p>
+    <p class="secondary">Backgrounds also save per song on this device when storage is available. Videos over 500 MB stay in the combined backup and play for the session after import; keep the backup to restore them again.</p>
     <p id="backgroundStatus" role="status"></p><div class="tool-actions"><button id="backgroundRemove" class="quiet" disabled>Remove video</button><button class="upload-button" data-close="backgroundDialog">Done</button></div>
   </dialog>
 

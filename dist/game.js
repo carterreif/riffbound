@@ -25,6 +25,7 @@
   let pendingSaves=0,reconnectingAudio=false,savedSong=null,saveSerial=0,importingBackup=false;
   let chartDraft=null,chartReviewGeneration=0;
   let backupExport=null,backupSaving=false,backupTransfer=null;
+  let exportingVideo=false;
   let communityLookup=true,uploadInstrument='guitar',uploadTargetExplicit=false,pendingUpload=null;
   let timingOffset=0,highwaySpeed=1,volume=.7,muted=false,preMute=.7;
   try{const saved=JSON.parse(localStorage.getItem('riffbound-preferences-v1')||'{}');timingOffset=Math.max(-250,Math.min(250,Number(saved.timingOffset)||0));highwaySpeed=Math.max(.7,Math.min(1.6,Number(saved.highwaySpeed)||1));
@@ -84,6 +85,7 @@
   }
   function updateButtons(){
     if($('backgroundButton'))$('backgroundButton').disabled=busy();
+    if($('backgroundExportVideo'))$('backgroundExportVideo').disabled=busy()||exportingVideo||!song||!window.RiffBackground?.hasVideo;
     $('difficultyGroup').disabled=active();$('modeGroup').disabled=active()||['drums','vocals'].includes(instrument);$('instrumentGroup').disabled=busy();
     document.querySelectorAll('input[name=instrument]').forEach(input=>input.disabled=canSwitchPlayback()&&!hasPlayablePart(input.value));
     refreshPlayableParts();
@@ -660,20 +662,20 @@
       }
     }catch(error){$('libraryStatus').textContent=storageErrorMessage(error);}
   }
-  function exportSong(record=song){
+  function exportSong(record=song,background=null){
     if(!record)throw Error('Open a song before exporting.');
     if(backupSaving)return;
-    const blob=Library.pack({...record,instrument:record===song?instrument:record.instrument});
+    const blob=Library.pack({...record,instrument:record===song?instrument:record.instrument},{background});
     const name=(record.title.replace(/[^a-z0-9 _-]/gi,'').slice(0,80)||'Riffbound song')+'.riffpack';
     const url=URL.createObjectURL(blob);
     if(backupExport)URL.revokeObjectURL(backupExport.url);
-    backupExport={blob,name,url};
+    backupExport={blob,name,url,hasVideo:!!background};
     const link=$('backupDownload');link.href=url;link.download=name;link.textContent='Download backup';
-    $('backupFileInfo').textContent=`${name} · ${(blob.size/1024/1024).toFixed(1)} MB · ${record.chartOnly?'Charts only, no audio':'Audio and all chart difficulties'}`;
+    $('backupFileInfo').textContent=`${name} · ${(blob.size/1024/1024).toFixed(1)} MB · ${record.chartOnly?'Charts only, no audio':'Audio and all chart difficulties'}${background?' + video and background timing':''}`;
     $('backupSaveAs').hidden=typeof window.showSaveFilePicker!=='function';
     $('backupStatus').textContent='Backup ready. Choose where to save it below.';
     $('libraryStatus').textContent='Backup ready. Save it in the Export backup panel.';
-    openTool('backupDialog');
+    if(background)$('backgroundDialog').close();openTool('backupDialog');
     // Never start a hidden picker request while preparing the panel. The
     // visible Save as button must own its fresh click and its pending state.
     if(typeof window.showSaveFilePicker!=='function')link.click();
@@ -709,7 +711,7 @@
     $('backupStatus').textContent='Opening the save dialog… If it does not appear, choose Save in new window or Download backup below.';
     try{
       const handle=await window.showSaveFilePicker({suggestedName:prepared.name,startIn:'downloads',types:[{description:'Riffbound song backup',accept:{'application/octet-stream':['.riffpack']}}]});
-      $('backupStatus').textContent='Saving your audio and charts…';
+      $('backupStatus').textContent=prepared.hasVideo?'Saving your audio, charts and video…':'Saving your audio and charts…';
       writable=await handle.createWritable();await writable.write(prepared.blob);await writable.close();writable=null;
       const message=`Backup saved: ${handle.name||prepared.name}. Keep this .riffpack file to restore your song or move it to another device.`;
       $('backupStatus').textContent=message;$('libraryStatus').textContent=message;
@@ -816,7 +818,13 @@
       const id=hash?Array.from(new Uint8Array(hash),b=>b.toString(16).padStart(2,'0')).join(''):record.id;if(id!==record.id)throw Error('The audio in this backup is damaged or does not match its song.');
       if(!await openSong(record)||song?.id!==record.id)return;
       await saveSong();
+      let videoMessage='';
+      if(record.background){
+        if(!window.RiffBackground?.restore)throw Error('The chart was imported. Update Riffbound to restore the video from this combined backup.');
+        videoMessage=await window.RiffBackground.restore(record.id,record.background);
+      }
       if(!record.chartOnly)await checkBackupCommunity();
+      if(videoMessage)showMessage(videoMessage);
     }catch(error){$('libraryStatus').textContent=error.message;}
     finally{importingBackup=false;$('backupFile').value='';updateButtons();}
   }
@@ -1028,6 +1036,14 @@
     if(busy())return;
     $('backgroundDialog').close();
     return play({preview:true,offset:Number.isFinite(videoChartStart)?Math.max(0,videoChartStart-2):0});
+  });
+  $('backgroundExportVideo')?.addEventListener('click',async()=>{
+    if(busy()||backupSaving||exportingVideo)return;
+    if(!song){$('backgroundStatus').textContent='Open an uploaded or saved song before saving a chart + video backup.';return;}
+    const owner=song;exportingVideo=true;updateButtons();
+    try{const attachment=await window.RiffBackground.attachment(owner.id);if(song!==owner)throw Error('The song changed before its video backup was ready.');exportSong(owner,attachment);}
+    catch(error){$('backgroundStatus').textContent=error.message;}
+    finally{exportingVideo=false;updateButtons();}
   });
 
   // Synthesize a fixed original instrumental. Mixing to one buffer gives notes and audio one clock.
@@ -1397,7 +1413,7 @@
   window.RiffUpdateSafety={
     canReload(manual=false){
       const dialogs=['backgroundDialog','libraryDialog','backupDialog','addSongDialog','chartFilesDialog','practiceDialog','timingDialog','helpDialog','resultDialog','controllerDialog',...(manual?[]:['offlineDialog'])];
-      return !window.RiffBackground?.busy&&!active()&&!previewing&&!calibrationTest&&!pendingSaves&&!importingBackup&&!backupSaving&&(!song||song===savedSong)&&!dialogs.some(id=>$(id)?.open);
+      return !exportingVideo&&!window.RiffBackground?.busy&&!active()&&!previewing&&!calibrationTest&&!pendingSaves&&!importingBackup&&!backupSaving&&(!song||song===savedSong)&&!dialogs.some(id=>$(id)?.open);
     },
     prepareReload(manual=false){
       if(!this.canReload(manual))return false;

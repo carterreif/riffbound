@@ -7,7 +7,7 @@
   const receive=event=>{
     if(backup||event.source!==sender||event.origin!==origin||event.data?.token!==token||event.data.type!=='RIFF_BACKUP_FILE')return;
     const {blob,name}=event.data;
-    if(!(blob instanceof Blob)||blob.size<=0||blob.size>88*1024*1024+14||typeof name!=='string'||!/^[a-z0-9 _-]+\.riffpack$/i.test(name)||name.length>100){$('saveStatus').textContent='The backup could not be read. Return to the game and export again.';return;}
+    if(!(blob instanceof Blob)||blob.size<=0||blob.size>(2048+88)*1024*1024+14||typeof name!=='string'||!/^[a-z0-9 _-]+\.riffpack$/i.test(name)||name.length>100){$('saveStatus').textContent='The backup could not be read. Return to the game and export again.';return;}
     try{
       url=URL.createObjectURL(blob);backup={blob,name};
       $('fileInfo').textContent=`${name} · ${(blob.size/1024/1024).toFixed(1)} MB`;

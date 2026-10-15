@@ -111,6 +111,8 @@ test('real picker wiring captures the file before disabling, retains its name, a
   assert.equal(nodes.backgroundPreviewTiming.disabled,false);
   nodes.backgroundOffset.value='7.5';await nodes.backgroundOffset.emit('input');assert.equal(nodes.backgroundPreview.currentTime,undefined,'Wait for video metadata before seeking the preview');
   nodes.backgroundPreview.readyState=1;nodes.backgroundPreview.duration=100;await nodes.backgroundPreview.emit('loadedmetadata');assert.equal(nodes.backgroundPreview.currentTime,7.5);assert.match(nodes.backgroundTimingHint.textContent,/7.5 seconds.*first note/);
+  const paired=await window.RiffBackground.attachment('a');assert.equal(paired.offset,7.5,'Export commits the current timing without requiring a blur event');assert.equal(paired.name,'My footage.mp4');
+  await assert.rejects(window.RiffBackground.attachment('another-song'),/paired with this video/);
   await window.RiffBackground.commitTiming();assert.equal(nodes.backgroundOffset.value,7.5,'Commit the current form value without requiring a blur event');
   nodes.backgroundPreview.currentTime=30;window.RiffBackground.showTimingFrame();assert.equal(nodes.backgroundPreview.currentTime,7.5,'Reopening settings returns to the configured frame');
   nodes.backgroundOffset.value='-2';await nodes.backgroundOffset.emit('input');assert.equal(nodes.backgroundPreview.currentTime,0);assert.match(nodes.backgroundTimingHint.textContent,/waits 2.0 seconds after the first note/);await window.RiffBackground.commitTiming();

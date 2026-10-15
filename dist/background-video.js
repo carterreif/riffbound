@@ -48,7 +48,7 @@
       const owner=key,value={...config},sessionOnly=value.file?.size>500*1024*1024;
       memory.set(owner,value);writes++;
       const persisted=sessionOnly?{...value,mode:'stage',file:null,name:''}:value;
-      queue=queue.catch(()=>{}).then(()=>store.put(owner,persisted)).then(()=>{if(owner===key&&value.file===config.file)notify(mediaIssue||(sessionOnly?'Video selected for this session. Videos larger than 500 MB are not stored; choose it again after reopening the game.':'Background saved for this song on this device.'));},()=>{if(owner===key&&value.file===config.file)notify(mediaIssue||'Background works for this session, but could not be saved. Free some browser storage and select it again.');}).finally(()=>writes--);
+      queue=queue.catch(()=>{}).then(()=>store.put(owner,persisted)).then(()=>{if(owner===key&&value.file===config.file)notify(mediaIssue||(sessionOnly?'Video selected for this session. Videos larger than 500 MB are not stored; choose it again after reopening the game.':'Background saved for this song on this device.'));return !sessionOnly;},()=>{if(owner===key&&value.file===config.file)notify(mediaIssue||'Background works for this session, but could not be saved. Free some browser storage and select it again.');return false;}).finally(()=>writes--);
       return queue;
     }
     async function choose(file){
@@ -63,6 +63,14 @@
       pause();blocked=false;appearance();notify(config.mode==='video'&&!config.file?'Choose a video file for this song.':'');return save();
     }
     function clear(){generation++;config={...config,file:null,name:'',mode:'stage'};apply();return save();}
+    function attachment(){if(!config.file)throw Error('Choose a video before saving a chart + video backup.');return {...config};}
+    async function restore(value){
+      if(!value?.file?.size||typeof value.file.arrayBuffer!=='function'||!['stage','dark','video'].includes(value.mode)||!Number.isFinite(value.offset)||Math.abs(value.offset)>900||!Number.isFinite(value.dim)||value.dim<0||value.dim>80)throw Error('The backup video settings are invalid.');
+      const large=value.file.size>500*1024*1024;
+      generation++;config={...defaults(),...value,name:value.name||'Restored background video'};apply();const saved=await save();
+      if(!saved&&!large)return 'Video restored for this session, but browser storage could not keep it. Keep the combined backup and free some device storage.';
+      return large?'Video restored for this session. Keep the combined backup to restore this large video after reopening.':'Video and timing restored with this chart. Check Backgrounds / video to preview it.';
+    }
     async function prepare({time=0,rate=1}={}){
       pause();if(config.mode!=='video'||!config.file)return;
       let canceled=false,rejectWait=null;
@@ -115,7 +123,7 @@
     video.addEventListener('error',()=>{if(!objectUrl||!video.error)return;loaded=false;
       mediaIssue=`“${config.name}” was selected, but its video could not open${video.error.code?' (media error '+video.error.code+')':''}. Try an MP4 encoded with H.264 or a WebM video.`;
       pause(Object.assign(Error(mediaIssue),{backgroundVideo:true}));stage.classList.remove('video-background');video.hidden=true;notify(mediaIssue);});
-    return {selectSong,choose,settings,clear,sync,pause,prepare,get hasVideo(){return !!config.file;},get busy(){return writes>0;},get mode(){return config.mode==='video'&&(!config.file||video.hidden)?'stage':config.mode;}};
+    return {selectSong,choose,settings,clear,sync,pause,prepare,attachment,restore,get hasVideo(){return !!config.file;},get busy(){return writes>0;},get mode(){return config.mode==='video'&&(!config.file||video.hidden)?'stage':config.mode;}};
   }
   const api={create,storage};
   if(typeof module!=='undefined'&&module.exports){module.exports=api;return;}
@@ -139,6 +147,7 @@
     $('backgroundMode').value=value.mode;$('backgroundOffset').value=value.offset;$('backgroundDim').value=value.dim;$('backgroundDimValue').textContent=value.dim+'%';
     $('backgroundFilename').textContent=value.name||'No video selected for this song.';$('backgroundRemove').disabled=!value.hasVideo;
     if(timingButton)timingButton.disabled=!value.hasVideo||value.mode!=='video';
+    if($('backgroundExportVideo'))$('backgroundExportVideo').disabled=!value.hasVideo||displayedSong==='demo';
     if(preview){
       const next=value.videoUrl||null;preview.hidden=!next;
       const changed=next!==previewUrl;
@@ -161,8 +170,11 @@
     for(const event of ['close','cancel'])$('backgroundDialog').addEventListener(event,()=>preview.pause());
   }
   const pauseAll=()=>{transportJob++;preview?.pause();player.pause();};
+  const commitTiming=()=>{const next={mode:$('backgroundMode').value,offset:clamp($('backgroundOffset').value,-900,900,0),dim:clamp($('backgroundDim').value,0,80,35)};return Object.keys(next).every(key=>next[key]===currentSettings[key])?Promise.resolve():player.settings(next);};
   root.RiffBackground={selectSong:id=>{if(id===displayedSong)return selection;displayedSong=id;picker.value='';$('backgroundStatus').textContent='';selection=player.selectSong(id);return selection;},
     prepare:async options=>{const job=transportJob;preview?.pause();await selection;if(job!==transportJob)throw Object.assign(Error('Video preparation was canceled.'),{backgroundVideo:true});return player.prepare(options);},
-    commitTiming:()=>{const next={mode:$('backgroundMode').value,offset:clamp($('backgroundOffset').value,-900,900,0),dim:clamp($('backgroundDim').value,0,80,35)};return Object.keys(next).every(key=>next[key]===currentSettings[key])?Promise.resolve():player.settings(next);},
-    showTimingFrame:()=>showTimingFrame(currentSettings.offset,true),sync:(...args)=>player.sync(...args),pause:pauseAll,get busy(){return operations>0||player.busy;},get mode(){return player.mode;}};
+    commitTiming,
+    attachment:async id=>{await selection;if(id!==displayedSong)throw Error('Open the song paired with this video before exporting.');await commitTiming();if(id!==displayedSong)throw Error('The song changed before its video backup was ready.');return player.attachment();},
+    restore:async(id,value)=>{await selection;if(id!==displayedSong)throw Error('The song changed before its video could be restored.');return player.restore(value);},
+    showTimingFrame:()=>showTimingFrame(currentSettings.offset,true),sync:(...args)=>player.sync(...args),pause:pauseAll,get hasVideo(){return player.hasVideo;},get busy(){return operations>0||player.busy;},get mode(){return player.mode;}};
 })(typeof window!=='undefined'?window:globalThis);

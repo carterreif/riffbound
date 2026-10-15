@@ -2,7 +2,7 @@
 (function(root){
   'use strict';
   const Difficulties=typeof module!=='undefined'&&module.exports?require('./chart-difficulties.js'):root.RiffDifficulties;
-  const MAX_AUDIO=80*1024*1024,MAX_META=8*1024*1024,MAGIC=new TextEncoder().encode('RIFFPACK1\n');
+  const MAX_AUDIO=80*1024*1024,MAX_META=8*1024*1024,MAX_VIDEO=2*1024*1024*1024,MAGIC=new TextEncoder().encode('RIFFPACK1\n'),VIDEO_MAGIC=new TextEncoder().encode('RIFFPACK2\n');
   const RECORD_BYTES=32*1024,FORMAT='riffbound-chunks-v1';
   let opening=null,connection=null,writes=Promise.resolve();
   function audioStatus(blob){
@@ -180,19 +180,37 @@
     });
   };
   const remove=id=>write((tx,done,fail)=>{const store=tx.objectStore('audio'),request=store.get(id);request.onsuccess=()=>{try{deleteChunks(store,id,request.result);store.delete(id);tx.objectStore('songs').delete(id);}catch(error){fail(error);}};});
-  function pack(song){
+  function videoMetadata(value){
+    if(!value||typeof value.name!=='string'||!value.name.trim()||value.name.length>500||typeof value.mime!=='string'||value.mime.length>120||!/^[-\w.+]+\/[-\w.+]+$/.test(value.mime)||!['stage','dark','video'].includes(value.mode)||!Number.isFinite(value.offset)||Math.abs(value.offset)>900||!Number.isFinite(value.dim)||value.dim<0||value.dim>80||!Number.isSafeInteger(value.bytes)||value.bytes<=0||value.bytes>MAX_VIDEO)throw Error('The video or its background timing is invalid. Videos in backups must be no larger than 2 GB.');
+    return {name:value.name,mime:value.mime,mode:value.mode,offset:value.offset,dim:value.dim,bytes:value.bytes};
+  }
+  function pack(song,{background=null}={}){
     if(!song.chartOnly||song.audioBlob)requireAudio(song.audioBlob);
-    const data=validate(metadata(song)),json=new TextEncoder().encode(JSON.stringify(data));
+    const data=validate(metadata(song));let manifest=data,magic=MAGIC,video=null;
+    if(background){
+      video=background.file;if(!video||typeof video.slice!=='function'||typeof video.arrayBuffer!=='function')throw Error('Choose a video before saving a chart + video backup.');
+      const info=videoMetadata({name:background.name||video.name||'background-video.mp4',mime:video.type||'application/octet-stream',mode:background.mode||'video',offset:background.offset??0,dim:background.dim??35,bytes:video.size});
+      data.byteLength=song.audioBlob?.size||0;manifest={song:data,audioBytes:data.byteLength,background:info};magic=VIDEO_MAGIC;
+    }
+    const json=new TextEncoder().encode(JSON.stringify(manifest));
     if(json.length>MAX_META)throw Error('This chart is too large to export.');
     const length=new Uint8Array(4);new DataView(length.buffer).setUint32(0,json.length);
-    return new Blob([MAGIC,length,json,...(song.audioBlob?[song.audioBlob]:[])],{type:'application/octet-stream'});
+    return new Blob([magic,length,json,...(song.audioBlob?[song.audioBlob]:[]),...(video?[video]:[])],{type:'application/octet-stream'});
   }
   async function unpack(blob){
-    if(blob.size>MAX_AUDIO+MAX_META+14||blob.size<15)throw Error('Choose a valid .riffpack backup.');
+    if(blob.size>MAX_AUDIO+MAX_META+MAX_VIDEO+14||blob.size<15)throw Error('Choose a valid .riffpack backup.');
     const header=new Uint8Array(await blob.slice(0,14).arrayBuffer());
-    if(!MAGIC.every((v,i)=>header[i]===v))throw Error('Choose a Riffbound .riffpack backup.');
+    const hasVideo=VIDEO_MAGIC.every((v,i)=>header[i]===v);
+    if(!hasVideo&&!MAGIC.every((v,i)=>header[i]===v))throw Error('Choose a Riffbound .riffpack backup.');
     const length=new DataView(header.buffer).getUint32(10);if(length>MAX_META||length+14>blob.size)throw Error('This backup is incomplete.');
-    let data;try{data=validate(JSON.parse(await blob.slice(14,14+length).text()));}catch(error){throw Error('Could not read this backup: '+error.message);}
+    let data,manifest;try{manifest=JSON.parse(await blob.slice(14,14+length).text());data=validate(hasVideo?manifest.song:manifest);}catch(error){throw Error('Could not read this backup: '+error.message);}
+    if(hasVideo){
+      const info=videoMetadata(manifest.background),audioBytes=manifest.audioBytes;
+      if(!Number.isSafeInteger(audioBytes)||audioBytes<0||audioBytes>MAX_AUDIO||audioBytes!==data.byteLength||(data.chartOnly?audioBytes!==0:audioBytes===0)||14+length+audioBytes+info.bytes!==blob.size)throw Error('This chart + video backup is incomplete or has invalid media lengths.');
+      const start=14+length;
+      return {...data,audioBlob:audioBytes?blob.slice(start,start+audioBytes,data.mime):null,background:{name:info.name,mode:info.mode,offset:info.offset,dim:info.dim,file:blob.slice(start+audioBytes,blob.size,info.mime)}};
+    }
+    if(blob.size>MAX_AUDIO+MAX_META+14)throw Error('This backup audio is too large.');
     if(length+14===blob.size){if(data.chartOnly)return {...data,audioBlob:null};throw Error('This backup is incomplete.');}
     const audioBlob=blob.slice(14+length,blob.size,data.mime);if(audioBlob.size>MAX_AUDIO)throw Error('This backup audio is too large.');
     return {...data,audioBlob};
