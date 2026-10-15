@@ -3,7 +3,13 @@
   const $=id=>document.getElementById(id),config=window.RiffOfflineAssets;
   const supported='serviceWorker' in navigator&&window.isSecureContext;
   let installPrompt=null,registration=null,starting=null,pendingUpdate=null,reloadPending=false,reloading=false;
-  let lastCheck=0,activationAt=0,retryTimer=null;
+  let lastCheck=0,activationAt=0,retryTimer=null,reloadTarget=null;
+  const reloadHistoryKey='riffbound-automatic-refresh-v1';
+  let reloadHistory=[],reloadStorageAvailable=true;
+  try{
+    const saved=sessionStorage.getItem(reloadHistoryKey);
+    try{const history=JSON.parse(saved||'[]');if(Array.isArray(history))reloadHistory=history.filter(value=>typeof value==='string').slice(-8);}catch{}
+  }catch{reloadStorageAvailable=false;}
   let checking=false,checked=false,checkError='',statusGeneration=0;
   let downloading=false,downloadMessage='';
   // The runtime asset manifest identifies the loaded game, including cached copies.
@@ -41,8 +47,19 @@
       retryLater();return;
     }
     if(reloadPending){
+      // A cached document can survive reload(). Remember attempts across page
+      // boots, including embedded views, rather than restarting indefinitely.
+      if(!manual&&(!reloadStorageAvailable||reloadHistory.includes(reloadTarget))){
+        $('offlineStatus').textContent='Automatic refresh paused because this browser kept an older game copy or could not remember the update. You can keep playing. Choose Use updated game to retry, or open the game link directly.';return;
+      }
       if(!window.RiffUpdateSafety.prepareReload(manual)){
         $('offlineStatus').textContent='Update ready. Keep this song saved; automatic refresh is waiting for browser storage.';retryLater();return;
+      }
+      const history=[...reloadHistory.filter(value=>value!==reloadTarget),reloadTarget].slice(-8);
+      try{sessionStorage.setItem(reloadHistoryKey,JSON.stringify(history));reloadHistory=history;}
+      catch{
+        reloadStorageAvailable=false;
+        if(!manual){$('offlineStatus').textContent='Automatic refresh paused because this browser could not remember the update. You can keep playing or choose Use updated game to retry.';return;}
       }
       reloading=true;$('reloadGameButton').disabled=true;location.reload();return;
     }
@@ -167,7 +184,7 @@
     navigator.serviceWorker.addEventListener('controllerchange',()=>navigator.serviceWorker.controller?.postMessage({type:'GET_VERSION'}));
     navigator.serviceWorker.addEventListener('message',event=>{
       if(event.source!==navigator.serviceWorker.controller&&event.source!==pendingUpdate)return;
-      if(event.data?.type==='GAME_VERSION'&&newerVersion(event.data.version)){reloadPending=true;pendingUpdate=null;applyUpdate();}
+      if(event.data?.type==='GAME_VERSION'&&newerVersion(event.data.version)){reloadTarget=event.data.version;reloadPending=true;pendingUpdate=null;applyUpdate();}
       if(event.data?.type==='UPDATE_DEFERRED'){$('offlineStatus').textContent='Update ready. Close other Riffbound tabs to let this game update automatically.';retryLater();}
     });
     window.addEventListener('online',()=>{check(true);applyUpdate();});

@@ -65,11 +65,11 @@ test('a missing audio chunk fails explicitly instead of opening a truncated song
   await assert.rejects(s.fresh().get(r.id),/incomplete/);
 });
 
-function worker({badAsset=false,tabs=[],failWrite=false,htmlRedirect=null,htmlType='text/html',demoType=null}={}){
+function worker({badAsset=false,tabs=[],failWrite=false,htmlRedirect=null,htmlType='text/html',demoType=null,manifestVersion=null}={}){
   const listeners={},banks=new Map(),requests=[];let online=true,skipped=0;
   const caches={open:async key=>{if(!banks.has(key))banks.set(key,new Map());const bank=banks.get(key);return {put:async(k,v)=>{if(failWrite)throw Error('Quota');bank.set(k,v);},match:async k=>bank.get(typeof k==='string'?k:k.url)};},keys:async()=>[...banks.keys()],delete:async key=>banks.delete(key)};
   const self={location:{href:'https://game.example/sw.js'},clients:{claim:async()=>{},matchAll:async()=>tabs},skipWaiting:async()=>{skipped++;},addEventListener:(type,fn)=>listeners[type]=fn};
-  const sandbox={self,caches,URL,Request,Promise,fetch:async request=>{if(!online)throw Error('Offline');const url=request.url||request;requests.push(url);const redirect=url.endsWith('/backup-save.html')&&htmlRedirect;return {ok:true,status:200,redirected:!!redirect||url.endsWith('/index.html')||badAsset&&url.endsWith('game.js'),headers:{get:()=>url.endsWith('.png')?'image/png':url.endsWith('.js')?'text/javascript':url.endsWith('.css')?'text/css':url.includes('/demos/')&&demoType?demoType:url.endsWith('.json')?'application/json':url.endsWith('.mp3')?'audio/mpeg':url.endsWith('/backup-save.html')?htmlType:'text/html'},url:redirect?htmlRedirect:url};}};
+  const sandbox={self,caches,URL,Request,Promise,fetch:async request=>{if(!online)throw Error('Offline');const url=request.url||request;requests.push(url);const redirect=url.endsWith('/backup-save.html')&&htmlRedirect;return {ok:true,status:200,redirected:!!redirect||url.endsWith('/index.html')||badAsset&&url.endsWith('game.js'),headers:{get:()=>url.endsWith('.png')?'image/png':url.endsWith('.js')?'text/javascript':url.endsWith('.css')?'text/css':url.includes('/demos/')&&demoType?demoType:url.endsWith('.json')?'application/json':url.endsWith('.mp3')?'audio/mpeg':url.endsWith('/backup-save.html')?htmlType:'text/html'},url:redirect?htmlRedirect:url,clone:()=>({text:async()=>manifestVersion===null?code('offline-assets.js'):code('offline-assets.js').replace(/version:'[^']+'/,`version:'${manifestVersion}'`)})};}};
   vm.createContext(sandbox);sandbox.importScripts=name=>vm.runInContext(code(name),sandbox);vm.runInContext(code('sw.js'),sandbox);
   const emit=async(type,data={})=>{let result;listeners[type]({waitUntil:p=>{result=p;},respondWith:p=>{result=p;},...data});return result?await result:null;};
   return {self,banks,requests,emit,offline:()=>{online=false;},get skipped(){return skipped;}};
@@ -138,4 +138,9 @@ test('offline save reports a failed write or version mismatch without falsely cl
   assert.equal(messages.at(-1).type,'ERROR');assert.match(messages.at(-1).message,/space/);assert.equal(w.banks.size,0);
   messages.length=0;await w.emit('message',{data:{type:'SAVE_OFFLINE',version:'old'},ports:[port]});
   assert.equal(messages.at(-1).type,'ERROR');assert.match(messages.at(-1).message,/different game version/);
+});
+
+
+test('a mixed-release asset download is rejected before it can publish a mismatched offline cache',async()=>{
+ const w=worker({manifestVersion:'riffbound-offline-v1-1'}),old=new Map([['song','untouched']]);w.banks.set('riffbound-offline-old',old);await assert.rejects(w.emit('install'),/changed during download/);assert.equal(w.banks.size,1);assert.equal(w.banks.get('riffbound-offline-old'),old);assert.equal(w.skipped,0);
 });

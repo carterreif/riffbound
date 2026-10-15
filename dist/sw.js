@@ -22,6 +22,11 @@ async function cacheGame(progress=()=>{}){
     progress(++completed,urls.length);
     return response;
   }));
+  // A deployment can change while these requests are in flight. Never label
+  // another release's runtime manifest as this worker's cached game: that
+  // makes every page boot request the very same update again.
+  const manifest=await responses[files.indexOf('offline-assets.js')].clone().text();
+  if(/\bversion\s*:\s*['"]([^'"]+)['"]/.exec(manifest)?.[1]!==version)throw Error('Game files changed during download. Keep playing and check for updates again.');
   const existed=(await caches.keys()).includes(version);
   const cache=await caches.open(version),results=await Promise.allSettled(urls.map((url,i)=>cache.put(url,responses[i])));
   if(results.some(result=>result.status==='rejected')){if(!existed)await caches.delete(version);throw Error('The browser could not save all game files. Free some device space and try again. Your setlist has not been removed.');}

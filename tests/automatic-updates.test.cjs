@@ -1,7 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const source=fs.readFileSync(require.resolve('../dist/offline.js'),'utf8');
 const flush=async()=>{for(let i=0;i<8;i++)await new Promise(resolve=>setImmediate(resolve));};
-function setup({waiting=true,online=true,registerError=false,firstInstall=false,cacheReady=false,saveError=null,silentSave=false,version='v37',label='Game version 39'}={}){
+function setup({waiting=true,online=true,registerError=false,firstInstall=false,cacheReady=false,saveError=null,silentSave=false,version='v37',label='Game version 39',reloadStorage=new Map(),reloadStorageBlocked=false,reloadWriteBlocked=false}={}){
   const events=()=>({listeners:{},addEventListener(type,fn){(this.listeners[type]??=[]).push(fn);},removeEventListener(type,fn){this.listeners[type]=(this.listeners[type]||[]).filter(f=>f!==fn);},emit(type,data={}){return Promise.all((this.listeners[type]||[]).map(fn=>fn(data)));}});
   const nodes={};for(const id of ['gameVersion','offlineVersion','reloadGameButton','offlineStatus','downloadGameButton','offlineButton','installAppButton','installInstructions','offlineDialog'])nodes[id]={...events(),hidden:true,disabled:false,close(){this.open=false;}};
   nodes.gameVersion.textContent=label;
@@ -17,7 +17,8 @@ function setup({waiting=true,online=true,registerError=false,firstInstall=false,
   const document={...events(),hidden:false,getElementById:id=>nodes[id]};
   class MessageChannel{constructor(){const a={closed:false,close(){this.closed=true;}},b={close(){}};a.postMessage=data=>queueMicrotask(()=>b.onmessage?.({data}));b.postMessage=data=>queueMicrotask(()=>{if(!a.closed)a.onmessage?.({data});});this.port1=a;this.port2=b;}}
   const caches={open:async()=>({match:async()=>cacheReady?{ok:true}:undefined})};window.caches=caches;
-  const sandbox={window,document,navigator,caches,MessageChannel,clearTimeout:id=>timers.delete(id),location:{href:'https://game.example/',reload:()=>reloads++},URL,Date:{now:()=>now},WeakSet,setTimeout:(fn,delay)=>{const id={};timers.set(id,{fn,delay});return id;},setInterval:fn=>intervals.push(fn)};
+  const sessionStorage={getItem:key=>{if(reloadStorageBlocked)throw Error('Storage blocked');return reloadStorage.get(key)||null;},setItem:(key,value)=>{if(reloadStorageBlocked||reloadWriteBlocked)throw Error('Storage blocked');reloadStorage.set(key,value);}};
+  const sandbox={window,document,navigator,caches,MessageChannel,sessionStorage,clearTimeout:id=>timers.delete(id),location:{href:'https://game.example/',reload:()=>reloads++},URL,Date:{now:()=>now},WeakSet,setTimeout:(fn,delay)=>{const id={};timers.set(id,{fn,delay});return id;},setInterval:fn=>intervals.push(fn)};
   vm.runInNewContext(source,sandbox);
   return {nodes,sw,worker,reg,navigator,window,document,messages,intervals,timers,get reloads(){return reloads;},get registers(){return registers;},get updates(){return updates;},get prepared(){return prepared;},allow:v=>{allowed=v;},storage:v=>{prepare=v;},time:delta=>{now+=delta;},retry:()=>{const batch=[...timers.values()];timers.clear();now+=5000;batch.forEach(t=>t.fn());},version:version=>sw.emit('message',{source:sw.controller,data:{type:'GAME_VERSION',version}})};
 }
@@ -66,7 +67,7 @@ test('update button stays visible, reports the installed version, and checks aga
 });
 test('stale version-100 HTML reports the loaded release from the real offline manifest',async()=>{
  const sandbox={self:{}};vm.runInNewContext(fs.readFileSync(require.resolve('../dist/offline-assets.js'),'utf8'),sandbox);
- const s=setup({waiting:false,cacheReady:true,version:sandbox.self.RiffOfflineAssets.version,label:'Game version 100'});await flush();assert.equal(s.nodes.gameVersion.textContent,'Game version 113');assert.equal(s.nodes.offlineVersion.textContent,'Game version 113');assert.match(s.nodes.offlineStatus.textContent,/No new update found.*Game version 113/);assert.equal(s.reloads,0);
+ const s=setup({waiting:false,cacheReady:true,version:sandbox.self.RiffOfflineAssets.version,label:'Game version 100'});await flush();assert.equal(s.nodes.gameVersion.textContent,'Game version 114');assert.equal(s.nodes.offlineVersion.textContent,'Game version 114');assert.match(s.nodes.offlineStatus.textContent,/No new update found.*Game version 114/);assert.equal(s.reloads,0);
 });
 test('future releases update both version labels without HTML edits; invalid versions do not claim an old release',async()=>{
  for(const version of ['riffbound-offline-v104-1','v104']){const s=setup({waiting:false,version,label:'Game version 100'});await flush();assert.equal(s.nodes.offlineVersion.textContent,'Game version 104');assert.equal(s.nodes.gameVersion.textContent,'Game version 104');}
@@ -130,4 +131,30 @@ test('a stuck browser update check times out and returns a usable retry button',
   const s=setup({waiting:false});await flush();s.reg.update=()=>new Promise(()=>{});
   const done=s.nodes.reloadGameButton.emit('click');await flush();assert.equal(s.nodes.reloadGameButton.disabled,true);
   s.retry();await done;assert.equal(s.nodes.reloadGameButton.disabled,false);assert.match(s.nodes.offlineStatus.textContent,/update check timed out/);
+});
+
+
+test('a stale cached page cannot repeatedly restart itself across fresh page loads',async()=>{
+ const reloadStorage=new Map();
+ const first=setup({waiting:false,reloadStorage});await flush();first.version('v38');assert.equal(first.reloads,1);
+ const stale=setup({waiting:false,reloadStorage});await flush();stale.version('v38');assert.equal(stale.reloads,0,'A second page boot must break the reload loop');assert.match(stale.nodes.offlineStatus.textContent,/automatic refresh paused/i);assert.equal(stale.nodes.reloadGameButton.textContent,'Use updated game');
+ stale.retry();stale.window.emit('focus');stale.version('v38');await flush();assert.equal(stale.reloads,0);
+ await stale.nodes.reloadGameButton.emit('click');assert.equal(stale.reloads,1,'The player can still explicitly retry the update');
+ const again=setup({waiting:false,reloadStorage});await flush();again.version('v38');assert.equal(again.reloads,0,'A manual retry cannot restart the automatic loop on the next boot');
+});
+test('reload protection remembers recent target versions while allowing the next release',async()=>{
+ const reloadStorage=new Map();
+ for(const target of ['v38','v39']){const app=setup({waiting:false,reloadStorage});await flush();app.version(target);assert.equal(app.reloads,1);}
+ const old=setup({waiting:false,reloadStorage});await flush();old.version('v38');assert.equal(old.reloads,0,'Alternating cached versions must not evade the guard');
+ const current=setup({waiting:false,reloadStorage,version:'v39'});await flush();current.version('v39');assert.equal(current.reloads,0);current.version('v40');assert.equal(current.reloads,1);
+});
+test('blocked session storage leaves automatic refresh paused and explicit update usable',async()=>{
+ const app=setup({waiting:false,reloadStorageBlocked:true});await flush();app.version('v38');assert.equal(app.reloads,0);assert.match(app.nodes.offlineStatus.textContent,/automatic refresh paused/i);await app.nodes.reloadGameButton.emit('click');assert.equal(app.reloads,1);
+});
+test('an unsafe run or failed resume preparation does not spend its one automatic refresh',async()=>{
+ const reloadStorage=new Map(),app=setup({waiting:false,reloadStorage});await flush();app.storage(false);app.version('v38');assert.equal(app.reloads,0);assert.equal(reloadStorage.size,0);app.storage(true);app.retry();assert.equal(app.reloads,1);
+});
+
+test('a failed refresh-history write cannot start an unguarded automatic reload',async()=>{
+ const app=setup({waiting:false,reloadWriteBlocked:true});await flush();app.version('v38');assert.equal(app.reloads,0);assert.match(app.nodes.offlineStatus.textContent,/automatic refresh paused/i);await app.nodes.reloadGameButton.emit('click');assert.equal(app.reloads,1);
 });

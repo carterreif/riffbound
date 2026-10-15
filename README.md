@@ -1,5 +1,7 @@
 # Riffbound
 
+Version 114 prevents repeated automatic page restarts when a browser keeps loading a stale cached copy. Update attempts are remembered for the current tab; the game remains playable and offers a manual retry. Offline downloads reject a runtime manifest from a different release before replacing cached files. The offline cache revision is 114-1.
+
 Version 113 adds **Go back to section** to full-song and practice results for Guitar, Drums, Bass and Vocals. It opens the section chooser for the same song, instrument and difficulty, including after a perfect run, without replaying audio or discarding the saved result. The offline cache revision is 113-1.
 
 Version 112 ends a practice section with a large accuracy percentage, points and note totals, plus **Practice again** and **Back to main menu**. Practice again retains the exact section and speed. Section bests save separately for each song, instrument, difficulty, range and speed; full-song bests are unchanged. Continuous repetition is now an optional checkbox. Audio stops at the selected boundary, while calibrated final-note hit windows remain valid. The offline cache revision is 112-1.
