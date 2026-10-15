@@ -18,6 +18,7 @@
   let song=null,uploadGeneration=0,playbackGeneration=0,cancelAnalysis=null,cancelLookup=null,previewing=false;
   let transportSeek=0,playRate=1,practiceLoop=null,loopCycle=0,practicePass=1,frozenInputTime=0;
   let videoChartStart=Infinity;
+  let lastMissTime=null,trainingContext='',trainingNotes=null;
   const videoPosition=time=>Math.max(0,time-videoChartStart);
   let calibrationTest=null,calibrationTimer=null;
   let controllerInput=null,controllerFocused=true;
@@ -27,8 +28,9 @@
   let backupExport=null,backupSaving=false,backupTransfer=null;
   let exportingVideo=false,savingSetlistVideo=false;
   let communityLookup=true,uploadInstrument='guitar',uploadTargetExplicit=false,pendingUpload=null;
-  let timingOffset=0,highwaySpeed=1,volume=.7,muted=false,preMute=.7;
+  let timingOffset=0,highwaySpeed=1,volume=.7,muted=false,preMute=.7,showHitTiming=true;
   try{const saved=JSON.parse(localStorage.getItem('riffbound-preferences-v1')||'{}');timingOffset=Math.max(-250,Math.min(250,Number(saved.timingOffset)||0));highwaySpeed=Math.max(.7,Math.min(1.6,Number(saved.highwaySpeed)||1));
+    if(typeof saved.showHitTiming==='boolean')showHitTiming=saved.showHitTiming;
     if(typeof saved.volume==='number'&&Number.isFinite(saved.volume))volume=Math.max(0,Math.min(1,saved.volume));
     if(typeof saved.preMute==='number'&&Number.isFinite(saved.preMute)&&saved.preMute>0)preMute=Math.min(1,saved.preMute);else if(volume>0)preMute=volume;
     muted=saved.muted===true||volume===0;communityLookup=saved.communityLookup!==false;
@@ -84,6 +86,8 @@
     $('playPartStatus').textContent=song?`${partName(instrument)} · ${D.NAMES[difficulty]} selected. Choose a part, then Preview chart or Play track.`+(song.quality?.imports?.[instrument]?' Using this instrument’s authored chart.':' Using an audio estimate for this instrument; overlapping sounds can be misidentified.')+(missing.length?` No playable chart for ${missing.map(partName).join(', ')}. Try an authored chart or isolated audio for that part.`:''):'';
   }
   function updateButtons(){
+    if($('retryButton')){$('retryButton').disabled=busy()||!['playing','countin','paused','finished'].includes(state);$('retryButton').setAttribute('aria-label',practiceLoop?'Retry practice section (R)':'Retry track (R)');}
+    if($('practiceMissButton'))$('practiceMissButton').disabled=!T.missedSection?.(lastMissTime,song?.musicEnd??E.MUSIC_END)||previewing||song?.chartOnly===true;
     if($('backgroundButton'))$('backgroundButton').disabled=busy();
     if($('backgroundExportVideo'))$('backgroundExportVideo').disabled=busy()||exportingVideo||!song||!window.RiffBackground?.hasVideo;
     if($('backgroundSaveSetlist'))$('backgroundSaveSetlist').disabled=busy()||exportingVideo||!song||!window.RiffBackground?.hasVideo;
@@ -164,9 +168,12 @@
     if(!song&&vocals){$('uploadHint').textContent='Iron Voltage is instrumental. Upload a song with vocals to chart its melody.';setAnnouncement('VOCAL MELODY','UPLOAD A VOCAL TRACK');}else if(!song)setAnnouncement('YOUR STAGE IS WAITING','LET IT RIP.');
     idleNotes=chartNotes();refreshBest();updateButtons();refreshChartPreview();
   }
-  function judge(kind,lane){
+  function judge(kind,lane,detail){
     const el=$('judgment');el.textContent=kind;el.className=`judgment ${kind==='GOOD'?'good':kind==='MISS'||kind==='OFF BEAT'?'miss':''}`;
-    void el.offsetWidth;el.classList.add('show');clearTimeout(judgeTimer);judgeTimer=setTimeout(()=>el.classList.remove('show'),430);
+    const timing=$('hitTiming'),feedback=!previewing&&showHitTiming&&Number.isFinite(detail?.error)?T.timingFeedback?.(detail.error,playRate):null;
+    if(timing){timing.textContent=feedback?.text||'';timing.className='hit-timing'+(feedback?' show '+feedback.kind:'');}
+    if(kind==='MISS'&&!previewing&&Number.isFinite(detail?.time)){lastMissTime=detail.time;if($('practiceMissButton'))$('practiceMissButton').disabled=false;}
+    void el.offsetWidth;el.classList.add('show');clearTimeout(judgeTimer);judgeTimer=setTimeout(()=>{el.classList.remove('show');timing?.classList.remove('show');},430);
     if(kind==='PERFECT'||kind==='GOOD'){
       flashes[lane]=1;
       if(!reducedMotion)for(let i=0;i<(instrument==='drums'?18:10);i++)particles.push({lane,life:instrument==='drums'?.58:.45,age:0,vx:(Math.random()-.5)*95,vy:-50-Math.random()*(instrument==='drums'?215:160),x:0,y:0,size:1+Math.random()*3,color:instrument==='drums'?(i%3?'#ffb54f':'#fff3bb'):session.overdrive?'#e8ff65':laneColor(lane)});
@@ -174,7 +181,10 @@
   }
   function newSession(){
     if(controllerInput)controllerInput.setContext(controllerContext());
-    const notes=chartNotes();videoChartStart=notes.reduce((first,n)=>Number.isFinite(n.time)?Math.min(first,n.time):first,Infinity);
+    const notes=chartNotes(),context=[song?.id||'demo',instrument,difficulty].join(':');
+    if(context!==trainingContext||song&&notes!==trainingNotes){lastMissTime=null;trainingContext=context;trainingNotes=notes;}
+    if($('hitTiming')){$('hitTiming').textContent='';$('hitTiming').classList.remove('show');}
+    videoChartStart=notes.reduce((first,n)=>Number.isFinite(n.time)?Math.min(first,n.time):first,Infinity);
     session=new E.Session(difficulty,mode,instrument,{drumLayout:D.drumLayout(song?.quality),notes:T.segment(notes,practiceLoop),musicEnd:practiceLoop?.end??song?.musicEnd??E.MUSIC_END});session.onJudge=judge;session.onMilestone=n=>{
       const el=$('streakCallout');el.textContent=`${n} NOTE STREAK`;el.classList.remove('show');void el.offsetWidth;el.classList.add('show');
     };
@@ -855,7 +865,7 @@
     }catch(error){if(generation===uploadGeneration){state='idle';$('chartStatus').textContent='Community check could not complete. Your imported backup charts are kept. '+error.message;showMessage($('chartStatus').textContent);}}
     finally{if(generation===uploadGeneration){state='idle';$('uploadProgress').hidden=true;updateButtons();}}
   }
-  function preferences(){try{localStorage.setItem('riffbound-preferences-v1',JSON.stringify({timingOffset,highwaySpeed,volume,muted,preMute,communityLookup,...(uploadTargetExplicit?{uploadInstrument}:{})}));return true;}catch{return false;}}
+  function preferences(){try{localStorage.setItem('riffbound-preferences-v1',JSON.stringify({timingOffset,highwaySpeed,volume,muted,preMute,showHitTiming,communityLookup,...(uploadTargetExplicit?{uploadInstrument}:{})}));return true;}catch{return false;}}
   function stopCalibration(){
     clearTimeout(calibrationTimer);calibrationTimer=null;
     if(calibrationTest)for(const node of calibrationTest.nodes||[]){try{node.stop();node.disconnect();}catch{}}
@@ -1018,7 +1028,18 @@
       $('chartFileStatus').textContent=kind==='audio'?'Original audio downloaded.':kind==='chart'?'notes.chart downloaded. Also download song.ini and audio into the same folder.':'song.ini downloaded with five-lane drum settings.';
     }catch(error){$('chartFileStatus').textContent=error.message;}
   });
-  $('practiceButton').addEventListener('click',()=>openTool('practiceDialog'));
+  function openPractice(useMiss=false){
+    if(busy()||song?.chartOnly)return;
+    const section=T.missedSection?.(lastMissTime,song?.musicEnd??E.MUSIC_END);
+    if(useMiss&&!section){showMessage('Play a section first. Missed notes can then be selected for practice.');return;}
+    if(useMiss){$('loopStart').value=String(section.start);$('loopEnd').value=String(section.end);$('practiceStatus').textContent=`Last missed note at ${formatTime(lastMissTime)}. Practice ${formatTime(section.start)}–${formatTime(section.end)}, or adjust the range.`;}
+    if(!Number.isFinite(Number($('practiceRate').value))||Number($('practiceRate').value)<.25)$('practiceRate').value='0.75';
+    if($('resultDialog').open)$('resultDialog').close();openTool('practiceDialog');
+    if($('practiceMissButton'))$('practiceMissButton').disabled=!section||previewing;
+  }
+  $('practiceButton').addEventListener('click',()=>openPractice());
+  $('practiceMissButton')?.addEventListener('click',()=>openPractice(true));
+  $('resultPracticeMiss')?.addEventListener('click',()=>openPractice(true));
   $('practiceLaunch').addEventListener('click',()=>{const start=Number($('loopStart').value),end=Number($('loopEnd').value);if(!Number.isFinite(start)||!Number.isFinite(end)||start<0||end-start<1||end>(song?.musicEnd??E.MUSIC_END)){$('practiceStatus').textContent='Choose at least one second inside this song.';return;}const loop=T.practice(start,end,$('practiceRate').value,song?.musicEnd??E.MUSIC_END);if(!T.segment(chartNotes(),loop).length){$('practiceStatus').textContent='There are no charted notes here. Choose another section.';return;}$('practiceDialog').close();play({practice:true});});
   $('timingButton').addEventListener('click',()=>{$('timingOffset').value=String(timingOffset);$('timingOffsetValue').textContent=`${timingOffset} ms`;openTool('timingDialog');});
   $('calibrationStart').addEventListener('click',startCalibration);
@@ -1027,6 +1048,7 @@
   $('timingOffset').addEventListener('input',()=>{$('timingOffsetValue').textContent=`${$('timingOffset').value} ms`;});
   $('calibrationSave').addEventListener('click',()=>{timingOffset=Math.max(-250,Math.min(250,Number($('timingOffset').value)||0));stopCalibration();const saved=preferences();$('timingDialog').close();showMessage(saved?'Timing saved for this device.':'Timing applied for this session; browser storage is unavailable.');});
   $('calibrationReset').addEventListener('click',()=>{stopCalibration();timingOffset=0;$('timingOffset').value='0';$('timingOffsetValue').textContent='0 ms';preferences();});
+  if($('showHitTiming')){$('showHitTiming').checked=showHitTiming;$('showHitTiming').addEventListener('change',()=>{showHitTiming=$('showHitTiming').checked;if(!showHitTiming)$('hitTiming')?.classList.remove('show');preferences();});}
   for(const event of ['close','cancel'])$('timingDialog').addEventListener(event,stopCalibration);
   document.addEventListener('visibilitychange',()=>{if(document.hidden&&calibrationTest){stopCalibration();$('calibrationStatus').textContent='Calibration stopped when the app was hidden. Start again when ready.';}});
   $('highwaySpeed').value=String(highwaySpeed);$('highwaySpeedValue').textContent=`${highwaySpeed.toFixed(1)}×`;
@@ -1132,7 +1154,7 @@
     previewing=preview;
     stopAudio();newSession();showMessage('');
     const playback=playbackGeneration;
-    state='loading';updateButtons();setAnnouncement('PLUGGING IN THE AMPS','TUNING UP…');
+    state='loading';updateButtons();updateUi(practiceLoop?.start??0);setAnnouncement('PLUGGING IN THE AMPS','TUNING UP…');
     try{
       ensureAudio();
       await audioContext.resume();master.gain.value=muted?0:volume;
@@ -1175,6 +1197,11 @@
     }catch(error){if(playback===playbackGeneration)showMessage(error.backgroundVideo?error.message:'Tap Resume track to enable sound.');}
   }
   function togglePause(){if(state==='paused')resume();else pause();}
+  function retryCurrentRun(){
+    if(busy()||!['playing','countin','paused','finished'].includes(state))return;
+    const options={practice:!!practiceLoop,preview:previewing,offset:previewing?transportSeek:0};
+    if(state==='paused')state='finished';return play(options);
+  }
   function reset(){
     stopAudio();state='idle';previewing=false;practiceLoop=null;playRate=1;newSession();
     $('resultDialog').close();setAnnouncement('YOUR STAGE IS WAITING','LET IT RIP.');updateButtons();updateUi(0);refreshBest();
@@ -1188,6 +1215,8 @@
     $('resultStreak').textContent=session.bestStreak;$('resultPerfect').textContent=session.perfect;
     $('resultStars').innerHTML='★'.repeat(stars)+`<span>${'★'.repeat(5-stars)}</span>`;$('resultStars').setAttribute('aria-label',`${stars} out of 5 stars`);
     $('resultNotes').textContent=`${session.hits} of ${session.notes.length} notes hit · ${partName(instrument)} · ${D.NAMES[difficulty]} · ${instrument==='drums'?'Tap pads':instrument==='vocals'?'Pitch pads':mode==='tap'?'Tap frets':'Hold + strum'}`;
+    if($('resultTiming')){const timing=T.timingSummary?.(session.notes,playRate);$('resultTiming').textContent=timing?`Typical hit: ${Math.abs(timing.medianMs)<=20?'on time':Math.abs(timing.medianMs)+' ms '+(timing.medianMs<0?'early':'late')}. ${timing.early} early · ${timing.onTime} on time · ${timing.late} late. Includes your current calibration.`:'Hit at least eight notes for a timing summary. Timing describes your playing and current calibration.';}
+    if($('resultPracticeMiss'))$('resultPracticeMiss').hidden=!T.missedSection?.(lastMissTime,song?.musicEnd??E.MUSIC_END);
     const best=readBest(),isBest=session.score>best;$('newBest').hidden=!isBest;
     if(isBest){try{localStorage.setItem(bestKey(),String(session.score));}catch{}}
     refreshBest();setAnnouncement(song?'YOUR SONG':'IRON VOLTAGE','SESSION COMPLETE');$('resultDialog').showModal();
@@ -1228,8 +1257,9 @@
     if($('backgroundDialog')?.open)return;
     if($('controllerDialog')?.open)return;
     if($('timingDialog').open){if(event.code==='Space'){event.preventDefault();if(!event.repeat)calibrationTap();}return;}
-    if($('helpDialog').open||$('resultDialog').open||$('libraryDialog').open||$('practiceDialog').open||$('offlineDialog').open||$('chartFilesDialog').open||$('addSongDialog').open)return;
+    if($('helpDialog').open||$('resultDialog').open||$('libraryDialog').open||$('practiceDialog').open||$('offlineDialog').open||$('chartFilesDialog').open||$('addSongDialog').open||$('backupDialog')?.open)return;
     if(editingInput(event.target))return;
+    if(event.code==='KeyR'&&!event.ctrlKey&&!event.metaKey&&!event.altKey){event.preventDefault();if(!event.repeat)retryCurrentRun();return;}
     const lane=E.KEYS.indexOf(event.code);
     if(lane>=0){event.preventDefault();if(!event.repeat)pressInput(`key:${event.code}`,lane);return;}
     if(event.code==='Escape'){event.preventDefault();if(!event.repeat)togglePause();return;}
@@ -1263,6 +1293,7 @@
   $('previewPosition').addEventListener('input',()=>{$('previewTime').textContent=formatTime(Number($('previewPosition').value));});
   $('previewPosition').addEventListener('change',()=>{if(previewing&&!busy())play({preview:true,offset:Number($('previewPosition').value)});});
   $('pauseButton').addEventListener('click',event=>{event.currentTarget.blur();togglePause();});
+  $('retryButton')?.addEventListener('click',event=>{event.currentTarget.blur();return retryCurrentRun();});
   $('driveButton').addEventListener('click',event=>{event.currentTarget.blur();drive();});
   $('replayButton').addEventListener('click',()=>{$('resultDialog').close();state='finished';play();});
   $('backButton').addEventListener('click',reset);

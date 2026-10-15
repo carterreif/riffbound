@@ -73,17 +73,17 @@
     constructor(difficulty='medium',mode='tap',instrument='guitar',options={}){
       this.difficulty=difficulty;this.instrument=instrument;this.mode=['drums','vocals'].includes(instrument)?'tap':mode;
       this.drumLayout=options.drumLayout==='four'?'four':'five';
-      this.notes=options.notes?options.notes.map((n,id)=>({...n,duration:instrument==='drums'?0:n.duration,id,hit:false,missed:false,held:false,holdAwarded:0})):makeChart(difficulty,instrument);
+      this.notes=options.notes?options.notes.map((n,id)=>({...n,duration:instrument==='drums'?0:n.duration,id,hit:false,missed:false,held:false,holdAwarded:0,hitOffset:null})):makeChart(difficulty,instrument);
       this.musicEnd=options.musicEnd??MUSIC_END;this.window=Difficulties.WINDOWS[difficulty]??.16;
       this.score=0;this.streak=0;this.bestStreak=0;this.hits=0;this.misses=0;this.perfect=0;this.charge=0;this.energy=55;this.overdrive=false;this.lastTime=0;this.onJudge=null;this.onMilestone=null;
     }
     get multiplier(){return Math.min(4,1+Math.floor(this.streak/10))*(this.overdrive?2:1);}
     get accuracy(){return this.hits+this.misses?this.hits/(this.hits+this.misses)*100:0;}
     hitNote(note,time){
-      if(note.hit||note.missed)return false;note.hit=true;note.held=note.duration>0;this.hits++;this.streak++;this.bestStreak=Math.max(this.streak,this.bestStreak);
+      if(note.hit||note.missed)return false;note.hit=true;note.hitOffset=time-note.time;note.held=note.duration>0;this.hits++;this.streak++;this.bestStreak=Math.max(this.streak,this.bestStreak);
       const perfect=Math.abs(time-note.time)<=.075;if(perfect)this.perfect++;
       this.score+=(perfect?100:65)*this.multiplier;this.energy=Math.min(100,this.energy+1.25);if(!this.overdrive)this.charge=Math.min(100,this.charge+2.7);
-      this.onJudge?.(perfect?'PERFECT':'GOOD',note.lane);
+      this.onJudge?.(perfect?'PERFECT':'GOOD',note.lane,{time:note.time,error:note.hitOffset});
       if(this.streak%25===0)this.onMilestone?.(this.streak);return true;
     }
     findTap(lane,time){
@@ -136,7 +136,7 @@
       const delta=Math.max(0,time-this.lastTime);this.lastTime=time;
       if(this.overdrive){this.charge=Math.max(0,this.charge-delta*12.5);if(this.charge===0)this.overdrive=false;}
       for(const n of this.notes){
-        if(!n.hit&&!n.missed&&time>n.time+this.window){n.missed=true;this.misses++;this.streak=0;this.energy=Math.max(0,this.energy-2.3);this.onJudge?.('MISS',n.lane);}
+        if(!n.hit&&!n.missed&&time>n.time+this.window){n.missed=true;this.misses++;this.streak=0;this.energy=Math.max(0,this.energy-2.3);this.onJudge?.('MISS',n.lane,{time:n.time});}
         if(n.hit&&n.held&&held.has(n.lane)){
           const steps=Math.floor(Math.max(0,Math.min(time-n.time,n.duration))*12);
           if(steps>n.holdAwarded){this.score+=(steps-n.holdAwarded)*10*this.multiplier;n.holdAwarded=steps;}

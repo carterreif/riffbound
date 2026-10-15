@@ -1,5 +1,7 @@
 # Riffbound
 
+Version 110 adds **Practice last missed section**, practice speed from 25–100% in 5% steps, and a **Retry / R** action that preserves the selected practice section and speed. Successful hits show optional early/late timing; results summarize note timing after eight hits, without changing scoring or calibration. These improvements address player reports about Guitar Hero practice friction and confusing calibration. See [learning tools and research](docs/learning-tools.md). The offline cache revision is 110-1.
+
 Version 109 adds **Save video to setlist** in Backgrounds / video. This explicitly saves the selected video (up to 2 GB, subject to available device storage) and current timing with the song. Setlist entries show **Video saved**; reopening restores that video offline. Videos use small ArrayBuffer records, failed replacements retain the previous saved video, and timing edits reuse media bytes. Removing a saved song also removes its video. Combined backup export remains available. The offline cache revision is 109-1.
 
 Version 108 adds **Save chart + video backup** in Backgrounds / video. Combined .riffpack backups preserve the selected video (up to 2 GB), background timing/darkness, original audio and all chart difficulties. Import restores the video to the matching song. Regular exports and older backups remain supported. The offline cache revision is 108-1.
