@@ -1,5 +1,7 @@
 # Riffbound
 
+Version 109 adds **Save video to setlist** in Backgrounds / video. This explicitly saves the selected video (up to 2 GB, subject to available device storage) and current timing with the song. Setlist entries show **Video saved**; reopening restores that video offline. Videos use small ArrayBuffer records, failed replacements retain the previous saved video, and timing edits reuse media bytes. Removing a saved song also removes its video. Combined backup export remains available. The offline cache revision is 109-1.
+
 Version 108 adds **Save chart + video backup** in Backgrounds / video. Combined .riffpack backups preserve the selected video (up to 2 GB), background timing/darkness, original audio and all chart difficulties. Import restores the video to the matching song. Regular exports and older backups remain supported. The offline cache revision is 108-1.
 
 Version 107 adds **Preview timing with chart** in Backgrounds / video. The selected video frame updates when its start position changes; negative offsets clearly describe the delay. Preview timing applies current form values and replays the lead-in to the first note using the selected instrument/difficulty and the same video timing as playback, without saving a score. The offline cache revision is 107-1.

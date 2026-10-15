@@ -21,11 +21,11 @@
   const videoPosition=time=>Math.max(0,time-videoChartStart);
   let calibrationTest=null,calibrationTimer=null;
   let controllerInput=null,controllerFocused=true;
-  let setlistSongs=[],setlistGeneration=0,setlistError='';
+  let setlistSongs=[],setlistGeneration=0,setlistError='',savedVideoIds=new Set();
   let pendingSaves=0,reconnectingAudio=false,savedSong=null,saveSerial=0,importingBackup=false;
   let chartDraft=null,chartReviewGeneration=0;
   let backupExport=null,backupSaving=false,backupTransfer=null;
-  let exportingVideo=false;
+  let exportingVideo=false,savingSetlistVideo=false;
   let communityLookup=true,uploadInstrument='guitar',uploadTargetExplicit=false,pendingUpload=null;
   let timingOffset=0,highwaySpeed=1,volume=.7,muted=false,preMute=.7;
   try{const saved=JSON.parse(localStorage.getItem('riffbound-preferences-v1')||'{}');timingOffset=Math.max(-250,Math.min(250,Number(saved.timingOffset)||0));highwaySpeed=Math.max(.7,Math.min(1.6,Number(saved.highwaySpeed)||1));
@@ -46,7 +46,7 @@
   const reducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const formatTime=t=>`${Math.floor(Math.max(0,t)/60)}:${String(Math.floor(Math.max(0,t)%60)).padStart(2,'0')}`;
   const running=()=>state==='playing'||state==='countin';
-  const busy=()=>state==='loading'||state==='analyzing'||reconnectingAudio;
+  const busy=()=>state==='loading'||state==='analyzing'||reconnectingAudio||savingSetlistVideo;
   const active=()=>running()||state==='paused'||busy();
   const transport=()=>T.position(window.RiffAudioClock.audibleTime(audioContext,performance.now()),startTime,transportSeek,playRate,practiceLoop);
   const gameTransport=()=>T.position(window.RiffAudioClock.audibleTime(audioContext,performance.now())-(previewing?0:timingOffset/1000),startTime,transportSeek,playRate,practiceLoop);
@@ -86,6 +86,7 @@
   function updateButtons(){
     if($('backgroundButton'))$('backgroundButton').disabled=busy();
     if($('backgroundExportVideo'))$('backgroundExportVideo').disabled=busy()||exportingVideo||!song||!window.RiffBackground?.hasVideo;
+    if($('backgroundSaveSetlist'))$('backgroundSaveSetlist').disabled=busy()||exportingVideo||!song||!window.RiffBackground?.hasVideo;
     $('difficultyGroup').disabled=active();$('modeGroup').disabled=active()||['drums','vocals'].includes(instrument);$('instrumentGroup').disabled=busy();
     document.querySelectorAll('input[name=instrument]').forEach(input=>input.disabled=canSwitchPlayback()&&!hasPlayablePart(input.value));
     refreshPlayableParts();
@@ -637,7 +638,7 @@
     for(const track of matches){
       const button=document.createElement('button'),title=document.createElement('strong'),info=document.createElement('span'),badge=document.createElement('span');
       button.type='button';button.className='setlist-track';button.dataset.songId=track.id;button.setAttribute('aria-label',`Select ${track.title}`);
-      title.textContent=track.title;info.className='setlist-track-info';info.textContent=`${formatTime(track.musicEnd)} · ${Object.keys(track.charts).map(partName).join(' + ')}${track.chartOnly?' · Chart only':track.id==='demo'?' · Demo':demos.some(d=>d.id===track.id)?' · Public demo':''}`;badge.className='setlist-track-badge';
+      title.textContent=track.title;info.className='setlist-track-info';info.textContent=`${formatTime(track.musicEnd)} · ${Object.keys(track.charts).map(partName).join(' + ')}${track.chartOnly?' · Chart only':track.id==='demo'?' · Demo':demos.some(d=>d.id===track.id)?' · Public demo':''}${savedVideoIds.has(track.id)?' · Video saved':''}`;badge.className='setlist-track-badge';
       button.append(title,info,badge);button.addEventListener('click',async()=>{if(active())return;if(track.id==='demo')useDemo();else await openSong(track.id);});$('setlistEntries').append(button);
     }
     $('setlistStatus').textContent=setlistError||(query?matches.length?`${matches.length} matching track${matches.length===1?'':'s'}`:'No matching songs. Try another title.':setlistSongs.length?'':demos.length?'Public demos are ready. Select a song, then Play track.':'Start with the demo or choose Add song to grow your setlist.');
@@ -646,8 +647,10 @@
   async function refreshSetlist(){
     const generation=++setlistGeneration;
     try{
-      const records=await Library.list();if(generation!==setlistGeneration)return;
-      setlistSongs=records;setlistError='';renderSetlist();
+      const records=await Library.list();let videos=[];
+      try{videos=await window.RiffBackground?.savedSongs?.(records.map(track=>track.id))||[];}catch{}
+      if(generation!==setlistGeneration)return;
+      setlistSongs=records;savedVideoIds=new Set(videos);setlistError='';renderSetlist();
     }catch(error){if(generation!==setlistGeneration)return;setlistError='Saved songs could not be loaded. Try Manage songs to retry.';renderSetlist();}
   }
   async function refreshLibrary(){
@@ -656,7 +659,7 @@
       const songs=await Library.list();$('libraryStatus').textContent=songs.length?`${songs.length} saved song${songs.length===1?'':'s'}`:song?'No saved songs yet. Save current song adds the open song to your setlist.':'No saved songs yet. Upload a song or import a .riffpack backup.';
       for(const saved of songs){
         const row=document.createElement('article'),title=document.createElement('strong'),info=document.createElement('p'),actions=document.createElement('div');row.className='saved-song';actions.className='tool-actions';title.textContent=saved.title;info.textContent=`${formatTime(saved.musicEnd)} · ${Object.keys(saved.charts).join(' + ')} · ${(saved.byteLength/1024/1024).toFixed(1)} MB`;
-        for(const [label,action] of [['Open',async()=>openSong(saved.id)],['Export',async()=>exportSong(await Library.get(saved.id))],['Remove',async()=>{await Library.remove(saved.id);if(song?.id===saved.id)savedSong=null;await refreshSetlist();await refreshLibrary();if(song?.id===saved.id)setSaveStatus('Removed from your setlist. This open copy is playable until you leave it.');}]]){
+        for(const [label,action] of [['Open',async()=>openSong(saved.id)],['Export',async()=>exportSong(await Library.get(saved.id))],['Remove',async()=>{await Library.remove(saved.id);await window.RiffBackground?.removeSong?.(saved.id);if(song?.id===saved.id)savedSong=null;await refreshSetlist();await refreshLibrary();if(song?.id===saved.id)setSaveStatus('Removed from your setlist. This open copy is playable until you leave it.');}]]){
           const button=document.createElement('button');button.className='quiet';button.textContent=label;button.setAttribute('aria-label',`${label} ${saved.title}`);button.addEventListener('click',async()=>{if(busy())return;button.disabled=true;try{await action();}catch(error){$('libraryStatus').textContent=error.message;}finally{button.disabled=false;}});actions.append(button);
         }row.append(title,info,actions);$('songList').append(row);
       }
@@ -1030,6 +1033,20 @@
   $('highwaySpeed').addEventListener('input',()=>{highwaySpeed=Math.max(.7,Math.min(1.6,Number($('highwaySpeed').value)||1));$('highwaySpeedValue').textContent=`${highwaySpeed.toFixed(1)}×`;preferences();});
   $('offlineButton').addEventListener('click',()=>openTool('offlineDialog'));
   $('backgroundButton')?.addEventListener('click',()=>{openTool('backgroundDialog');window.RiffBackground?.showTimingFrame?.();});
+  $('backgroundDialog')?.addEventListener('close',()=>refreshSetlist());
+  $('backgroundSaveSetlist')?.addEventListener('click',async()=>{
+    if(busy()||backupSaving||exportingVideo||!song)return;
+    const owner=song;savingSetlistVideo=true;updateButtons();
+    try{
+      if(savedSong!==owner)await saveSong();
+      if(song!==owner||savedSong!==owner)throw Error('Save the song to your setlist first. '+$('saveStatus').textContent);
+      if(!await window.RiffBackground.saveToSetlist(owner.id))throw Error($('backgroundStatus').textContent||'The video could not be saved. Free some device storage and retry.');
+      await refreshSetlist();
+      const message='Video and timing saved with this song in your setlist on this device.';
+      $('backgroundStatus').textContent=message;setSaveStatus(message);showMessage(message);
+    }catch(error){$('backgroundStatus').textContent=error.message;showMessage(error.message);}
+    finally{savingSetlistVideo=false;updateButtons();}
+  });
   $('backgroundPreviewTiming')?.addEventListener('click',async()=>{
     if(busy()||window.RiffBackground?.mode!=='video')return;
     await window.RiffBackground?.commitTiming?.();

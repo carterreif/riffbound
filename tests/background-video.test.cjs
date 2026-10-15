@@ -90,7 +90,7 @@ test('cancel, empty and wrong files have distinct results; large videos play wit
   assert.equal(await p.choose(null),false);assert.equal(f.messages.length,count);assert.equal(p.hasVideo,true);
   await p.choose({name:'Empty.mp4',size:0,type:'video/mp4'});assert.match(f.messages.at(-1).message,/Empty.mp4.*empty/);
   await p.choose({name:'Shortcut.url',size:40,type:''});assert.match(f.messages.at(-1).message,/Shortcut.url.*not a video/);
-  await p.choose({name:'Long gameplay.mp4',size:700*1024*1024,type:''});assert.equal(p.mode,'video');assert.equal(f.entries.get('a').file,null);assert.match(f.messages.at(-1).message,/larger than 500 MB.*not stored/);
+  await p.choose({name:'Long gameplay.mp4',size:700*1024*1024,type:''});assert.equal(p.mode,'video');assert.equal(f.entries.get('a').file,f.file,'A session-only selection retains the previous saved video until the replacement is saved');assert.match(f.messages.at(-1).message,/larger than 500 MB.*not stored/);
   f.events.loadedmetadata();p.sync({time:12,playing:true});await flush();assert.equal(f.video.paused,false);assert.equal(f.video.preload,'auto');
 });
 test('a late successful storage write cannot hide the actual codec error',async()=>{
