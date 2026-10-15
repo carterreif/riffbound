@@ -1,5 +1,7 @@
 # Riffbound
 
+Version 116 adds direct HTTPS video links in Backgrounds / video alongside local file uploads. Links follow the same first-note timing, preview, pause, restart and practice controls, save per song and survive chart + video-link backups. Linked videos need internet access; YouTube/Vimeo page links are not supported. The offline cache revision is 116-1.
+
 Version 115 adds a pause menu for Guitar, Drums, Bass and Vocals: Resume, Practice a section, Restart, Change difficulty, and Quit to main menu. Resume preserves the current position and score; restarting practice retains its range and speed. Difficulty changes restart the current song or section with a fresh score. The offline cache revision is 115-1.
 
 Version 114 prevents repeated automatic page restarts when a browser keeps loading a stale cached copy. Update attempts are remembered for the current tab; the game remains playable and offers a manual retry. Offline downloads reject a runtime manifest from a different release before replacing cached files. The offline cache revision is 114-1.

@@ -161,6 +161,9 @@
     <label class="select-label" for="backgroundMode">Background<select id="backgroundMode"><option value="stage">Riffbound concert stage</option><option value="dark">Dark stage</option><option value="video">My video</option></select></label>
     <label for="backgroundFile">Choose a video<input id="backgroundFile" type="file" accept="video/*,.mp4,.webm,.mov,.m4v,.ogv,.mkv,.avi,.mpg,.mpeg,.ts,.m2ts" aria-describedby="backgroundVideoHint backgroundFilename"></label>
     <p id="backgroundVideoHint" class="secondary">Use your own Guitar Hero Metallica gameplay footage, music video or concert clip. H.264 MP4 / WebM is recommended. Videos up to 500 MB can save on this device; larger videos play for this session. The video stays local and muted; your song supplies the audio.</p>
+    <label for="backgroundLink">Or paste a video link<input id="backgroundLink" type="url" maxlength="4096" placeholder="https://example.com/gameplay.mp4" autocomplete="off" spellcheck="false" aria-describedby="backgroundLinkHint"></label>
+    <button id="backgroundUseLink" class="upload-button">Use video link</button>
+    <p id="backgroundLinkHint" class="secondary">Use a direct HTTPS MP4 or WebM video link. YouTube, Vimeo and other video-page links are not supported. Linked videos stay muted and follow the same chart timing. They need internet access; saving keeps the link, not the video file.</p>
     <p id="backgroundFilename" class="secondary">No video selected for this song.</p>
     <video id="backgroundPreview" controls muted playsinline preload="auto" aria-label="Selected background video preview" hidden></video>
     <p class="secondary">Inspect your video here. Its starting frame follows the timing below. Use Preview timing with chart to check the full timing against the notes.</p>
@@ -171,9 +174,9 @@
     <p class="secondary">Replays the lead-in to the first note with your selected instrument, difficulty and video timing. No score is saved. Open Backgrounds / video again to adjust and retry.</p>
     <label class="highway-speed" for="backgroundDim">Video darkness <span id="backgroundDimValue">35%</span><input id="backgroundDim" type="range" min="0" max="80" step="5" value="35"></label>
     <button id="backgroundSaveSetlist" class="upload-button" disabled>Save video to setlist</button>
-    <p class="secondary">Keep this video and its timing with the song in your setlist on this device. It loads again when you reopen the song, including offline. Videos up to 2 GB can be saved if there is enough free browser storage.</p>
+    <p class="secondary">Keep this video and its timing with the song in your setlist on this device. It loads again when you reopen the song. Uploaded files can play offline; linked videos require internet access. Videos up to 2 GB can be saved if there is enough free browser storage.</p>
     <button id="backgroundExportVideo" class="upload-button" disabled>Save chart + video backup</button>
-    <p class="secondary">Save the selected video, timing, song audio and all charts together in one .riffpack file. Import it through Manage songs to restore them. Video limit: 2 GB. Regular Export current song keeps the smaller chart-and-audio backup.</p>
+    <p class="secondary">Save the selected video, timing, song audio and all charts together in one .riffpack file. Import it through Manage songs to restore them. Video limit: 2 GB. For linked videos, the backup includes the URL and timing instead of video bytes and needs internet access. Regular Export current song keeps the smaller chart-and-audio backup.</p>
     <p class="secondary">Videos up to 500 MB also save automatically. For larger videos, choose Save video to setlist after selecting or importing them. Keep a combined backup too; clearing this game’s browser data removes saved songs and videos.</p>
     <p id="backgroundStatus" role="status"></p><div class="tool-actions"><button id="backgroundRemove" class="quiet" disabled>Remove video</button><button class="upload-button" data-close="backgroundDialog">Done</button></div>
   </dialog>
@@ -284,6 +287,7 @@
   <script src="audio-clock.js"></script>
   <script src="song-sections.js"></script>
   <script src="playback-tools.js"></script>
+  <script src="background-source.js"></script>
   <script src="song-library.js"></script>
   <script src="demo-catalog.js"></script>
   <script src="public-demos.js"></script>

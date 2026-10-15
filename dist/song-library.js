@@ -3,6 +3,7 @@
   'use strict';
   const Difficulties=typeof module!=='undefined'&&module.exports?require('./chart-difficulties.js'):root.RiffDifficulties;
   const Sections=typeof module!=='undefined'&&module.exports?require('./song-sections.js'):root.RiffSongSections;
+  const BackgroundSource=typeof module!=='undefined'&&module.exports?require('./background-source.js'):root.RiffBackgroundSource;
   const MAX_AUDIO=80*1024*1024,MAX_META=8*1024*1024,MAX_VIDEO=2*1024*1024*1024,MAGIC=new TextEncoder().encode('RIFFPACK1\n'),VIDEO_MAGIC=new TextEncoder().encode('RIFFPACK2\n');
   const RECORD_BYTES=32*1024,FORMAT='riffbound-chunks-v1';
   let opening=null,connection=null,writes=Promise.resolve();
@@ -182,15 +183,22 @@
   };
   const remove=id=>write((tx,done,fail)=>{const store=tx.objectStore('audio'),request=store.get(id);request.onsuccess=()=>{try{deleteChunks(store,id,request.result);store.delete(id);tx.objectStore('songs').delete(id);}catch(error){fail(error);}};});
   function videoMetadata(value){
-    if(!value||typeof value.name!=='string'||!value.name.trim()||value.name.length>500||typeof value.mime!=='string'||value.mime.length>120||!/^[-\w.+]+\/[-\w.+]+$/.test(value.mime)||!['stage','dark','video'].includes(value.mode)||!Number.isFinite(value.offset)||Math.abs(value.offset)>900||!Number.isFinite(value.dim)||value.dim<0||value.dim>80||!Number.isSafeInteger(value.bytes)||value.bytes<=0||value.bytes>MAX_VIDEO)throw Error('The video or its background timing is invalid. Videos in backups must be no larger than 2 GB.');
+    if(!value||typeof value.name!=='string'||!value.name.trim()||value.name.length>500||typeof value.mime!=='string'||value.mime.length>120||!/^[-\w.+]+\/[-\w.+]+$/.test(value.mime)||!['stage','dark','video'].includes(value.mode)||!Number.isFinite(value.offset)||Math.abs(value.offset)>900||!Number.isFinite(value.dim)||value.dim<0||value.dim>80||!Number.isSafeInteger(value.bytes))throw Error('The video or its background timing is invalid. Videos in backups must be no larger than 2 GB.');
+    if(value?.url){
+      if(!BackgroundSource)throw Error('Update Riffbound to restore a video-link backup.');
+      const url=BackgroundSource.videoUrl(value.url);
+      if(value.bytes!==0)throw Error('A video-link backup has invalid media lengths.');
+      return {name:value.name,mime:value.mime,mode:value.mode,offset:value.offset,dim:value.dim,bytes:0,url};
+    }
+    if(!Number.isSafeInteger(value.bytes)||value.bytes<=0||value.bytes>MAX_VIDEO)throw Error('The video or its background timing is invalid. Videos in backups must be no larger than 2 GB.');
     return {name:value.name,mime:value.mime,mode:value.mode,offset:value.offset,dim:value.dim,bytes:value.bytes};
   }
   function pack(song,{background=null}={}){
     if(!song.chartOnly||song.audioBlob)requireAudio(song.audioBlob);
     const data=validate(metadata(song));let manifest=data,magic=MAGIC,video=null;
     if(background){
-      video=background.file;if(!video||typeof video.slice!=='function'||typeof video.arrayBuffer!=='function')throw Error('Choose a video before saving a chart + video backup.');
-      const info=videoMetadata({name:background.name||video.name||'background-video.mp4',mime:video.type||'application/octet-stream',mode:background.mode||'video',offset:background.offset??0,dim:background.dim??35,bytes:video.size});
+      video=background.file;if(background.url&&video||!background.url&&(!video||typeof video.slice!=='function'||typeof video.arrayBuffer!=='function'))throw Error('Choose a video before saving a chart + video backup.');
+      const info=videoMetadata({name:background.name||video?.name||(background.url?'Linked video':'background-video.mp4'),mime:background.url?'text/uri-list':video.type||'application/octet-stream',mode:background.mode||'video',offset:background.offset??0,dim:background.dim??35,bytes:background.url?0:video.size,...(background.url?{url:background.url}:{})});
       data.byteLength=song.audioBlob?.size||0;manifest={song:data,audioBytes:data.byteLength,background:info};magic=VIDEO_MAGIC;
     }
     const json=new TextEncoder().encode(JSON.stringify(manifest));
@@ -209,7 +217,7 @@
       const info=videoMetadata(manifest.background),audioBytes=manifest.audioBytes;
       if(!Number.isSafeInteger(audioBytes)||audioBytes<0||audioBytes>MAX_AUDIO||audioBytes!==data.byteLength||(data.chartOnly?audioBytes!==0:audioBytes===0)||14+length+audioBytes+info.bytes!==blob.size)throw Error('This chart + video backup is incomplete or has invalid media lengths.');
       const start=14+length;
-      return {...data,audioBlob:audioBytes?blob.slice(start,start+audioBytes,data.mime):null,background:{name:info.name,mode:info.mode,offset:info.offset,dim:info.dim,file:blob.slice(start+audioBytes,blob.size,info.mime)}};
+      return {...data,audioBlob:audioBytes?blob.slice(start,start+audioBytes,data.mime):null,background:{name:info.name,mode:info.mode,offset:info.offset,dim:info.dim,...(info.url?{url:info.url,file:null}:{file:blob.slice(start+audioBytes,blob.size,info.mime)})}};
     }
     if(blob.size>MAX_AUDIO+MAX_META+14)throw Error('This backup audio is too large.');
     if(length+14===blob.size){if(data.chartOnly)return {...data,audioBlob:null};throw Error('This backup is incomplete.');}

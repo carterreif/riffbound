@@ -24,7 +24,7 @@
   const videoPosition=time=>Math.max(0,time-videoChartStart);
   let calibrationTest=null,calibrationTimer=null;
   let controllerInput=null,controllerFocused=true;
-  let setlistSongs=[],setlistGeneration=0,setlistError='',savedVideoIds=new Set();
+  let setlistSongs=[],setlistGeneration=0,setlistError='',savedVideoIds=new Set(),linkedVideoIds=new Set();
   let pendingSaves=0,reconnectingAudio=false,savedSong=null,saveSerial=0,importingBackup=false;
   let chartDraft=null,chartReviewGeneration=0;
   let backupExport=null,backupSaving=false,backupTransfer=null;
@@ -656,7 +656,7 @@
     for(const track of matches){
       const button=document.createElement('button'),title=document.createElement('strong'),info=document.createElement('span'),badge=document.createElement('span');
       button.type='button';button.className='setlist-track';button.dataset.songId=track.id;button.setAttribute('aria-label',`Select ${track.title}`);
-      title.textContent=track.title;info.className='setlist-track-info';info.textContent=`${formatTime(track.musicEnd)} · ${Object.keys(track.charts).map(partName).join(' + ')}${track.chartOnly?' · Chart only':track.id==='demo'?' · Demo':demos.some(d=>d.id===track.id)?' · Public demo':''}${savedVideoIds.has(track.id)?' · Video saved':''}`;badge.className='setlist-track-badge';
+      title.textContent=track.title;info.className='setlist-track-info';info.textContent=`${formatTime(track.musicEnd)} · ${Object.keys(track.charts).map(partName).join(' + ')}${track.chartOnly?' · Chart only':track.id==='demo'?' · Demo':demos.some(d=>d.id===track.id)?' · Public demo':''}${linkedVideoIds.has(track.id)?' · Video link saved':savedVideoIds.has(track.id)?' · Video saved':''}`;badge.className='setlist-track-badge';
       button.append(title,info,badge);button.addEventListener('click',async()=>{if(active())return;if(track.id==='demo')useDemo();else await openSong(track.id);});$('setlistEntries').append(button);
     }
     $('setlistStatus').textContent=setlistError||(query?matches.length?`${matches.length} matching track${matches.length===1?'':'s'}`:'No matching songs. Try another title.':setlistSongs.length?'':demos.length?'Public demos are ready. Select a song, then Play track.':'Start with the demo or choose Add song to grow your setlist.');
@@ -665,10 +665,10 @@
   async function refreshSetlist(){
     const generation=++setlistGeneration;
     try{
-      const records=await Library.list();let videos=[];
-      try{videos=await window.RiffBackground?.savedSongs?.(records.map(track=>track.id))||[];}catch{}
+      const records=await Library.list();let videos=[],links=[];
+      try{[videos,links]=await Promise.all([window.RiffBackground?.savedSongs?.(records.map(track=>track.id))||[],window.RiffBackground?.linkedSongs?.(records.map(track=>track.id))||[]]);}catch{}
       if(generation!==setlistGeneration)return;
-      setlistSongs=records;savedVideoIds=new Set(videos);setlistError='';renderSetlist();
+      setlistSongs=records;savedVideoIds=new Set(videos);linkedVideoIds=new Set(links);setlistError='';renderSetlist();
     }catch(error){if(generation!==setlistGeneration)return;setlistError='Saved songs could not be loaded. Try Manage songs to retry.';renderSetlist();}
   }
   async function refreshLibrary(){
@@ -692,7 +692,7 @@
     if(backupExport)URL.revokeObjectURL(backupExport.url);
     backupExport={blob,name,url,hasVideo:!!background};
     const link=$('backupDownload');link.href=url;link.download=name;link.textContent='Download backup';
-    $('backupFileInfo').textContent=`${name} · ${(blob.size/1024/1024).toFixed(1)} MB · ${record.chartOnly?'Charts only, no audio':'Audio and all chart difficulties'}${background?' + video and background timing':''}`;
+    $('backupFileInfo').textContent=`${name} · ${(blob.size/1024/1024).toFixed(1)} MB · ${record.chartOnly?'Charts only, no audio':'Audio and all chart difficulties'}${background?(background.url?' + video link and background timing (internet required)':' + video and background timing'):''}`;
     $('backupSaveAs').hidden=typeof window.showSaveFilePicker!=='function';
     $('backupStatus').textContent='Backup ready. Choose where to save it below.';
     $('libraryStatus').textContent='Backup ready. Save it in the Export backup panel.';
@@ -1111,7 +1111,7 @@
       if(song!==owner||savedSong!==owner)throw Error('Save the song to your setlist first. '+$('saveStatus').textContent);
       if(!await window.RiffBackground.saveToSetlist(owner.id))throw Error($('backgroundStatus').textContent||'The video could not be saved. Free some device storage and retry.');
       await refreshSetlist();
-      const message='Video and timing saved with this song in your setlist on this device.';
+      const message=window.RiffBackground.linked?'Video link and timing saved with this song in your setlist. Internet access is required to play it.':'Video and timing saved with this song in your setlist on this device.';
       $('backgroundStatus').textContent=message;setSaveStatus(message);showMessage(message);
     }catch(error){$('backgroundStatus').textContent=error.message;showMessage(error.message);}
     finally{savingSetlistVideo=false;updateButtons();}
