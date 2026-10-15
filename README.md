@@ -1,5 +1,7 @@
 # Riffbound
 
+Version 107 adds **Preview timing with chart** in Backgrounds / video. The selected video frame updates when its start position changes; negative offsets clearly describe the delay. Preview timing applies current form values and replays the lead-in to the first note using the selected instrument/difficulty and the same video timing as playback, without saving a score. The offline cache revision is 107-1.
+
 Version 106 holds the background video until the first note in the selected instrument/difficulty reaches the hit line, in both Preview chart and Play track. The video clock starts at that note and follows chart playback, including device timing calibration, seeks and practice loops. Audio and chart notes retain their original timing. The offline cache revision is 106-1.
 
 Version 105 waits for the selected background video to decode and finish its starting seek before scheduling song audio and count-in. Play track always stops the chooser preview. Resume prepares the paused frame before releasing audio; failed or stalled videos leave the song stopped with a specific recovery message. The offline cache revision is 105-1.

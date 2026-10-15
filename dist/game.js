@@ -1021,7 +1021,14 @@
   $('highwaySpeed').value=String(highwaySpeed);$('highwaySpeedValue').textContent=`${highwaySpeed.toFixed(1)}×`;
   $('highwaySpeed').addEventListener('input',()=>{highwaySpeed=Math.max(.7,Math.min(1.6,Number($('highwaySpeed').value)||1));$('highwaySpeedValue').textContent=`${highwaySpeed.toFixed(1)}×`;preferences();});
   $('offlineButton').addEventListener('click',()=>openTool('offlineDialog'));
-  $('backgroundButton')?.addEventListener('click',()=>openTool('backgroundDialog'));
+  $('backgroundButton')?.addEventListener('click',()=>{openTool('backgroundDialog');window.RiffBackground?.showTimingFrame?.();});
+  $('backgroundPreviewTiming')?.addEventListener('click',async()=>{
+    if(busy()||window.RiffBackground?.mode!=='video')return;
+    await window.RiffBackground?.commitTiming?.();
+    if(busy())return;
+    $('backgroundDialog').close();
+    return play({preview:true,offset:Number.isFinite(videoChartStart)?Math.max(0,videoChartStart-2):0});
+  });
 
   // Synthesize a fixed original instrumental. Mixing to one buffer gives notes and audio one clock.
   async function composeTrack(ac){

@@ -163,9 +163,12 @@
     <p id="backgroundVideoHint" class="secondary">Use your own Guitar Hero Metallica gameplay footage, music video or concert clip. H.264 MP4 / WebM is recommended. Videos up to 500 MB can save on this device; larger videos play for this session. The video stays local and muted; your song supplies the audio.</p>
     <p id="backgroundFilename" class="secondary">No video selected for this song.</p>
     <video id="backgroundPreview" controls muted playsinline preload="auto" aria-label="Selected background video preview" hidden></video>
-    <p class="secondary">Check the video preview here, then choose Done and Play track to see it behind your chart.</p>
+    <p class="secondary">Inspect your video here. Its starting frame follows the timing below. Use Preview timing with chart to check the full timing against the notes.</p>
     <label for="backgroundOffset">Video position at first chart note (seconds)<input id="backgroundOffset" type="number" min="-900" max="900" step="0.1" value="0" aria-describedby="backgroundOffsetHint"></label>
     <p id="backgroundOffsetHint" class="secondary">The video stays paused until the first note reaches the colored hit line, in Preview chart and Play track. Enter 0 to start at the beginning of your video, or 10 to skip its first 10 seconds. A negative number delays video playback further. Pause, restart and practice follow the chart.</p>
+    <p id="backgroundTimingHint" class="secondary" role="status">Video starts at 0:00 when the first note reaches the hit line.</p>
+    <button id="backgroundPreviewTiming" class="upload-button" disabled>Preview timing with chart</button>
+    <p class="secondary">Replays the lead-in to the first note with your selected instrument, difficulty and video timing. No score is saved. Open Backgrounds / video again to adjust and retry.</p>
     <label class="highway-speed" for="backgroundDim">Video darkness <span id="backgroundDimValue">35%</span><input id="backgroundDim" type="range" min="0" max="80" step="5" value="35"></label>
     <p class="secondary">Backgrounds save separately for each song on this device. Video files are not included in .riffpack backups.</p>
     <p id="backgroundStatus" role="status"></p><div class="tool-actions"><button id="backgroundRemove" class="quiet" disabled>Remove video</button><button class="upload-button" data-close="backgroundDialog">Done</button></div>

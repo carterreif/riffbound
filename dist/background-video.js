@@ -120,14 +120,30 @@
   const api={create,storage};
   if(typeof module!=='undefined'&&module.exports){module.exports=api;return;}
   const $=id=>root.document.getElementById(id),video=$('backgroundVideo');if(!video)return;
-  const picker=$('backgroundFile'),preview=$('backgroundPreview');let displayedSong=null,previewUrl=null,selection=Promise.resolve(),transportJob=0;
+  const picker=$('backgroundFile'),preview=$('backgroundPreview'),timingButton=$('backgroundPreviewTiming');
+  let displayedSong=null,previewUrl=null,selection=Promise.resolve(),transportJob=0,currentSettings=defaults(),previewOffset=null,framePending=false;
+  function seekPreviewFrame(){
+    if(!preview||!previewUrl||!framePending||!(preview.readyState>=1))return;
+    const target=Math.max(0,Number.isFinite(preview.duration)?Math.min(previewOffset,Math.max(0,preview.duration-.04)):previewOffset);
+    try{preview.currentTime=target;framePending=false;}catch{}
+  }
+  function showTimingFrame(offset=currentSettings.offset,force=false){
+    offset=clamp(offset,-900,900,0);
+    if($('backgroundTimingHint'))$('backgroundTimingHint').textContent=offset<0?`Video waits ${Math.abs(offset).toFixed(1)} seconds after the first note, then starts at 0:00. Preview timing with chart to check this delay.`:`Video starts ${offset.toFixed(1)} seconds into the file when the first note reaches the hit line. Preview timing with chart to check this starting point.`;
+    if(!preview)return;
+    if(force||previewOffset!==offset){preview.pause();previewOffset=offset;framePending=true;seekPreviewFrame();}
+  }
   const controls=['backgroundMode','backgroundFile','backgroundOffset','backgroundDim','backgroundRemove'];
   const player=create(video,video.closest('.stage'),{onChange:(value,message)=>{
+    currentSettings={mode:value.mode,offset:value.offset,dim:value.dim};
     $('backgroundMode').value=value.mode;$('backgroundOffset').value=value.offset;$('backgroundDim').value=value.dim;$('backgroundDimValue').textContent=value.dim+'%';
     $('backgroundFilename').textContent=value.name||'No video selected for this song.';$('backgroundRemove').disabled=!value.hasVideo;
+    if(timingButton)timingButton.disabled=!value.hasVideo||value.mode!=='video';
     if(preview){
       const next=value.videoUrl||null;preview.hidden=!next;
-      if(next!==previewUrl){preview.pause();previewUrl=next;if(next)preview.src=next;else preview.removeAttribute('src');preview.load();}
+      const changed=next!==previewUrl;
+      if(changed){preview.pause();previewUrl=next;if(next)preview.src=next;else preview.removeAttribute('src');preview.load();}
+      showTimingFrame(value.offset,changed);
     }
     if(message!==undefined)$('backgroundStatus').textContent=message;
   }});
@@ -135,14 +151,18 @@
   async function edit(action){operations++;controls.forEach(id=>$(id).disabled=true);try{await action();}catch{$('backgroundStatus').textContent='The video could not be opened. Choose the file again, or try an H.264 MP4 / WebM video.';}finally{operations--;controls.forEach(id=>$(id).disabled=false);$('backgroundRemove').disabled=!player.hasVideo;}}
   picker.addEventListener('change',()=>{const file=picker.files?.[0];if(!file)return;return edit(()=>player.choose(file));});
   for(const id of ['backgroundMode','backgroundOffset','backgroundDim'])$(id).addEventListener('change',()=>edit(()=>player.settings({mode:$('backgroundMode').value,offset:$('backgroundOffset').value,dim:$('backgroundDim').value})));
+  $('backgroundOffset').addEventListener('input',()=>showTimingFrame($('backgroundOffset').value,true));
   $('backgroundDim').addEventListener('input',()=>{$('backgroundDimValue').textContent=$('backgroundDim').value+'%';});
   $('backgroundRemove').addEventListener('click',()=>{picker.value='';return edit(()=>player.clear());});
   if(preview){
     preview.muted=true;preview.volume=0;
+    preview.addEventListener('loadedmetadata',seekPreviewFrame);
     preview.addEventListener('volumechange',()=>{if(!preview.muted)preview.muted=true;});
     for(const event of ['close','cancel'])$('backgroundDialog').addEventListener(event,()=>preview.pause());
   }
   const pauseAll=()=>{transportJob++;preview?.pause();player.pause();};
   root.RiffBackground={selectSong:id=>{if(id===displayedSong)return selection;displayedSong=id;picker.value='';$('backgroundStatus').textContent='';selection=player.selectSong(id);return selection;},
-    prepare:async options=>{const job=transportJob;preview?.pause();await selection;if(job!==transportJob)throw Object.assign(Error('Video preparation was canceled.'),{backgroundVideo:true});return player.prepare(options);},sync:(...args)=>player.sync(...args),pause:pauseAll,get busy(){return operations>0||player.busy;},get mode(){return player.mode;}};
+    prepare:async options=>{const job=transportJob;preview?.pause();await selection;if(job!==transportJob)throw Object.assign(Error('Video preparation was canceled.'),{backgroundVideo:true});return player.prepare(options);},
+    commitTiming:()=>{const next={mode:$('backgroundMode').value,offset:clamp($('backgroundOffset').value,-900,900,0),dim:clamp($('backgroundDim').value,0,80,35)};return Object.keys(next).every(key=>next[key]===currentSettings[key])?Promise.resolve():player.settings(next);},
+    showTimingFrame:()=>showTimingFrame(currentSettings.offset,true),sync:(...args)=>player.sync(...args),pause:pauseAll,get busy(){return operations>0||player.busy;},get mode(){return player.mode;}};
 })(typeof window!=='undefined'?window:globalThis);

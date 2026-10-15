@@ -99,7 +99,7 @@ test('a late successful storage write cannot hide the actual codec error',async(
 });
 test('real picker wiring captures the file before disabling, retains its name, and opens the chooser preview',async()=>{
   const vm=require('node:vm'),nodes={},classes=new Set();
-  for(const id of ['backgroundVideo','backgroundPreview','backgroundDialog','backgroundFile','backgroundMode','backgroundOffset','backgroundDim','backgroundRemove','backgroundDimValue','backgroundFilename','backgroundStatus']){
+  for(const id of ['backgroundVideo','backgroundPreview','backgroundDialog','backgroundFile','backgroundMode','backgroundOffset','backgroundDim','backgroundRemove','backgroundDimValue','backgroundFilename','backgroundStatus','backgroundPreviewTiming','backgroundTimingHint']){
     nodes[id]={value:'',style:{},files:[],listeners:{},hidden:true,addEventListener(type,fn){(this.listeners[type]??=[]).push(fn);},async emit(type){for(const fn of this.listeners[type]||[])await fn();},pause(){this.paused=true;},load(){},removeAttribute(name){delete this[name];}};
   }
   const picker=nodes.backgroundFile;let disabled=false;Object.defineProperty(picker,'disabled',{get:()=>disabled,set:value=>{disabled=value;if(value)picker.files=[];}});
@@ -108,13 +108,34 @@ test('real picker wiring captures the file before disabling, retains its name, a
   vm.runInNewContext(fs.readFileSync(require.resolve('../dist/background-video.js'),'utf8'),{window});await window.RiffBackground.selectSong('a');
   picker.files=[{name:'My footage.mp4',type:'video/mp4',size:123}];picker.value='C:\\fakepath\\My footage.mp4';await picker.emit('change');
   assert.equal(nodes.backgroundFilename.textContent,'My footage.mp4');assert.equal(picker.value,'C:\\fakepath\\My footage.mp4');assert.equal(nodes.backgroundMode.value,'video');assert.equal(nodes.backgroundPreview.src,'blob:selected-video');assert.equal(nodes.backgroundPreview.hidden,false);assert.ok(classes.has('video-background'));
+  assert.equal(nodes.backgroundPreviewTiming.disabled,false);
+  nodes.backgroundOffset.value='7.5';await nodes.backgroundOffset.emit('input');assert.equal(nodes.backgroundPreview.currentTime,undefined,'Wait for video metadata before seeking the preview');
+  nodes.backgroundPreview.readyState=1;nodes.backgroundPreview.duration=100;await nodes.backgroundPreview.emit('loadedmetadata');assert.equal(nodes.backgroundPreview.currentTime,7.5);assert.match(nodes.backgroundTimingHint.textContent,/7.5 seconds.*first note/);
+  await window.RiffBackground.commitTiming();assert.equal(nodes.backgroundOffset.value,7.5,'Commit the current form value without requiring a blur event');
+  nodes.backgroundPreview.currentTime=30;window.RiffBackground.showTimingFrame();assert.equal(nodes.backgroundPreview.currentTime,7.5,'Reopening settings returns to the configured frame');
+  nodes.backgroundOffset.value='-2';await nodes.backgroundOffset.emit('input');assert.equal(nodes.backgroundPreview.currentTime,0);assert.match(nodes.backgroundTimingHint.textContent,/waits 2.0 seconds after the first note/);await window.RiffBackground.commitTiming();
   await nodes.backgroundDim.emit('change');assert.equal(picker.value,'C:\\fakepath\\My footage.mp4');await window.RiffBackground.selectSong('a');assert.equal(picker.value,'C:\\fakepath\\My footage.mp4');
   nodes.backgroundPreview.paused=false;await nodes.backgroundDialog.emit('close');assert.equal(nodes.backgroundPreview.paused,true);
   nodes.backgroundPreview.paused=false;window.RiffBackground.pause();assert.equal(nodes.backgroundPreview.paused,true,'Play track stops preview playback even before a dialog close event');
-  await nodes.backgroundRemove.emit('click');assert.equal(picker.value,'');assert.equal(nodes.backgroundPreview.hidden,true);assert.equal(nodes.backgroundRemove.disabled,true);
+  await nodes.backgroundRemove.emit('click');assert.equal(picker.value,'');assert.equal(nodes.backgroundPreview.hidden,true);assert.equal(nodes.backgroundRemove.disabled,true);assert.equal(nodes.backgroundPreviewTiming.disabled,true);
 });
 
 const adapter=require.resolve('./upload-flow.test.cjs'),code=fs.readFileSync(adapter,'utf8').split('\ntest(')[0],{setup,until}=new Function('require',code+'\nreturn {setup,until};')(createRequire(adapter));
+for(const part of ['guitar','drums','bass','vocals'])for(const offset of [7.5,-1.5])test(`${part} timing preview applies ${offset}s from the form and uses the same first-note trigger as playback`,async()=>{
+  const f=fixture();await f.player.selectSong('fixture');await f.player.choose(f.file);f.video.readyState=2;f.events.loadedmetadata();let n,commits=0;
+  const bg={selectSong:()=>{},pause:()=>f.player.pause(),prepare:options=>f.player.prepare(options),sync:options=>f.player.sync(options),commitTiming:()=>{commits++;return f.player.settings({offset:n.backgroundOffset.value});},get mode(){return f.player.mode;}};
+  const app=setup({chartFixture:[{lane:part==='drums'?5:0,time:3,duration:0},{lane:part==='drums'?0:1,time:5,duration:0}],browserOverrides:{RiffBackground:bg}});n=app.nodes;
+  await app.radios.instrument.find(r=>r.value===part).emit('change');await app.upload();await until(()=>!n.saveCurrentButton.disabled);
+  n.backgroundDialog.open=true;n.backgroundOffset.value=String(offset);await n.backgroundPreviewTiming.click();await until(()=>app.sources.length===1);
+  assert.equal(commits,1);assert.equal(n.backgroundDialog.open,false);assert.equal(n.previewButton.textContent,'■ Stop preview');const source=app.sources[0];assert.equal(source.offset,1,'Replay the two-second lead-in to the first note');
+  app.tick(source.when+1.99);await flush();assert.equal(f.video.paused,true);assert.equal(f.video.currentTime,Math.max(0,offset));
+  if(offset>0){app.tick(source.when+2.001);await flush();assert.equal(f.video.paused,false);assert.ok(Math.abs(f.video.currentTime-offset)<.01);app.tick(source.when+2.5);assert.ok(Math.abs(f.video.currentTime-offset-.5)<.001);}
+  else{app.tick(source.when+3.49);await flush();assert.equal(f.video.paused,true,'Preview includes the configured extra delay');app.tick(source.when+3.51);await flush();assert.equal(f.video.paused,false);assert.ok(Math.abs(f.video.currentTime-.01)<.001);}
+  assert.equal(app.writes.filter(([key])=>key.includes('best')).length,0,'Timing previews do not save a score');await n.mobileBackButton.click();
+});
+test('timing preview cannot start when no video is selected',async()=>{
+  const app=setup({browserOverrides:{RiffBackground:{mode:'stage',selectSong:()=>{},pause:()=>{},sync:()=>{}}}});await app.nodes.backgroundPreviewTiming.click();assert.equal(app.sources.length,0);
+});
 for(const preview of [false,true])test(`${preview?'Preview chart':'Play track'} holds the real video through the intro and starts it on the first kick at the hit line`,async()=>{
   const f=fixture();await f.player.selectSong('fixture');await f.player.choose(f.file);f.video.readyState=2;f.events.loadedmetadata();
   const bg={selectSong:()=>{},pause:()=>f.player.pause(),prepare:options=>f.player.prepare(options),sync:options=>f.player.sync(options),get mode(){return f.player.mode;}};

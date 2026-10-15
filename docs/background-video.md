@@ -4,7 +4,9 @@ Version 104 adds **Backgrounds / video** at Soundcheck. Choose the Riffbound con
 
 Choose your own Guitar Hero gameplay footage, concert clip or music video. MP4 and WebM are recommended; other formats depend on the browser's codecs. Files must be non-empty. Videos up to 500 MB can be stored; larger videos remain playable for this session and must be selected again after reopening. No Guitar Hero footage is bundled or downloaded automatically.
 
-The chooser keeps the selected filename visible and includes a muted video preview. Close it with Done to return to the chart. Invalid files show their filename and specific error; browser codec errors suggest H.264 MP4 or WebM.
+Version 107 adds **Preview timing with chart**: set the video position, then choose this button to preview the chart starting up to two seconds before its first note. Current form values are applied even if the timing input has not lost focus. The chosen instrument/difficulty and saved positive start position or negative delay use the normal playback path. Preview does not save a score. Open Backgrounds / video to adjust and try again.
+
+The chooser keeps the selected filename visible and includes a muted video preview. Its starting frame updates as the timing value changes, after video metadata arrives, and when the dialog reopens. The native video controls inspect the clip itself; Preview timing with chart checks delays and the first-note trigger. Close it with Done to return to the chart. Invalid files show their filename and specific error; browser codec errors suggest H.264 MP4 or WebM.
 
 Version 105 prepares the selected video before scheduling song playback: it waits for decoded frame data and a completed seek, holding video and chart during loading. Play track stops the separate chooser preview. The count-in is scheduled only after preparation; video remains paused through that count-in. Resume prepares the frozen frame before resuming audio. A video that cannot decode or finish its seek within 15 seconds keeps the song stopped and shows a video-specific retry message.
 
