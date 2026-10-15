@@ -200,3 +200,5 @@
 /* Hit timing stays below the existing judgment without covering pad controls. */
 .hit-timing{position:absolute;z-index:3;left:50%;top:calc(64% + 32px);transform:translateX(-50%);margin:0;padding:4px 9px;border-radius:4px;background:#0b1018e8;color:#d7efb5;font:700 12px monospace;letter-spacing:1px;white-space:nowrap;opacity:0;pointer-events:none}.hit-timing.show{opacity:1}.hit-timing.early{color:#91d7ff}.hit-timing.late{color:#ffcc88}#resultPracticeMiss{margin:8px 0 16px}#retryButton{min-width:42px}.check-option{margin:16px 0}.check-option input{margin-right:8px}
 @media(max-width:560px){.hit-timing{top:calc(63% + 26px);font-size:11px}.mobile-session .hit-timing{top:calc(49% + 26px)}.mobile-session .brand{font-size:21px}.mobile-session .top-actions #pauseText{display:none}}
+
+.section-name{display:block;width:100%;min-height:44px;margin:8px 0 12px;padding:10px;border:1px solid #586445;border-radius:4px;background:#0b110d;color:#f5f4ed;font:inherit}#practiceSectionEditor{margin:16px 0}#practiceSection{margin-top:8px}

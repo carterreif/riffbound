@@ -5,6 +5,7 @@
   'use strict';
   const X=typeof module!=='undefined'&&module.exports?require('./chart-exchange.js'):root.RiffChartExchange;
   const D=typeof module!=='undefined'&&module.exports?require('./chart-difficulties.js'):root.RiffDifficulties;
+  const Sections=typeof module!=='undefined'&&module.exports?require('./song-sections.js'):root.RiffSongSections;
   const decoder=new TextDecoder();
   function parse(input,{part,drumLayout='auto',outputDrumLayout='five',shiftMs=0,metadata={}}={}){
     const bytes=new Uint8Array(input),v=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);let p=0,count=0;
@@ -26,7 +27,7 @@
         if(s===0xff){if(p>=end)fail();const type=bytes[p++],n=vlq();if(p+n>end)fail();
           const data=bytes.subarray(p,p+n);p+=n;
           if(type===3)name=decoder.decode(data).trim();
-          if(type===1||type===5)texts.push({tick,text:decoder.decode(data)});
+          if(type===1||type===5||type===6)texts.push({tick,text:decoder.decode(data)});
           if(type===0x51){if(n!==3)fail();const micro=data[0]*65536+data[1]*256+data[2];if(!micro)fail();tempos.push({tick,bpm:60000000/micro});}
           if(type===0x58){if(n!==4||data[0]<1||data[0]>64||data[1]>6)fail();signatures.push({tick,numerator:data[0],exponent:data[1]});}
           if(type===0x54&&data.some(x=>x!==0))throw Error('MIDI SMPTE offsets require a timing review.');
@@ -46,6 +47,7 @@
     if(p!==bytes.length)fail();
     shiftMs=Number(shiftMs);if(!Number.isFinite(shiftMs)||Math.abs(shiftMs)>30000)fail();
     const timing=X.tempoMap(resolution,tempos,shiftMs/1000),charts={},warnings=[];
+    const sectionMarkers=trackData.filter(track=>track.name==='EVENTS').flatMap(track=>track.texts.map(event=>({name:Sections?.markerName(event.text),time:timing.toSeconds(event.tick)}))).filter(event=>event.name);
     const selected=trackData.filter(t=>({ 'PART GUITAR':'guitar','T1 GEMS':'guitar','PART BASS':'bass','PART DRUMS':'drums','PART DRUM':'drums','PART VOCALS':'vocals' }[t.name]===part));
     if(selected.length>1)throw Error('Duplicate MIDI instrument tracks.');
     for(const track of selected){
@@ -111,7 +113,7 @@
     if(part==='drums'&&outputDrumLayout==='four'&&charts.drums)charts.drums=D.fourDrumLevels(charts.drums);
     if(!charts[part])throw Error('No supported '+part+' notes in this MIDI chart.');
     if(Object.values(charts[part]).some(a=>a.length>25000))throw Error('Too many MIDI notes.');
-    return {charts,title:metadata.name||'',artist:metadata.artist||'',bpm:timing.points[0].bpm,beat:60/timing.points[0].bpm,drumLayout,playLayout:outputDrumLayout,warnings,timing:{resolution,offset:shiftMs/1000,tempos:timing.points.map(({tick,bpm})=>({tick,bpm})),signatures},summary:Object.entries(charts[part]).map(([level,n])=>part+' '+level+': '+n.length+' notes').join(' · ')};
+    return {charts,title:metadata.name||'',artist:metadata.artist||'',bpm:timing.points[0].bpm,beat:60/timing.points[0].bpm,drumLayout,playLayout:outputDrumLayout,warnings,timing:{resolution,offset:shiftMs/1000,tempos:timing.points.map(({tick,bpm})=>({tick,bpm})),signatures,...(sectionMarkers.length?{sections:Sections.markers(sectionMarkers)}:{})},summary:Object.entries(charts[part]).map(([level,n])=>part+' '+level+': '+n.length+' notes').join(' · ')};
   }
   function parseAll(input,options={}){
     const charts={},warnings=[];let base;

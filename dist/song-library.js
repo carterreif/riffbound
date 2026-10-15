@@ -2,6 +2,7 @@
 (function(root){
   'use strict';
   const Difficulties=typeof module!=='undefined'&&module.exports?require('./chart-difficulties.js'):root.RiffDifficulties;
+  const Sections=typeof module!=='undefined'&&module.exports?require('./song-sections.js'):root.RiffSongSections;
   const MAX_AUDIO=80*1024*1024,MAX_META=8*1024*1024,MAX_VIDEO=2*1024*1024*1024,MAGIC=new TextEncoder().encode('RIFFPACK1\n'),VIDEO_MAGIC=new TextEncoder().encode('RIFFPACK2\n');
   const RECORD_BYTES=32*1024,FORMAT='riffbound-chunks-v1';
   let opening=null,connection=null,writes=Promise.resolve();
@@ -21,7 +22,7 @@
     return {...song,id,chartOnly:false,audioBlob,filename:file.name||song.filename};
   }
   function metadata(song){
-    return {id:song.id,title:song.title,filename:song.filename||song.title,mime:song.audioBlob?.type||song.mime||'',...(song.chartOnly===true?{chartOnly:true}:{}),instrument:song.instrument||'guitar',musicEnd:song.musicEnd,duration:song.musicEnd+.8,bpm:song.bpm,beat:song.beat,offset:song.offset||0,charts:song.charts,waveform:song.waveform,quality:song.quality||null,chartVersion:song.chartVersion||1,byteLength:song.audioBlob?.size||song.byteLength||0,updatedAt:Date.now()};
+    return {id:song.id,title:song.title,filename:song.filename||song.title,mime:song.audioBlob?.type||song.mime||'',...(song.chartOnly===true?{chartOnly:true}:{}),instrument:song.instrument||'guitar',musicEnd:song.musicEnd,duration:song.musicEnd+.8,bpm:song.bpm,beat:song.beat,offset:song.offset||0,charts:song.charts,waveform:song.waveform,quality:song.quality||null,practiceSections:Sections?Sections.ranges(song.practiceSections,song.musicEnd):(Array.isArray(song.practiceSections)?song.practiceSections.slice(0,128):[]),chartVersion:song.chartVersion||1,byteLength:song.audioBlob?.size||song.byteLength||0,updatedAt:Date.now()};
   }
   function validate(data){
     if(!data||typeof data.id!=='string'||!/^[a-f0-9]{64}$/.test(data.id)||typeof data.title!=='string'||data.title.length>500)throw Error('This is not a valid Riffbound song backup.');

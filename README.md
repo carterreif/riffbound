@@ -1,5 +1,7 @@
 # Riffbound
 
+Version 111 adds **Which section do you want to play?** to Practice. Authored Intro, Verse, Chorus, Solo and other section markers from .chart/MIDI files fill the range automatically. Unmarked songs offer timed sections, and players can save custom Verse 1 / Verse 2 ranges with the song and its .riffpack backups. Practice speed, Retry and video timing retain the selected range. See [named practice sections](docs/practice-sections.md). The offline cache revision is 111-1.
+
 Version 110 adds **Practice last missed section**, practice speed from 25–100% in 5% steps, and a **Retry / R** action that preserves the selected practice section and speed. Successful hits show optional early/late timing; results summarize note timing after eight hits, without changing scoring or calibration. These improvements address player reports about Guitar Hero practice friction and confusing calibration. See [learning tools and research](docs/learning-tools.md). The offline cache revision is 110-1.
 
 Version 109 adds **Save video to setlist** in Backgrounds / video. This explicitly saves the selected video (up to 2 GB, subject to available device storage) and current timing with the song. Setlist entries show **Video saved**; reopening restores that video offline. Videos use small ArrayBuffer records, failed replacements retain the previous saved video, and timing edits reuse media bytes. Removing a saved song also removes its video. Combined backup export remains available. The offline cache revision is 109-1.

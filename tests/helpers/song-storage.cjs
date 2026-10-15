@@ -17,7 +17,7 @@ function storage({rejectBlobs=false,source=code('song-library.js')}={}){
     }),get:id=>request(()=>structuredClone(stores.get(name).get(id))),getAll:()=>request(()=>[...stores.get(name).values()].map(v=>structuredClone(v))),delete:id=>request(()=>stores.get(name).delete(id))});return tx;
   }};
   const indexedDB={open(){const r={result:database};queueMicrotask(()=>{if(!stores.size)r.onupgradeneeded?.();r.onsuccess?.();});return r;}};
-  const fresh=()=>{const window={RiffDifficulties:require('../../dist/chart-difficulties.js'),indexedDB,crypto:require('node:crypto').webcrypto};vm.runInNewContext(source,{window,TextEncoder,TextDecoder,Uint8Array,DataView,Blob,Date,Promise});return window.RiffLibrary;};
+  const fresh=()=>{const window={RiffDifficulties:require('../../dist/chart-difficulties.js'),RiffSongSections:require('../../dist/song-sections.js'),indexedDB,crypto:require('node:crypto').webcrypto};vm.runInNewContext(source,{window,TextEncoder,TextDecoder,Uint8Array,DataView,Blob,Date,Promise});return window.RiffLibrary;};
   return {library:fresh(),fresh,stores,indexedDB,fail:()=>{fail=true;},failAfter:value=>{written=0;failAfter=value;},get largest(){return largest;}};
 }
 module.exports={storage};

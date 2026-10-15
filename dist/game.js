@@ -9,6 +9,7 @@
   const Recording=window.RiffRecordingAlignment;
   const SongAudio=window.RiffSongAudio;
   const PartCharts=window.RiffPartCharts;
+  const Sections=window.RiffSongSections;
   const PARTS=['guitar','drums','bass','vocals'],partName=part=>({guitar:'Guitar',drums:'Drums',bass:'Bass',vocals:'Vocals'}[part]||part);
   const canvas=$('highway'), ctx=canvas.getContext('2d');
   const band=window.RiffStage.create($('performance'));
@@ -19,6 +20,7 @@
   let transportSeek=0,playRate=1,practiceLoop=null,loopCycle=0,practicePass=1,frozenInputTime=0;
   let videoChartStart=Infinity;
   let lastMissTime=null,trainingContext='',trainingNotes=null;
+  let practiceSections=[],practiceSectionsOwner='';
   const videoPosition=time=>Math.max(0,time-videoChartStart);
   let calibrationTest=null,calibrationTimer=null;
   let controllerInput=null,controllerFocused=true;
@@ -86,6 +88,7 @@
     $('playPartStatus').textContent=song?`${partName(instrument)} · ${D.NAMES[difficulty]} selected. Choose a part, then Preview chart or Play track.`+(song.quality?.imports?.[instrument]?' Using this instrument’s authored chart.':' Using an audio estimate for this instrument; overlapping sounds can be misidentified.')+(missing.length?` No playable chart for ${missing.map(partName).join(', ')}. Try an authored chart or isolated audio for that part.`:''):'';
   }
   function updateButtons(){
+    for(const id of ['savePracticeSection','removePracticeSection'])if($(id))$(id).disabled=!Sections||!song||busy()||pendingSaves>0;
     if($('retryButton')){$('retryButton').disabled=busy()||!['playing','countin','paused','finished'].includes(state);$('retryButton').setAttribute('aria-label',practiceLoop?'Retry practice section (R)':'Retry track (R)');}
     if($('practiceMissButton'))$('practiceMissButton').disabled=!T.missedSection?.(lastMissTime,song?.musicEnd??E.MUSIC_END)||previewing||song?.chartOnly===true;
     if($('backgroundButton'))$('backgroundButton').disabled=busy();
@@ -1028,11 +1031,49 @@
       $('chartFileStatus').textContent=kind==='audio'?'Original audio downloaded.':kind==='chart'?'notes.chart downloaded. Also download song.ini and audio into the same folder.':'song.ini downloaded with five-lane drum settings.';
     }catch(error){$('chartFileStatus').textContent=error.message;}
   });
+  function refreshPracticeSections(selected=$('practiceSection')?.value||'custom'){
+    if(!$('practiceSection')||!Sections)return;
+    const owner=[song?.id||'demo',instrument].join(':');if(owner!==practiceSectionsOwner){selected='custom';practiceSectionsOwner=owner;$('loopStart').value='0';$('loopEnd').value=String(Math.min(15,song?.musicEnd??E.MUSIC_END));if($('practiceSectionName'))$('practiceSectionName').value='';$('practiceStatus').textContent='';}
+    const demoMarkers=[['Intro',0],['Main riff',16],['Breakdown',48],['Guitar solo',80],['Final riff',112]].map(([name,beats])=>({name,time:beats*E.BEAT}));
+    practiceSections=song?Sections.forSong(song,instrument):Sections.build({duration:E.MUSIC_END,beat:E.BEAT,markers:demoMarkers});
+    const picker=$('practiceSection');picker.replaceChildren();
+    const option=(value,label)=>{const el=document.createElement('option');el.value=value;el.textContent=label;picker.append(el);return el;};
+    option('custom','Custom range — use the times below');option('whole','Entire song');
+    const notes=chartNotes();
+    for(const section of practiceSections){const count=notes.filter(note=>note.time>=section.start&&note.time<section.end).length;const row=option(section.id,`${section.name}${section.source==='saved'?' (saved)':''} · ${formatTime(section.start)}–${formatTime(section.end)} · ${count} ${count===1?'note':'notes'}`);row.disabled=!count;}
+    picker.value=['custom','whole',...practiceSections.map(section=>section.id)].includes(selected)?selected:'custom';
+    const authored=practiceSections.some(section=>section.source==='chart');
+    if($('practiceSectionHint'))$('practiceSectionHint').textContent=authored?'Section names come from this instrument’s chart. Choose one to fill its start and end times.':'This chart has no named sections. Timed sections are available; save a range below as Verse 1, Chorus, Solo or any name you choose.';
+    if($('practiceSectionEditor'))$('practiceSectionEditor').hidden=!song;
+    if($('removePracticeSection'))$('removePracticeSection').hidden=!picker.value.startsWith('saved:');
+  }
+  function choosePracticeSection(){
+    const value=$('practiceSection').value,range=value==='whole'?{start:0,end:song?.musicEnd??E.MUSIC_END,name:''}:practiceSections.find(section=>section.id===value);
+    if(range){$('loopStart').value=String(range.start);$('loopEnd').value=String(range.end);if($('practiceSectionName'))$('practiceSectionName').value=range.name;$('practiceStatus').textContent=value==='whole'?'The entire song will repeat.':`${range.name}: ${formatTime(range.start)}–${formatTime(range.end)}. Choose a speed, then Start practice.`;}
+    if($('removePracticeSection'))$('removePracticeSection').hidden=!value.startsWith('saved:');
+  }
+  async function storePracticeSection(remove=false){
+    if(!song||!Sections||busy()||pendingSaves)return;
+    try{
+      const selected=practiceSections.find(section=>section.id===$('practiceSection').value),name=$('practiceSectionName').value.trim(),current=song.practiceSections||[];
+      if(remove&&selected?.source!=='saved')return;
+      const candidate=remove?null:Sections.ranges([{name,start:Number($('loopStart').value),end:Number($('loopEnd').value)}],song.musicEnd)[0];
+      const next=remove?current.filter((_,index)=>index!==Number(selected.id.slice(6))):[...current.filter(section=>section.name.toLocaleLowerCase()!==candidate.name.toLocaleLowerCase()),candidate];
+      const validated=Sections.ranges(next,song.musicEnd);song={...song,practiceSections:validated};const owner=song;await saveSong();
+      const saved=validated.findIndex(section=>section.name===candidate?.name);refreshPracticeSections(!remove&&saved>=0?'saved:'+saved:'custom');
+      $('practiceStatus').textContent=savedSong===owner?(remove?'Saved practice section removed.':`${name} saved with this song in your setlist.`):'The section change is kept for this session. '+$('saveStatus').textContent;
+    }catch(error){$('practiceStatus').textContent=error.message;}
+  }
+  $('practiceSection')?.addEventListener('change',choosePracticeSection);
+  for(const id of ['loopStart','loopEnd'])$(id).addEventListener('input',()=>{if($('practiceSection'))$('practiceSection').value='custom';if($('removePracticeSection'))$('removePracticeSection').hidden=true;});
+  $('savePracticeSection')?.addEventListener('click',()=>storePracticeSection());
+  $('removePracticeSection')?.addEventListener('click',()=>storePracticeSection(true));
   function openPractice(useMiss=false){
     if(busy()||song?.chartOnly)return;
     const section=T.missedSection?.(lastMissTime,song?.musicEnd??E.MUSIC_END);
     if(useMiss&&!section){showMessage('Play a section first. Missed notes can then be selected for practice.');return;}
-    if(useMiss){$('loopStart').value=String(section.start);$('loopEnd').value=String(section.end);$('practiceStatus').textContent=`Last missed note at ${formatTime(lastMissTime)}. Practice ${formatTime(section.start)}–${formatTime(section.end)}, or adjust the range.`;}
+    refreshPracticeSections();
+    if(useMiss){$('loopStart').value=String(section.start);$('loopEnd').value=String(section.end);if($('practiceSection'))$('practiceSection').value='custom';if($('practiceSectionName'))$('practiceSectionName').value='';if($('removePracticeSection'))$('removePracticeSection').hidden=true;$('practiceStatus').textContent=`Last missed note at ${formatTime(lastMissTime)}. Practice ${formatTime(section.start)}–${formatTime(section.end)}, or adjust the range.`;}
     if(!Number.isFinite(Number($('practiceRate').value))||Number($('practiceRate').value)<.25)$('practiceRate').value='0.75';
     if($('resultDialog').open)$('resultDialog').close();openTool('practiceDialog');
     if($('practiceMissButton'))$('practiceMissButton').disabled=!section||previewing;

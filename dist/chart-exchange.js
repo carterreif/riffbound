@@ -4,6 +4,7 @@
 (function(root){
   'use strict';
   const D=typeof module!=='undefined'&&module.exports?require('./chart-difficulties.js'):root.RiffDifficulties;
+  const Sections=typeof module!=='undefined'&&module.exports?require('./song-sections.js'):root.RiffSongSections;
   const MAX_BYTES=4*1024*1024,PARTS={Single:'guitar',DoubleBass:'bass',Drums:'drums'},LEVELS=D.LEVELS;
   const clean=value=>String(value??'').replace(/["\r\n\x00-\x1f]/g,' ').slice(0,500);
   const audioFilename=song=>clean((song.filename||'song.ogg').split(/[\\/]/).pop());
@@ -72,6 +73,8 @@
       if(!/^\d+\s*=\s*A\s+\d+\s*(?:\/\/.*)?$/.test(line))throw Error('Invalid tempo or time-signature event.');
     }
     const timing=tempoMap(resolution,tempos,offset),rawCharts={},rawRolls={},warnings=new Set();let eventCount=0;
+    const sectionMarkers=[];
+    for(const line of sections.get('Events')||[]){const event=line.match(/^(\d+)\s*=\s*E\s+"([^"]*)"\s*(?:\/\/.*)?$/),name=event&&Sections?.markerName(event[2]);if(name)sectionMarkers.push({name,time:timing.toSeconds(integer(event[1],'section position'))});}
     for(const [name,lines] of sections){
       const match=name.match(/^(Easy|Medium|Hard|Expert)(Single|DoubleBass|Drums)$/);if(!match)continue;
       const level=match[1].toLowerCase(),part=PARTS[match[2]],events=[],rolls=[];
@@ -135,7 +138,7 @@
     if(outputDrumLayout==='four'&&charts.drums)charts.drums=D.fourDrumLevels(charts.drums);
     const ignored=[...sections.keys()].filter(s=>/^(Easy|Medium|Hard|Expert)/.test(s)&&!/^(Easy|Medium|Hard|Expert)(Single|DoubleBass|Drums)$/.test(s));
     if(ignored.length)warnings.add('Other instrument tracks in this file are not imported.');
-    return {charts,title:ini.name||metadata.Name||'',artist:ini.artist||metadata.Artist||'',bpm:timing.points[0].bpm,beat:60/timing.points[0].bpm,drumLayout,playLayout:outputDrumLayout,warnings:[...warnings],timing:{resolution,offset,tempos:timing.points.map(({tick,bpm})=>({tick,bpm})),signatures},summary:Object.entries(charts).flatMap(([part,levels])=>Object.entries(levels).map(([level,notes])=>`${part} ${level}: ${notes.length} notes`)).join(' · ')};
+    return {charts,title:ini.name||metadata.Name||'',artist:ini.artist||metadata.Artist||'',bpm:timing.points[0].bpm,beat:60/timing.points[0].bpm,drumLayout,playLayout:outputDrumLayout,warnings:[...warnings],timing:{resolution,offset,tempos:timing.points.map(({tick,bpm})=>({tick,bpm})),signatures,...(sectionMarkers.length?{sections:Sections.markers(sectionMarkers)}:{})},summary:Object.entries(charts).flatMap(([part,levels])=>Object.entries(levels).map(([level,notes])=>`${part} ${level}: ${notes.length} notes`)).join(' · ')};
   }
   function arrange(parsed,duration,previous={}){
     if(!Number.isFinite(duration)||duration<5||duration>D.MAX_DURATION)throw Error('Choose audio between 5 seconds and 15 minutes long.');
@@ -172,7 +175,9 @@
     const sync=map.points.map(t=>({tick:t.tick,text:`B ${Math.round(t.bpm*1000)}`}));
     for(const t of timing.signatures?.length?timing.signatures:[{tick:0,numerator:4,exponent:2}])sync.push({tick:t.tick,text:`TS ${t.numerator} ${t.exponent}`});
     for(const t of sync.sort((a,b)=>a.tick-b.tick))lines.push(`  ${t.tick} = ${t.text}`);
-    lines.push('}','[Events]','{',`  ${Math.max(0,Math.round(map.toTick(song.musicEnd)))} = E "end"`,'}');
+    lines.push('}','[Events]','{');
+    for(const marker of Sections?.markers((song.quality?.chartTimings?.[song.instrument]||retained)?.sections,song.musicEnd)||[])lines.push(`  ${Math.max(0,Math.round(map.toTick(marker.time+(song.quality?.chartAdjustments?.[song.instrument]||0)/1000)))} = E "section ${clean(marker.name)}"`);
+    lines.push(`  ${Math.max(0,Math.round(map.toTick(song.musicEnd)))} = E "end"`,'}');
     for(const [suffix,part] of parts)for(const level of LEVELS){
       const notes=song.charts[part][level];if(!notes)continue;lines.push(`[${D.NAMES[level]}${suffix}]`,'{');
       const four=part==='drums'&&D.drumLayout(song.quality)==='four',phrases=new Map();

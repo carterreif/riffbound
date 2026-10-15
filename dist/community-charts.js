@@ -196,7 +196,7 @@
     // Parse each part independently: unsupported notes elsewhere cannot discard
     // a playable instrument. Song + SyncTrack retain the original tempo/offset.
     const sections=text.match(/\[[^\]]+\]\s*\{[^}]*\}/g);if(!sections)throw Error('Invalid .chart file.');
-    const filtered=sections.filter(s=>{const name=s.match(/^\[([^\]]+)\]/)[1];return name==='Song'||name==='SyncTrack'||new RegExp('^(Easy|Medium|Hard|Expert)'+suffix+'$').test(name);}).join('\n');
+    const filtered=sections.filter(s=>{const name=s.match(/^\[([^\]]+)\]/)[1];return name==='Song'||name==='SyncTrack'||name==='Events'||new RegExp('^(Easy|Medium|Hard|Expert)'+suffix+'$').test(name);}).join('\n');
     return X.parse(filtered,options);
   }
   async function lookup({filename,title='',artist='',duration,parts,chartOnly=false,includeAudio=false,includeDrumAudio=false,requireAudioMatch=false,enabled=true,signal,fetcher=root.fetch?.bind(root),alignAudio,onProgress=()=>{},timeoutMs=alignAudio?45000:chartOnly?30000:15000}){
@@ -303,7 +303,7 @@
             const verified=review.status==='aligned'&&Number.isFinite(review.shiftSeconds)&&Math.abs(review.shiftSeconds)<=8;
             if(!chartOnly&&needsVerification&&!verified){issues[part]=review.message;attempt.reason=review.message;reason=requireAudioMatch?'A possible chart was found, but this instrument’s recording audio could not be verified against your upload. Used audio charting.':game?.guitarOnly?'A guitar-only game chart was found, but its recording audio could not be verified. Used audio charting.':'A possible chart has different recording padding, but its audio could not be verified. Used audio charting.';continue;}
             const original=parsedParts[part],shift=verified?review.shiftSeconds:0;
-            const parsed={...original,timing:{...original.timing,offset:original.timing.offset+shift},charts:{[part]:Object.fromEntries(Object.entries(original.charts[part]).map(([level,notes])=>[level,notes.map(n=>({...n,time:n.time+shift}))]))}};
+            const parsed={...original,timing:{...original.timing,offset:original.timing.offset+shift,...(original.timing.sections?{sections:original.timing.sections.map(marker=>({...marker,time:marker.time+shift}))}:{})},charts:{[part]:Object.fromEntries(Object.entries(original.charts[part]).map(([level,notes])=>[level,notes.map(n=>({...n,time:n.time+shift}))]))}};
             for(const notes of Object.values(parsed.charts[part]))if(notes.some(n=>n.time<0))throw Error('Aligned notes start before this recording.');
             const arranged=X.arrange(parsed,chartOnly?row.song_length/1000:duration);if(chartOnly&&!Object.keys(charts).length)duration=row.song_length/1000;if(includeAudio)audioContainer??=downloaded.container;charts[part]=arranged.charts[part];timings[part]=parsed.timing;timing??=parsed.timing;bpm??=parsed.bpm;beat??=parsed.beat;
             imports[part]={filename:clean(row.name)+' · '+(game?game.game+' · ':'')+reference.charter+' · '+downloaded.file.name,layout:part==='drums'&&parsed.playLayout==='four'?'four':parsed.drumLayout,levels:Object.keys(parsed.charts[part]),derived:arranged.derived[part],derivedFrom:arranged.derivedFrom[part]};
