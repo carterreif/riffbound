@@ -1,5 +1,7 @@
 # Riffbound
 
+Version 113 adds **Go back to section** to full-song and practice results for Guitar, Drums, Bass and Vocals. It opens the section chooser for the same song, instrument and difficulty, including after a perfect run, without replaying audio or discarding the saved result. The offline cache revision is 113-1.
+
 Version 112 ends a practice section with a large accuracy percentage, points and note totals, plus **Practice again** and **Back to main menu**. Practice again retains the exact section and speed. Section bests save separately for each song, instrument, difficulty, range and speed; full-song bests are unchanged. Continuous repetition is now an optional checkbox. Audio stops at the selected boundary, while calibrated final-note hit windows remain valid. The offline cache revision is 112-1.
 
 Version 111 adds **Which section do you want to play?** to Practice. Authored Intro, Verse, Chorus, Solo and other section markers from .chart/MIDI files fill the range automatically. Unmarked songs offer timed sections, and players can save custom Verse 1 / Verse 2 ranges with the song and its .riffpack backups. Practice speed, Retry and video timing retain the selected range. See [named practice sections](docs/practice-sections.md). The offline cache revision is 111-1.

@@ -2,6 +2,8 @@
 
 Version 111 adds **Which section do you want to play?** to Practice. Choose a section to fill its start/end times, choose a speed, then Start practice. Options show the section name, time range and note count for the current instrument/difficulty. Sections with no notes are disabled. **Entire song** and **Custom range** remain available.
 
+Version 113 adds **Go back to section** to the end-of-song and practice results for every instrument. It opens the practice section chooser while preserving the song, current instrument/difficulty and saved scores. It is available after perfect runs as well as missed-note runs. Choose another section and speed, then Start practice; opening the chooser does not autoplay or rebuild charts.
+
 ## Chart sections
 
 The importer now retains `.chart` global `[Events]` entries named `section <name>` or `prc_<name>`, and MIDI `EVENTS` text/marker events such as `[section Verse 1]` and `[prc_verse_2]`. These conventions follow the existing [chart format reference](https://github.com/TheNathannator/GuitarGame_ChartFormats/blob/main/docs/Chart-File-Formats/chart-format/Format-Overview.md) and [MIDI global-event reference](https://solamint.github.io/GuitarGame_ChartFormats/Chart-File-Formats/mid-format/Tracks/Global-Events/).

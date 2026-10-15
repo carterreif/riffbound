@@ -1083,6 +1083,7 @@
   $('practiceButton').addEventListener('click',()=>openPractice());
   $('practiceMissButton')?.addEventListener('click',()=>openPractice(true));
   $('resultPracticeMiss')?.addEventListener('click',()=>openPractice(true));
+  $('resultChooseSection')?.addEventListener('click',()=>openPractice());
   $('practiceLaunch').addEventListener('click',()=>{const start=Number($('loopStart').value),end=Number($('loopEnd').value);if(!Number.isFinite(start)||!Number.isFinite(end)||start<0||end-start<1||end>(song?.musicEnd??E.MUSIC_END)){$('practiceStatus').textContent='Choose at least one second inside this song.';return;}const loop=T.practice(start,end,$('practiceRate').value,song?.musicEnd??E.MUSIC_END);if(!T.segment(chartNotes(),loop).length){$('practiceStatus').textContent='There are no charted notes here. Choose another section.';return;}$('practiceDialog').close();play({practice:true});});
   $('timingButton').addEventListener('click',()=>{$('timingOffset').value=String(timingOffset);$('timingOffsetValue').textContent=`${timingOffset} ms`;openTool('timingDialog');});
   $('calibrationStart').addEventListener('click',startCalibration);
