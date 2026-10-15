@@ -1,13 +1,13 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),{createRequire}=require('node:module');
 const B=require('../dist/background-video.js');
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
-function fixture(store){
-  const entries=new Map(),events={},classes=new Set(),revoked=[],messages=[];let serial=0,plays=0;
-  const video={style:{},hidden:true,paused:true,currentTime:0,duration:100,readyState:0,addEventListener:(type,fn)=>events[type]=fn,
+function fixture(store,options={}){
+  const entries=new Map(),handlers={},events=new Proxy({},{get:(_,type)=>()=>{for(const fn of [...(handlers[type]||[])])fn();}}),classes=new Set(),revoked=[],messages=[];let serial=0,plays=0;
+  const video={style:{},hidden:true,paused:true,currentTime:0,duration:100,readyState:0,addEventListener:(type,fn)=>(handlers[type]??=new Set()).add(fn),removeEventListener:(type,fn)=>handlers[type]?.delete(fn),
     pause(){this.paused=true;},play(){plays++;this.paused=false;return Promise.resolve();},load(){this.currentTime=0;},removeAttribute(name){delete this[name];}};
   const stage={classList:{toggle:(c,on)=>on?classes.add(c):classes.delete(c),remove:c=>classes.delete(c)}};
   const database=store||{get:async key=>entries.get(key),put:async(key,value)=>entries.set(key,{...value})};
-  const player=B.create(video,stage,{store:database,url:{createObjectURL:()=>`blob:video-${++serial}`,revokeObjectURL:value=>revoked.push(value)},onChange:(value,message)=>messages.push({value,message})});
+  const player=B.create(video,stage,{store:database,url:{createObjectURL:()=>`blob:video-${++serial}`,revokeObjectURL:value=>revoked.push(value)},onChange:(value,message)=>messages.push({value,message}),...options});
   const file=Object.assign(new Blob(['video'],{type:'video/mp4'}),{name:'My Metallica gameplay.mp4'});
   return {player,video,events,classes,entries,revoked,messages,file,get plays(){return plays;},store:database};
 }
@@ -40,6 +40,28 @@ test('late-loaded or drifting video catches up to the current song time, and pau
   p.sync({time:20.3,playing:true});assert.equal(f.video.currentTime,20.3,'Correct larger drift against audio, rather than a separate video timer');
   p.pause();f.video.currentTime=20.33;p.sync({time:20.3,playing:false});assert.equal(f.video.currentTime,20.3);assert.equal(f.video.paused,true);
   f.video.currentTime=20.32;p.sync({time:20.3,playing:true});await flush();assert.equal(f.video.currentTime,20.3);
+});
+test('preparing a video waits for decoded data and the completed start seek, without playing during preparation',async()=>{
+  const f=fixture(),p=f.player;await p.selectSong('a');await p.choose(f.file);await p.settings({offset:3.2});
+  let ready=false,time=0;Object.defineProperty(f.video,'currentTime',{get:()=>time,set:value=>{time=value;f.video.seeking=true;f.video.readyState=1;}});
+  const pending=p.prepare({time:5,rate:.5}).then(()=>ready=true);f.video.readyState=1;f.events.loadedmetadata();await flush();assert.equal(ready,false,'Metadata is not a decoded video frame');
+  f.video.readyState=2;f.events.loadeddata();await flush();assert.equal(f.video.currentTime,8.2);assert.equal(ready,false,'The frame seek must also complete');
+  p.sync({time:0,playing:false});assert.equal(f.video.currentTime,8.2,'Loading frames cannot rewind the prepared preview/practice position');assert.equal(f.plays,0);
+  f.video.readyState=2;f.video.seeking=false;f.events.seeked();await pending;assert.equal(ready,true);assert.equal(f.video.playbackRate,.5);assert.equal(f.video.paused,true);assert.equal(f.plays,0);
+  p.sync({time:5,playing:false});assert.equal(f.plays,0);p.sync({time:5,playing:true});await flush();assert.equal(f.plays,1);
+});
+test('video preparation reports stalled decoders, supports cancellation and preserves actual codec errors',async()=>{
+  const f=fixture(null,{readyTimeout:20});await f.player.selectSong('a');await f.player.choose(f.file);
+  await assert.rejects(f.player.prepare(),error=>error.backgroundVideo&&/still loading or seeking/.test(error.message));assert.equal(f.plays,0);
+  const pending=f.player.prepare(),canceled=assert.rejects(pending,error=>error.backgroundVideo&&/canceled/.test(error.message));f.player.pause();await canceled;
+  const failed=f.player.prepare(),codec=assert.rejects(failed,error=>error.backgroundVideo&&/media error 4/.test(error.message));f.video.error={code:4};f.events.error();await codec;
+});
+test('a paused or previous run cannot queue a new video start into the next count-in',async()=>{
+  const f=fixture(),p=f.player;await p.selectSong('a');await p.choose(f.file);f.video.readyState=2;f.events.loadedmetadata();
+  const completions=[];f.video.play=()=>new Promise(resolve=>completions.push(()=>{f.video.paused=false;resolve();}));
+  p.sync({time:1,playing:true});assert.equal(completions.length,1,'Play is requested only in the running frame, never a later microtask');
+  p.pause();const preparing=p.prepare({time:0});await preparing;completions.shift()();await flush();assert.equal(f.video.paused,true,'Late play completion is stopped during the next count-in');
+  p.sync({time:0,playing:false});assert.equal(completions.length,0);p.sync({time:0,playing:true});assert.equal(completions.length,1);completions.shift()();await flush();assert.equal(f.video.paused,false);
 });
 test('each song restores its own file, mode, offset and darkness after switching and reopening',async()=>{
   const f=fixture(),p=f.player;await p.selectSong('a');await p.choose(f.file);await p.settings({offset:10,dim:50});const url=f.video.src;
@@ -88,10 +110,25 @@ test('real picker wiring captures the file before disabling, retains its name, a
   assert.equal(nodes.backgroundFilename.textContent,'My footage.mp4');assert.equal(picker.value,'C:\\fakepath\\My footage.mp4');assert.equal(nodes.backgroundMode.value,'video');assert.equal(nodes.backgroundPreview.src,'blob:selected-video');assert.equal(nodes.backgroundPreview.hidden,false);assert.ok(classes.has('video-background'));
   await nodes.backgroundDim.emit('change');assert.equal(picker.value,'C:\\fakepath\\My footage.mp4');await window.RiffBackground.selectSong('a');assert.equal(picker.value,'C:\\fakepath\\My footage.mp4');
   nodes.backgroundPreview.paused=false;await nodes.backgroundDialog.emit('close');assert.equal(nodes.backgroundPreview.paused,true);
+  nodes.backgroundPreview.paused=false;window.RiffBackground.pause();assert.equal(nodes.backgroundPreview.paused,true,'Play track stops preview playback even before a dialog close event');
   await nodes.backgroundRemove.emit('click');assert.equal(picker.value,'');assert.equal(nodes.backgroundPreview.hidden,true);assert.equal(nodes.backgroundRemove.disabled,true);
 });
 
 const adapter=require.resolve('./upload-flow.test.cjs'),code=fs.readFileSync(adapter,'utf8').split('\ntest(')[0],{setup,until}=new Function('require',code+'\nreturn {setup,until};')(createRequire(adapter));
+test('Play track schedules neither audio nor count-in until video preparation finishes, and re-prepares on resume',async()=>{
+  const preparations=[],states=[];let finish;
+  const bg={mode:'video',pause:()=>{},selectSong:()=>{},sync:value=>states.push(value),prepare:options=>{preparations.push(options);return new Promise(resolve=>finish=resolve);}};
+  const app=setup({chartFixture:[{lane:0,time:2,duration:0}],browserOverrides:{RiffBackground:bg}}),n=app.nodes;
+  await app.upload();await until(()=>!n.saveCurrentButton.disabled);await n.playButton.click();await until(()=>preparations.length===1);
+  assert.equal(app.sources.length,0);assert.equal(n.announceSmall.textContent,'PREPARING VIDEO');app.tick(10);assert.equal(states.at(-1).playing,false);assert.equal(preparations[0].time,0);
+  finish();await until(()=>app.sources.length===1);const source=app.sources[0];assert.ok(source.when>10);app.tick(source.when-.5);assert.equal(states.at(-1).playing,false);app.tick(source.when);assert.equal(states.at(-1).playing,true);
+  app.tick(source.when+2);await n.pauseButton.click();await n.playButton.click();await until(()=>preparations.length===2);assert.equal(preparations[1].time,2);assert.equal(app.audio.state,'suspended');app.tick(source.when+3);assert.equal(states.at(-1).playing,false);
+  finish();await until(()=>n.playText.textContent==='RESTART TRACK');assert.equal(app.audio.state,'running');await n.mobileBackButton.click();
+});
+test('video readiness failure prevents chart/audio start and shows the video-specific recovery message',async()=>{
+  const app=setup({chartFixture:[{lane:0,time:2,duration:0}],browserOverrides:{RiffBackground:{mode:'video',pause:()=>{},selectSong:()=>{},sync:()=>{},prepare:async()=>{throw Object.assign(Error('The video is still loading or seeking.'),{backgroundVideo:true});}}}}),n=app.nodes;
+  await app.upload();await until(()=>!n.saveCurrentButton.disabled);await n.playButton.click();await until(()=>n.announceSmall.textContent==='VIDEO NOT READY');assert.equal(app.sources.length,0);assert.match(n.statusMessage.textContent,/video is still loading or seeking/);assert.equal(n.playButton.disabled,false);
+});
 test('game transport drives video from song audio through count-in, play, pause and restart; chooser pauses play',async()=>{
   const calls=[],songs=[];let pauses=0;const bg={selectSong:id=>songs.push(id),sync:state=>calls.push(state),pause:()=>pauses++,mode:'video',busy:false};
   const app=setup({browserOverrides:{RiffBackground:bg}}),n=app.nodes;assert.equal(songs.at(-1),'demo');

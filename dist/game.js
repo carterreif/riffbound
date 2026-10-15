@@ -1095,9 +1095,14 @@
       await audioContext.resume();master.gain.value=muted?0:volume;
       if(!song&&!musicBuffer)musicBuffer=await composeTrack(audioContext);
       if(playback!==playbackGeneration)return;
+      const seek=practiceLoop?.start??(preview?Math.max(0,Math.min(offset,(song?.musicEnd??E.MUSIC_END)-.1)):0),lead=preview?0:4*trackBeat()/playRate;
+      if(window.RiffBackground?.prepare){
+        if(window.RiffBackground.mode==='video')setAnnouncement('PREPARING VIDEO','MATCHING START FRAME…');
+        await window.RiffBackground.prepare({time:seek,rate:playRate});
+        if(playback!==playbackGeneration)return;
+      }
       // Close sheets before starting, including restart from the results screen.
       if($('resultDialog').open)$('resultDialog').close();
-      const seek=practiceLoop?.start??(preview?Math.max(0,Math.min(offset,(song?.musicEnd??E.MUSIC_END)-.1)):0),lead=preview?0:4*trackBeat()/playRate;
       const audioStart=audioContext.currentTime+.15+lead;startTime=audioStart;transportSeek=seek;
       source=audioContext.createBufferSource();source.buffer=song?.chartOnly?audioContext.createBuffer(1,Math.ceil(song.musicEnd*8000),8000):song?.buffer??musicBuffer;
       source.playbackRate.value=playRate;if(practiceLoop){source.loop=true;source.loopStart=practiceLoop.start;source.loopEnd=practiceLoop.end;}
@@ -1108,8 +1113,8 @@
       if(document.hidden)pause();
     }catch(err){
       if(playback!==playbackGeneration)return;
-      state='idle';previewing=false;practiceLoop=null;playRate=1;stopAudio();updateButtons();setAnnouncement('AUDIO COULD NOT START','TRY AGAIN');
-      showMessage('Sound could not start. Try Play track again, or open this game in a current Chrome, Edge, Firefox, or Safari browser.');
+      state='idle';previewing=false;practiceLoop=null;playRate=1;stopAudio();updateButtons();setAnnouncement(err.backgroundVideo?'VIDEO NOT READY':'AUDIO COULD NOT START','TRY AGAIN');
+      showMessage(err.backgroundVideo?err.message:'Sound could not start. Try Play track again, or open this game in a current Chrome, Edge, Firefox, or Safari browser.');
     }
   }
   function pause(){
@@ -1120,7 +1125,11 @@
   async function resume(){
     if(state!=='paused')return;
     const playback=playbackGeneration;
-    try{await audioContext.resume();if(state!=='paused'||playback!==playbackGeneration)return;state=previousState==='countin'?'countin':'playing';updateButtons();setAnnouncement('','',false);}catch{showMessage('Tap Resume track to enable sound.');}
+    try{
+      if(window.RiffBackground?.prepare)await window.RiffBackground.prepare({time:previousState==='countin'?Math.max(frozenTime,transportSeek):frozenTime,rate:playRate});
+      if(state!=='paused'||playback!==playbackGeneration)return;
+      await audioContext.resume();if(state!=='paused'||playback!==playbackGeneration)return;state=previousState==='countin'?'countin':'playing';updateButtons();setAnnouncement('','',false);
+    }catch(error){if(playback===playbackGeneration)showMessage(error.backgroundVideo?error.message:'Tap Resume track to enable sound.');}
   }
   function togglePause(){if(state==='paused')resume();else pause();}
   function reset(){

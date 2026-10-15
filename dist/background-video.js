@@ -20,11 +20,11 @@
     }
     return {get:key=>transaction(key,null,false),put:(key,value)=>transaction(key,value,true)};
   }
-  function create(video,stage,{store=storage(root.indexedDB),url=root.URL,onChange=()=>{}}={}){
-    let key=null,config=defaults(),objectUrl=null,generation=0,writes=0,blocked=false,starting=false,wanted=false,loaded=false,mediaIssue='',timeline=null;
+  function create(video,stage,{store=storage(root.indexedDB),url=root.URL,onChange=()=>{},readyTimeout=15000}={}){
+    let key=null,config=defaults(),objectUrl=null,generation=0,writes=0,blocked=false,starting=false,wanted=false,loaded=false,mediaIssue='',timeline=null,preparation=null,playEpoch=0;
     const memory=new Map();let queue=Promise.resolve();
     function notify(message){onChange({...config,hasVideo:!!config.file,videoUrl:objectUrl},message);}
-    function pause(){wanted=false;timeline=null;video.pause();}
+    function pause(reason){wanted=false;timeline=null;playEpoch++;starting=false;video.pause();preparation?.(reason);}
     function release(){pause();loaded=false;if(objectUrl){video.removeAttribute('src');video.load();url.revokeObjectURL(objectUrl);objectUrl=null;}}
     function appearance(){
       stage.classList.toggle('video-background',config.mode==='video'&&!!config.file);
@@ -63,7 +63,35 @@
       pause();blocked=false;appearance();notify(config.mode==='video'&&!config.file?'Choose a video file for this song.':'');return save();
     }
     function clear(){generation++;config={...config,file:null,name:'',mode:'stage'};apply();return save();}
+    async function prepare({time=0,rate=1}={}){
+      pause();if(config.mode!=='video'||!config.file)return;
+      let canceled=false,rejectWait=null;
+      const failure=message=>Object.assign(Error(message),{backgroundVideo:true});
+      const cancel=reason=>{canceled=true;rejectWait?.(reason?.backgroundVideo?reason:failure('Video preparation was canceled. Press Play track to try again.'));};
+      preparation=cancel;
+      function waitFor(check){
+        return new Promise((resolve,reject)=>{
+          const events=['loadedmetadata','loadeddata','canplay','seeked','error'];let done=false;
+          const finish=error=>{if(done)return;done=true;clearTimeout(timer);for(const event of events)video.removeEventListener(event,inspect);rejectWait=null;error?reject(error):resolve();};
+          const inspect=()=>{if(canceled)finish(failure('Video preparation was canceled.'));else if(video.error)finish(failure(mediaIssue||'The selected video cannot be decoded. Choose an H.264 MP4 or WebM in Backgrounds.'));else if(check())finish();};
+          const timer=setTimeout(()=>finish(failure('The video is still loading or seeking. Open Backgrounds to check its preview, then try Play track again.')),readyTimeout);
+          rejectWait=finish;for(const event of events)video.addEventListener(event,inspect);inspect();
+        });
+      }
+      try{
+        // Metadata alone does not guarantee a decoded frame. Do not schedule
+        // the song until both decoding and the seek have finished.
+        await waitFor(()=>video.readyState>=2&&Number.isFinite(video.duration));
+        const target=Math.max(0,Math.min(time+config.offset,Math.max(0,video.duration-.04)));
+        video.playbackRate=rate;
+        if(Math.abs(video.currentTime-target)>.005)video.currentTime=target;
+        await waitFor(()=>video.readyState>=2&&!video.seeking);
+        loaded=true;timeline=null;appearance();
+      }catch(error){throw error.backgroundVideo?error:failure('The video could not seek to its starting frame. Choose another video in Backgrounds.');}
+      finally{if(preparation===cancel)preparation=null;}
+    }
     function sync({time=0,playing=false,rate=1}={}){
+      if(preparation)return;
       if(config.mode!=='video'||!config.file||!loaded){if(wanted||!video.paused)pause();return;}
       const position=time+config.offset,duration=video.duration;
       const target=Math.max(0,Number.isFinite(duration)?Math.min(position,Math.max(0,duration-.04)):position);
@@ -74,22 +102,25 @@
       const tolerance=(boundary||!wanted) ? .005 : .1;
       try{if(Math.abs(video.currentTime-target)>tolerance)video.currentTime=target;video.playbackRate=rate;}catch{}
       timeline={time,playing:wanted,rate};
-      if(!wanted){video.pause();blocked=false;return;}
+      if(!wanted){playEpoch++;starting=false;video.pause();blocked=false;return;}
       if(video.paused&&!starting&&!blocked){
-        starting=true;Promise.resolve().then(()=>video.play()).then(()=>{if(!wanted)video.pause();},error=>{if(error?.name!=='AbortError'){blocked=true;notify('Video could not play. Choose a browser-compatible MP4 or WebM in Backgrounds.');}}).finally(()=>starting=false);
+        const epoch=++playEpoch;starting=true;
+        try{Promise.resolve(video.play()).then(()=>{if(!wanted)video.pause();},error=>{if(epoch===playEpoch&&error?.name!=='AbortError'){blocked=true;notify('Video could not play. Choose a browser-compatible MP4 or WebM in Backgrounds.');}}).finally(()=>{if(epoch===playEpoch)starting=false;});}
+        catch{if(epoch===playEpoch){starting=false;blocked=true;notify('Video could not play. Choose a browser-compatible MP4 or WebM in Backgrounds.');}}
       }
     }
     video.muted=true;video.defaultMuted=true;video.volume=0;video.playsInline=true;video.loop=false;video.preload='auto';
     video.addEventListener('loadedmetadata',()=>{if(!objectUrl)return;loaded=true;blocked=false;appearance();});
     video.addEventListener('loadeddata',()=>{if(!objectUrl)return;loaded=true;blocked=false;appearance();notify();});
-    video.addEventListener('error',()=>{if(!objectUrl||!video.error)return;loaded=false;pause();stage.classList.remove('video-background');video.hidden=true;
-      mediaIssue=`“${config.name}” was selected, but its video could not open${video.error.code?' (media error '+video.error.code+')':''}. Try an MP4 encoded with H.264 or a WebM video.`;notify(mediaIssue);});
-    return {selectSong,choose,settings,clear,sync,pause,get hasVideo(){return !!config.file;},get busy(){return writes>0;},get mode(){return config.mode==='video'&&(!config.file||video.hidden)?'stage':config.mode;}};
+    video.addEventListener('error',()=>{if(!objectUrl||!video.error)return;loaded=false;
+      mediaIssue=`“${config.name}” was selected, but its video could not open${video.error.code?' (media error '+video.error.code+')':''}. Try an MP4 encoded with H.264 or a WebM video.`;
+      pause(Object.assign(Error(mediaIssue),{backgroundVideo:true}));stage.classList.remove('video-background');video.hidden=true;notify(mediaIssue);});
+    return {selectSong,choose,settings,clear,sync,pause,prepare,get hasVideo(){return !!config.file;},get busy(){return writes>0;},get mode(){return config.mode==='video'&&(!config.file||video.hidden)?'stage':config.mode;}};
   }
   const api={create,storage};
   if(typeof module!=='undefined'&&module.exports){module.exports=api;return;}
   const $=id=>root.document.getElementById(id),video=$('backgroundVideo');if(!video)return;
-  const picker=$('backgroundFile'),preview=$('backgroundPreview');let displayedSong=null,previewUrl=null;
+  const picker=$('backgroundFile'),preview=$('backgroundPreview');let displayedSong=null,previewUrl=null,selection=Promise.resolve(),transportJob=0;
   const controls=['backgroundMode','backgroundFile','backgroundOffset','backgroundDim','backgroundRemove'];
   const player=create(video,video.closest('.stage'),{onChange:(value,message)=>{
     $('backgroundMode').value=value.mode;$('backgroundOffset').value=value.offset;$('backgroundDim').value=value.dim;$('backgroundDimValue').textContent=value.dim+'%';
@@ -111,5 +142,7 @@
     preview.addEventListener('volumechange',()=>{if(!preview.muted)preview.muted=true;});
     for(const event of ['close','cancel'])$('backgroundDialog').addEventListener(event,()=>preview.pause());
   }
-  root.RiffBackground={selectSong:id=>{if(id!==displayedSong){displayedSong=id;picker.value='';$('backgroundStatus').textContent='';}return player.selectSong(id);},sync:(...args)=>player.sync(...args),pause:()=>player.pause(),get busy(){return operations>0||player.busy;},get mode(){return player.mode;}};
+  const pauseAll=()=>{transportJob++;preview?.pause();player.pause();};
+  root.RiffBackground={selectSong:id=>{if(id===displayedSong)return selection;displayedSong=id;picker.value='';$('backgroundStatus').textContent='';selection=player.selectSong(id);return selection;},
+    prepare:async options=>{const job=transportJob;preview?.pause();await selection;if(job!==transportJob)throw Object.assign(Error('Video preparation was canceled.'),{backgroundVideo:true});return player.prepare(options);},sync:(...args)=>player.sync(...args),pause:pauseAll,get busy(){return operations>0||player.busy;},get mode(){return player.mode;}};
 })(typeof window!=='undefined'?window:globalThis);

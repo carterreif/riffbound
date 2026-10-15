@@ -1,5 +1,7 @@
 # Riffbound
 
+Version 105 waits for the selected background video to decode and finish its starting seek before scheduling song audio and count-in. Play track always stops the chooser preview. Resume prepares the paused frame before releasing audio; failed or stalled videos leave the song stopped with a specific recovery message. The offline cache revision is 105-1.
+
 Version 104 adds **Backgrounds / video**: choose the concert stage, a dark stage or your own muted video behind the chart. Each song remembers its video, offset and darkness on this device. Video follows the song's preview, pause, restart and practice transport; the original song audio remains audible. See [background video](docs/background-video.md) for settings and verification limits. The offline cache revision is 104-3. Video starts and restarts lock to the song clock, including short video offsets, and running drift is corrected. The file picker retains the selected filename, shows a video preview and reports specific format errors; videos larger than 500 MB can play for the session.
 
 The version 103 display patch reads the loaded game version from its asset manifest instead of a stale HTML label. Manage songs and Install / offline show the same actual release, including after future updates. Saved songs and controller mappings are retained.

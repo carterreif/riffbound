@@ -66,7 +66,7 @@ test('update button stays visible, reports the installed version, and checks aga
 });
 test('stale version-100 HTML reports the loaded release from the real offline manifest',async()=>{
  const sandbox={self:{}};vm.runInNewContext(fs.readFileSync(require.resolve('../dist/offline-assets.js'),'utf8'),sandbox);
- const s=setup({waiting:false,cacheReady:true,version:sandbox.self.RiffOfflineAssets.version,label:'Game version 100'});await flush();assert.equal(s.nodes.gameVersion.textContent,'Game version 104');assert.equal(s.nodes.offlineVersion.textContent,'Game version 104');assert.match(s.nodes.offlineStatus.textContent,/No new update found.*Game version 104/);assert.equal(s.reloads,0);
+ const s=setup({waiting:false,cacheReady:true,version:sandbox.self.RiffOfflineAssets.version,label:'Game version 100'});await flush();assert.equal(s.nodes.gameVersion.textContent,'Game version 105');assert.equal(s.nodes.offlineVersion.textContent,'Game version 105');assert.match(s.nodes.offlineStatus.textContent,/No new update found.*Game version 105/);assert.equal(s.reloads,0);
 });
 test('future releases update both version labels without HTML edits; invalid versions do not claim an old release',async()=>{
  for(const version of ['riffbound-offline-v104-1','v104']){const s=setup({waiting:false,version,label:'Game version 100'});await flush();assert.equal(s.nodes.offlineVersion.textContent,'Game version 104');assert.equal(s.nodes.gameVersion.textContent,'Game version 104');}
