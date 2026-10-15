@@ -202,3 +202,5 @@
 @media(max-width:560px){.hit-timing{top:calc(63% + 26px);font-size:11px}.mobile-session .hit-timing{top:calc(49% + 26px)}.mobile-session .brand{font-size:21px}.mobile-session .top-actions #pauseText{display:none}}
 
 .section-name{display:block;width:100%;min-height:44px;margin:8px 0 12px;padding:10px;border:1px solid #586445;border-radius:4px;background:#0b110d;color:#f5f4ed;font:inherit}#practiceSectionEditor{margin:16px 0}#practiceSection{margin-top:8px}
+
+.results.practice-results .result-grid{grid-template-columns:repeat(2,1fr)}#resultNotes{white-space:pre-line}#practiceResultPercentage{color:var(--acid)}

@@ -185,6 +185,6 @@ test('uploaded song video follows preview seek and practice loop speed including
   const calls=[],songs=[],app=setup({chartFixture:[{lane:0,time:2,duration:0},{lane:0,time:6,duration:0}],browserOverrides:{RiffBackground:{selectSong:id=>songs.push(id),sync:value=>calls.push(value),pause:()=>{},mode:'video'}}}),n=app.nodes;
   await app.upload();await until(()=>!n.saveCurrentButton.disabled);assert.equal(songs.at(-1),[...app.savedSongs.keys()][0]);
   n.previewPosition.value='5';await n.previewButton.click();await until(()=>app.sources.length>0);const preview=app.sources.at(-1);app.tick(preview.when+1);assert.ok(Math.abs(calls.at(-1).time-4)<.001);await n.mobileBackButton.click();
-  n.loopStart.value='2';n.loopEnd.value='8';n.practiceRate.value='.5';await n.practiceLaunch.click();await until(()=>app.sources.length>1);const practice=app.sources.at(-1);app.tick(practice.when-1);assert.equal(calls.at(-1).playing,false);assert.equal(calls.at(-1).time,0);
+  n.practiceRepeat.checked=true;n.loopStart.value='2';n.loopEnd.value='8';n.practiceRate.value='.5';await n.practiceLaunch.click();await until(()=>app.sources.length>1);const practice=app.sources.at(-1);app.tick(practice.when-1);assert.equal(calls.at(-1).playing,false);assert.equal(calls.at(-1).time,0);
   app.tick(practice.when+2);assert.equal(calls.at(-1).rate,.5);assert.ok(Math.abs(calls.at(-1).time-1)<.001);app.tick(practice.when+13);assert.ok(Math.abs(calls.at(-1).time-.5)<.001);await n.mobileBackButton.click();
 });
