@@ -21,10 +21,10 @@
     return {get:key=>transaction(key,null,false),put:(key,value)=>transaction(key,value,true)};
   }
   function create(video,stage,{store=storage(root.indexedDB),url=root.URL,onChange=()=>{}}={}){
-    let key=null,config=defaults(),objectUrl=null,generation=0,writes=0,blocked=false,starting=false,wanted=false,loaded=false,mediaIssue='';
+    let key=null,config=defaults(),objectUrl=null,generation=0,writes=0,blocked=false,starting=false,wanted=false,loaded=false,mediaIssue='',timeline=null;
     const memory=new Map();let queue=Promise.resolve();
     function notify(message){onChange({...config,hasVideo:!!config.file,videoUrl:objectUrl},message);}
-    function pause(){wanted=false;video.pause();}
+    function pause(){wanted=false;timeline=null;video.pause();}
     function release(){pause();loaded=false;if(objectUrl){video.removeAttribute('src');video.load();url.revokeObjectURL(objectUrl);objectUrl=null;}}
     function appearance(){
       stage.classList.toggle('video-background',config.mode==='video'&&!!config.file);
@@ -67,8 +67,13 @@
       if(config.mode!=='video'||!config.file||!loaded){if(wanted||!video.paused)pause();return;}
       const position=time+config.offset,duration=video.duration;
       const target=Math.max(0,Number.isFinite(duration)?Math.min(position,Math.max(0,duration-.04)):position);
-      try{if(Math.abs(video.currentTime-target)>.18)video.currentTime=target;video.playbackRate=rate;}catch{}
       wanted=playing&&time>=0&&position>=0&&(!Number.isFinite(duration)||position<duration);
+      // Lock the starting frame to the song clock before playing. The relaxed
+      // running tolerance must not swallow short intro offsets or a restart.
+      const boundary=!timeline||wanted!==timeline.playing||rate!==timeline.rate||time<timeline.time||time-timeline.time>.5;
+      const tolerance=(boundary||!wanted) ? .005 : .1;
+      try{if(Math.abs(video.currentTime-target)>tolerance)video.currentTime=target;video.playbackRate=rate;}catch{}
+      timeline={time,playing:wanted,rate};
       if(!wanted){video.pause();blocked=false;return;}
       if(video.paused&&!starting&&!blocked){
         starting=true;Promise.resolve().then(()=>video.play()).then(()=>{if(!wanted)video.pause();},error=>{if(error?.name!=='AbortError'){blocked=true;notify('Video could not play. Choose a browser-compatible MP4 or WebM in Backgrounds.');}}).finally(()=>starting=false);

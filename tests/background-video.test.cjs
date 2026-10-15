@@ -25,6 +25,22 @@ test('background timing adjusts only video; negative offsets delay its start and
   p.sync({time:0,playing:false});assert.equal(f.video.currentTime,10);assert.equal(f.video.paused,true);p.sync({time:3,playing:true});await flush();assert.equal(f.video.currentTime,13);
   await p.settings({offset:-4});p.sync({time:2,playing:true});assert.equal(f.video.currentTime,0);assert.equal(f.video.paused,true);p.sync({time:5,playing:true});await flush();assert.equal(f.video.currentTime,1);assert.equal(f.video.paused,false);
 });
+test('video holds its starting frame through count-in, then starts on the song clock including sub-180ms offsets',async()=>{
+  const f=fixture(),p=f.player;await p.selectSong('a');await p.choose(f.file);f.events.loadedmetadata();await p.settings({offset:.12});
+  p.sync({time:0,playing:false});assert.equal(f.video.currentTime,.12);assert.equal(f.plays,0);
+  p.sync({time:0,playing:false});assert.equal(f.plays,0);
+  f.video.currentTime=.16;p.sync({time:0,playing:true});await flush();assert.equal(f.video.currentTime,.12);assert.equal(f.video.paused,false);
+  f.video.currentTime=.2;p.pause();p.sync({time:0,playing:false});assert.equal(f.video.currentTime,.12);assert.equal(f.video.paused,true);
+  p.sync({time:.03,playing:true});await flush();assert.equal(f.video.currentTime,.15);
+});
+test('late-loaded or drifting video catches up to the current song time, and pause/resume locks the same frame',async()=>{
+  const f=fixture(),p=f.player;await p.selectSong('a');await p.choose(f.file);
+  p.sync({time:20,playing:true});assert.equal(f.plays,0);f.events.loadedmetadata();p.sync({time:20.04,playing:true});await flush();assert.equal(f.video.currentTime,20.04);
+  f.video.currentTime=20.06;p.sync({time:20.08,playing:true});assert.equal(f.video.currentTime,20.06,'Small running frame differences do not trigger repeated seeks');
+  p.sync({time:20.3,playing:true});assert.equal(f.video.currentTime,20.3,'Correct larger drift against audio, rather than a separate video timer');
+  p.pause();f.video.currentTime=20.33;p.sync({time:20.3,playing:false});assert.equal(f.video.currentTime,20.3);assert.equal(f.video.paused,true);
+  f.video.currentTime=20.32;p.sync({time:20.3,playing:true});await flush();assert.equal(f.video.currentTime,20.3);
+});
 test('each song restores its own file, mode, offset and darkness after switching and reopening',async()=>{
   const f=fixture(),p=f.player;await p.selectSong('a');await p.choose(f.file);await p.settings({offset:10,dim:50});const url=f.video.src;
   await p.selectSong('b');assert.equal(p.mode,'stage');assert.equal(f.video.hidden,true);assert.ok(f.revoked.includes(url));await p.settings({mode:'dark'});assert.ok(f.classes.has('dark-background'));
