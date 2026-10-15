@@ -2,6 +2,7 @@
 (function(root){
   'use strict';
   const Sources=typeof module!=='undefined'&&module.exports?require('./background-source.js'):root.RiffBackgroundSource;
+  const YouTube=typeof module!=='undefined'&&module.exports?require('./youtube-background.js'):root.RiffYouTubeBackground;
   const defaults=()=>({mode:'stage',offset:0,dim:35,file:null,url:'',name:''});
   const hasSource=value=>!!(value.file||value.url);
   const linkUrl=value=>{if(!Sources)throw Error('Update Riffbound to use video links.');return Sources.videoUrl(value);};
@@ -65,21 +66,25 @@
     }
     return {get,put:(...args)=>{const next=writing.catch(()=>{}).then(()=>put(...args));writing=next;return next;},savedSongs:async keys=>{if(!keys.length)return [];const records=await read(keys);return keys.filter((key,i)=>records[i]?.file?.size||valid(records[i]?.media)||Sources?.isLink(records[i]?.url));},linkedSongs:async keys=>{if(!keys.length)return [];const records=await read(keys);return keys.filter((key,i)=>Sources?.isLink(records[i]?.url));}};
   }
-  function create(video,stage,{store=storage(root.indexedDB),url=root.URL,onChange=()=>{},readyTimeout=15000}={}){
-    let key=null,config=defaults(),objectUrl=null,generation=0,writes=0,blocked=false,starting=false,wanted=false,loaded=false,mediaIssue='',timeline=null,preparation=null,playEpoch=0;
+  function create(video,stage,{store=storage(root.indexedDB),url=root.URL,onChange=()=>{},readyTimeout=15000,youtubeFactory=YouTube?.create}={}){
+    let key=null,config=defaults(),objectUrl=null,generation=0,writes=0,blocked=false,starting=false,wanted=false,loaded=false,mediaIssue='',timeline=null,preparation=null,playEpoch=0,youtube=null;
     const memory=new Map();let queue=Promise.resolve();
-    function notify(message){onChange({...config,hasVideo:hasSource(config),linked:!!config.url,videoUrl:objectUrl||config.url||null},message);}
-    function pause(reason){wanted=false;timeline=null;playEpoch++;starting=false;video.pause();preparation?.(reason);}
-    function release(){pause();loaded=false;video.removeAttribute('src');video.load();if(objectUrl){url.revokeObjectURL(objectUrl);objectUrl=null;}}
+    const youtubeId=()=>Sources?.youtubeId?.(config.url)||null;
+    function notify(message){onChange({...config,hasVideo:hasSource(config),linked:!!config.url,youtube:!!youtubeId(),videoUrl:youtubeId()?null:objectUrl||config.url||null},message);}
+    function pause(reason){wanted=false;timeline=null;playEpoch++;starting=false;video.pause();youtube?.pause();preparation?.(reason);}
+    function release(){pause();youtube?.destroy();youtube=null;loaded=false;video.removeAttribute('src');video.load();if(objectUrl){url.revokeObjectURL(objectUrl);objectUrl=null;}}
     function appearance(){
-      stage.classList.toggle('video-background',config.mode==='video'&&hasSource(config));
+      stage.classList.toggle('video-background',config.mode==='video'&&hasSource(config)&&!youtube?.failed);
       stage.classList.toggle('dark-background',config.mode==='dark');
-      video.hidden=config.mode!=='video'||!hasSource(config);video.style.filter=`brightness(${1-config.dim/100})`;
+      video.hidden=!!youtubeId()||config.mode!=='video'||!hasSource(config);youtube?.appearance({visible:config.mode==='video',dim:config.dim});video.style.filter=`brightness(${1-config.dim/100})`;
       video.muted=true;video.volume=0;
     }
     function apply(){
       release();blocked=false;starting=false;mediaIssue='';
-      if(config.file){objectUrl=url.createObjectURL(config.file);video.src=objectUrl;video.load();}else if(config.url){video.src=linkUrl(config.url);video.load();}
+      if(config.file){objectUrl=url.createObjectURL(config.file);video.src=objectUrl;video.load();}else if(youtubeId()){
+        if(typeof youtubeFactory!=='function')throw Error('Update Riffbound to use YouTube links.');
+        const current=youtubeFactory(stage,{onError:message=>{if(youtube!==current)return;mediaIssue=message;stage.classList.remove('video-background');notify(message);},onReady:()=>{if(youtube===current)notify('YouTube video ready. Use Preview timing with chart to check its timing.');}});youtube=current;youtube.load(youtubeId());
+      }else if(config.url){video.src=linkUrl(config.url);video.load();}
       appearance();notify();
     }
     async function selectSong(next){
@@ -102,7 +107,7 @@
       generation++;config={...config,file,url:'',name:file.name,mode:'video',keepVideo:false};apply();notify('Loading video: '+file.name+'…');await save();return true;
     }
     async function chooseLink(value){
-      const next=linkUrl(value);generation++;config={...config,file:null,url:next,name:Sources.name(next),mode:'video',keepVideo:false};apply();notify('Loading linked video… Internet access is required.');await save();return true;
+      const next=linkUrl(value);if(Sources.youtubeId?.(next)&&typeof youtubeFactory!=='function')throw Error('Update Riffbound to use YouTube links.');generation++;config={...config,file:null,url:next,name:Sources.name(next),mode:'video',keepVideo:false};apply();notify(youtubeId()?'Loading YouTube video… Internet access is required.':'Loading linked video… Internet access is required.');await save();return true;
     }
     function settings(values){
       generation++;config={...config,mode:values.mode??config.mode,offset:clamp(values.offset??config.offset,-900,900,0),dim:clamp(values.dim??config.dim,0,80,35)};
@@ -127,6 +132,7 @@
     }
     async function prepare({time=0,rate=1}={}){
       pause();if(config.mode!=='video'||!hasSource(config))return;
+      if(youtube)return youtube.prepare({time,rate,offset:config.offset});
       let canceled=false,rejectWait=null;
       const failure=message=>Object.assign(Error(message),{backgroundVideo:true});
       const cancel=reason=>{canceled=true;rejectWait?.(reason?.backgroundVideo?reason:failure('Video preparation was canceled. Press Play track to try again.'));};
@@ -153,6 +159,7 @@
       finally{if(preparation===cancel)preparation=null;}
     }
     function sync({time=0,playing=false,rate=1}={}){
+      if(youtube){if(config.mode==='video')youtube.sync({time,playing,rate,offset:config.offset});return;}
       if(preparation)return;
       if(config.mode!=='video'||!hasSource(config)||!loaded){if(wanted||!video.paused)pause();return;}
       const position=time+config.offset,duration=video.duration;
@@ -172,12 +179,12 @@
       }
     }
     video.muted=true;video.defaultMuted=true;video.volume=0;video.playsInline=true;video.loop=false;video.preload='auto';
-    video.addEventListener('loadedmetadata',()=>{if(!hasSource(config))return;loaded=true;blocked=false;appearance();});
-    video.addEventListener('loadeddata',()=>{if(!hasSource(config))return;loaded=true;blocked=false;appearance();notify();});
-    video.addEventListener('error',()=>{if(!hasSource(config)||!video.error)return;loaded=false;
+    video.addEventListener('loadedmetadata',()=>{if(!hasSource(config)||youtubeId())return;loaded=true;blocked=false;appearance();});
+    video.addEventListener('loadeddata',()=>{if(!hasSource(config)||youtubeId())return;loaded=true;blocked=false;appearance();notify();});
+    video.addEventListener('error',()=>{if(!hasSource(config)||youtubeId()||!video.error)return;loaded=false;
       mediaIssue=`“${config.name}” was selected, but its video could not open${video.error.code?' (media error '+video.error.code+')':''}. ${config.url?' Check the direct video link and internet connection; the host may block playback.':''} Try an MP4 encoded with H.264 or a WebM video.`;
       pause(Object.assign(Error(mediaIssue),{backgroundVideo:true}));stage.classList.remove('video-background');video.hidden=true;notify(mediaIssue);});
-    return {selectSong,choose,chooseLink,settings,clear,sync,pause,prepare,attachment,restore,saveToSetlist,removeSong,settled:()=>queue,get hasVideo(){return hasSource(config);},get linked(){return !!config.url;},get busy(){return writes>0;},get mode(){return config.mode==='video'&&(!hasSource(config)||video.hidden)?'stage':config.mode;}};
+    return {selectSong,choose,chooseLink,settings,clear,sync,pause,prepare,attachment,restore,saveToSetlist,removeSong,settled:()=>queue,get hasVideo(){return hasSource(config);},get linked(){return !!config.url;},get busy(){return writes>0;},get mode(){return config.mode==='video'&&(!hasSource(config)||(youtube?youtube.failed:video.hidden))?'stage':config.mode;}};
   }
   const api={create,storage};
   if(typeof module!=='undefined'&&module.exports){module.exports=api;return;}
@@ -199,6 +206,7 @@
   const backgroundStore=storage(root.indexedDB);
   const player=create(video,video.closest('.stage'),{store:backgroundStore,onChange:(value,message)=>{
     currentSettings={mode:value.mode,offset:value.offset,dim:value.dim};
+    if($('backgroundYouTubeHint'))$('backgroundYouTubeHint').hidden=!value.youtube;
     const selectedLink=value.url||'';if($('backgroundLink')&&selectedLink!==renderedLink)$('backgroundLink').value=selectedLink;renderedLink=selectedLink;
     if($('backgroundSaveSetlist'))$('backgroundSaveSetlist').textContent=value.linked?'Save video link to setlist':'Save video to setlist';
     if($('backgroundExportVideo'))$('backgroundExportVideo').textContent=value.linked?'Save chart + video link backup':'Save chart + video backup';
@@ -212,10 +220,10 @@
       if(changed){preview.pause();previewUrl=next;if(next)preview.src=next;else preview.removeAttribute('src');preview.load();}
       showTimingFrame(value.offset,changed);
     }
-    if(message!==undefined)$('backgroundStatus').textContent=message;
+    if(message!==undefined){$('backgroundStatus').textContent=message;if($('backgroundLinkStatus'))$('backgroundLinkStatus').textContent=message;}
   }});
   let operations=0;
-  async function edit(action){operations++;controls.forEach(id=>{if($(id))$(id).disabled=true;});try{return await action();}catch(error){$('backgroundStatus').textContent=error?.message||'The video could not be opened. Choose the file again, or try an H.264 MP4 / WebM video.';return false;}finally{operations--;controls.forEach(id=>{if($(id))$(id).disabled=operations>0;});$('backgroundRemove').disabled=operations>0||!player.hasVideo;for(const id of ['backgroundExportVideo','backgroundSaveSetlist'])if($(id))$(id).disabled=operations>0||player.busy||!player.hasVideo||displayedSong==='demo';}}
+  async function edit(action){operations++;controls.forEach(id=>{if($(id))$(id).disabled=true;});try{return await action();}catch(error){const message=error?.message||'The video could not be opened. Try the link again or choose a video file.';$('backgroundStatus').textContent=message;if($('backgroundLinkStatus'))$('backgroundLinkStatus').textContent=message;return false;}finally{operations--;controls.forEach(id=>{if($(id))$(id).disabled=operations>0;});$('backgroundRemove').disabled=operations>0||!player.hasVideo;for(const id of ['backgroundExportVideo','backgroundSaveSetlist'])if($(id))$(id).disabled=operations>0||player.busy||!player.hasVideo||displayedSong==='demo';}}
   picker.addEventListener('change',()=>{const file=picker.files?.[0];if(!file)return;if($('backgroundLink'))$('backgroundLink').value='';return edit(()=>player.choose(file));});
   $('backgroundUseLink')?.addEventListener('click',()=>{const value=$('backgroundLink').value;return edit(()=>player.chooseLink(value));});
   $('backgroundLink')?.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();const value=$('backgroundLink').value;return edit(()=>player.chooseLink(value));}});

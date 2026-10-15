@@ -1,5 +1,7 @@
 # Riffbound
 
+Version 117 accepts YouTube short/watch/Shorts/embed links through the official embedded player and displays link feedback beside Use video link. YouTube backgrounds remain muted, save with each song and link backup, and follow the chart transport. Unsupported YouTube practice speeds and embedding/playback failures give explicit recovery messages. Precise timing still depends on YouTube buffering and keyframes. The offline cache revision is 117-1.
+
 Version 116 adds direct HTTPS video links in Backgrounds / video alongside local file uploads. Links follow the same first-note timing, preview, pause, restart and practice controls, save per song and survive chart + video-link backups. Linked videos need internet access; YouTube/Vimeo page links are not supported. The offline cache revision is 116-1.
 
 Version 115 adds a pause menu for Guitar, Drums, Bass and Vocals: Resume, Practice a section, Restart, Change difficulty, and Quit to main menu. Resume preserves the current position and score; restarting practice retains its range and speed. Difficulty changes restart the current song or section with a fresh score. The offline cache revision is 115-1.

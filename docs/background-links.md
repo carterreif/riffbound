@@ -1,6 +1,6 @@
-# Linked background videos — version 116
+# Linked background videos — versions 116–117
 
-Open **Backgrounds / video**, paste a direct HTTPS video URL into **Or paste a video link**, then choose **Use video link** or press Enter. MP4/H.264 and WebM are recommended. Signed URLs and URLs without an extension can be used if they return a playable video. YouTube, Vimeo, TikTok and other video-page URLs are not supported by this file-video player; the form explains this and leaves the current source intact for rejected links.
+Open **Backgrounds / video**, paste a direct HTTPS video URL into **Or paste a video link**, then choose **Use video link** or press Enter. Version 117 also accepts YouTube short, watch, Shorts, live and embed links. Link feedback is visible directly below Use video link. MP4/H.264 and WebM are recommended for file links. Signed URLs and URLs without an extension can be used if they return a playable video. Vimeo, TikTok and other unsupported video-page URLs are rejected; the form explains this and leaves the current source intact for rejected links.
 
 Linked videos use the existing muted video player and inline preview. The chart's first-note anchor, offset, pause/resume, restart, practice speed and section timing all remain controlled by the song clock. Loading/seek preparation happens before audio starts. A blocked, expired, inaccessible or incompatible link reports recovery guidance. Playback still depends on the hosting server and browser codec support. Selecting a URL requests that video from its host in the player's browser; it does not upload song audio or download remote video bytes into setlist storage.
 
@@ -9,3 +9,16 @@ The URL, mode, offset and darkness are saved per song. **Save video link to setl
 **Save chart + video link backup** exports the song audio, all charts and URL/timing. It does not contain the linked video's bytes. The RIFFPACK2 background metadata contains a validated `url` and zero video bytes. Import validates the source and exact payload lengths, restores the pairing and explains the internet requirement. Existing RIFFPACK1 and file-video RIFFPACK2 backups remain supported. Link backups require version 116 or later; regular Export current song retains its chart/audio-only behavior.
 
 Validation covers safe URL parsing, signed query preservation, rejected schemes/page links, file/link switching and object-URL ownership, per-song reopening, actual IndexedDB metadata/chunk cleanup, source-specific setlist labels, real URL-form wiring, all four instruments' first-note/pause/practice timing, exact backup/import round trips, storage/decoder errors, and existing local-video/update/pause regressions. No supported browser QA surface was available, so playback from a real user-selected host still needs a device check.
+
+
+## YouTube transport in version 117
+
+The user recording showed a valid `youtu.be` link rejected by version 116. The error was reported below the visible part of the long dialog. The form now accepts that URL family, normalizes the video ID and shows status/errors beside the button.
+
+YouTube uses the official IFrame Player API, loaded only when a YouTube background is selected. No YouTube media is downloaded or extracted. The embed includes the site origin, an origin referrer policy and autoplay permission; it starts cued and muted. The same saved URL/timing metadata and zero-video-byte RIFFPACK2 format retain this source through reopening and import.
+
+The adapter prepares the selected position and verifies the actual supported playback rate before scheduling song audio. It follows the song's first-note trigger, pause/resume, restart, section seek and supported practice speed. Stale loading callbacks cannot revive a removed/replaced source. While playing, drift corrections are throttled to avoid continuous seek commands. Other backgrounds retain the native video player.
+
+YouTube seeks may land near a keyframe, and buffering or ads can affect apparent sync. Preparation checks a paused position within 2.5 seconds of the requested time; running correction tolerates 650 ms and is limited to once per second except transport boundaries. This is not frame-exact video synchronization. Local/direct videos retain their tighter native-player behavior. A practice rate not returned by YouTube is rejected with the available choices rather than silently using a different speed. Private, embedding-disabled, autoplay-blocked, API-load and missing-referrer errors have specific recovery messages. Another video or a local file may be required.
+
+Official API reference: https://developers.google.com/youtube/iframe_api_reference (queue/seek behavior, supported rates, errors and autoplay events). Deterministic tests exercise the official player calls and real Riffbound UI handlers using adapters. A supported browser QA surface was unavailable; the user's exact video could not be verified live from this environment, so an affected-device playback check remains necessary.

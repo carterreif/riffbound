@@ -161,12 +161,14 @@
     <label class="select-label" for="backgroundMode">Background<select id="backgroundMode"><option value="stage">Riffbound concert stage</option><option value="dark">Dark stage</option><option value="video">My video</option></select></label>
     <label for="backgroundFile">Choose a video<input id="backgroundFile" type="file" accept="video/*,.mp4,.webm,.mov,.m4v,.ogv,.mkv,.avi,.mpg,.mpeg,.ts,.m2ts" aria-describedby="backgroundVideoHint backgroundFilename"></label>
     <p id="backgroundVideoHint" class="secondary">Use your own Guitar Hero Metallica gameplay footage, music video or concert clip. H.264 MP4 / WebM is recommended. Videos up to 500 MB can save on this device; larger videos play for this session. The video stays local and muted; your song supplies the audio.</p>
-    <label for="backgroundLink">Or paste a video link<input id="backgroundLink" type="url" maxlength="4096" placeholder="https://example.com/gameplay.mp4" autocomplete="off" spellcheck="false" aria-describedby="backgroundLinkHint"></label>
+    <label for="backgroundLink">Or paste a video link<input id="backgroundLink" type="url" maxlength="4096" placeholder="YouTube link or https://example.com/gameplay.mp4" autocomplete="off" spellcheck="false" aria-describedby="backgroundLinkHint"></label>
     <button id="backgroundUseLink" class="upload-button">Use video link</button>
-    <p id="backgroundLinkHint" class="secondary">Use a direct HTTPS MP4 or WebM video link. YouTube, Vimeo and other video-page links are not supported. Linked videos stay muted and follow the same chart timing. They need internet access; saving keeps the link, not the video file.</p>
+    <p id="backgroundLinkStatus" class="background-link-status" role="status" aria-live="polite"></p>
+    <p id="backgroundLinkHint" class="secondary">Use a YouTube link (youtu.be, watch, Shorts or embed) or a direct HTTPS MP4/WebM video link. Vimeo and other video-page links are not supported. Linked videos stay muted and follow the same chart timing. They need internet access; saving keeps the link, not the video file.</p>
     <p id="backgroundFilename" class="secondary">No video selected for this song.</p>
+    <p id="backgroundYouTubeHint" class="secondary" hidden>YouTube selected. Use Preview timing with chart to check it. YouTube must allow embedded playback and may buffer or show ads. Its available practice speeds vary by video. Upload a video file for the most precise timing and offline playback.</p>
     <video id="backgroundPreview" controls muted playsinline preload="auto" aria-label="Selected background video preview" hidden></video>
-    <p class="secondary">Inspect your video here. Its starting frame follows the timing below. Use Preview timing with chart to check the full timing against the notes.</p>
+    <p class="secondary">File and direct-link videos preview here. For YouTube, use Preview timing with chart to see it behind the notes. The starting position follows the timing below.</p>
     <label for="backgroundOffset">Video position at first chart note (seconds)<input id="backgroundOffset" type="number" min="-900" max="900" step="0.1" value="0" aria-describedby="backgroundOffsetHint"></label>
     <p id="backgroundOffsetHint" class="secondary">The video stays paused until the first note reaches the colored hit line, in Preview chart and Play track. Enter 0 to start at the beginning of your video, or 10 to skip its first 10 seconds. A negative number delays video playback further. Pause, restart and practice follow the chart.</p>
     <p id="backgroundTimingHint" class="secondary" role="status">Video starts at 0:00 when the first note reaches the hit line.</p>
@@ -304,6 +306,7 @@
   <script src="performance-motion.js"></script>
   <script src="stage-mesh.js"></script>
   <script src="stage.js"></script>
+  <script src="youtube-background.js"></script>
   <script src="background-video.js"></script>
   <script src="game.js"></script>
   <script src="offline-assets.js"></script>
