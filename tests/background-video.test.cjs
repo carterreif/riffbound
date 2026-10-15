@@ -115,14 +115,33 @@ test('real picker wiring captures the file before disabling, retains its name, a
 });
 
 const adapter=require.resolve('./upload-flow.test.cjs'),code=fs.readFileSync(adapter,'utf8').split('\ntest(')[0],{setup,until}=new Function('require',code+'\nreturn {setup,until};')(createRequire(adapter));
+for(const preview of [false,true])test(`${preview?'Preview chart':'Play track'} holds the real video through the intro and starts it on the first kick at the hit line`,async()=>{
+  const f=fixture();await f.player.selectSong('fixture');await f.player.choose(f.file);f.video.readyState=2;f.events.loadedmetadata();
+  const bg={selectSong:()=>{},pause:()=>f.player.pause(),prepare:options=>f.player.prepare(options),sync:options=>f.player.sync(options),get mode(){return f.player.mode;}};
+  const app=setup({chartFixture:[{lane:5,time:3,duration:0},{lane:0,time:5,duration:0}],browserOverrides:{RiffBackground:bg}}),n=app.nodes;
+  await app.radios.instrument[1].emit('change');await app.upload();await until(()=>!n.saveCurrentButton.disabled);const saved=JSON.stringify([...app.savedSongs.values()][0].charts);
+  await n[preview?'previewButton':'playButton'].click();await until(()=>app.sources.length===1);const first=app.sources[0];
+  app.tick(first.when+.01);await flush();assert.equal(f.video.paused,true);assert.equal(f.video.currentTime,0);assert.equal(f.plays,0);
+  app.tick(first.when+2.99);await flush();assert.equal(f.video.paused,true);assert.equal(f.plays,0,'The video must not play while notes are still approaching');
+  app.tick(first.when+3.001);await flush();assert.equal(f.video.paused,false);assert.equal(f.plays,1);assert.ok(f.video.currentTime<.01);
+  app.tick(first.when+3.5);assert.ok(Math.abs(f.video.currentTime-.5)<.001);assert.equal(JSON.stringify([...app.savedSongs.values()][0].charts),saved,'Starting the video does not move chart notes');
+  await n.mobileBackButton.click();app.tick(first.when+4);assert.equal(f.video.paused,true);assert.equal(f.video.currentTime,0);
+  await n[preview?'previewButton':'playButton'].click();await until(()=>app.sources.length===2);const restarted=app.sources[1];app.tick(restarted.when+2.99);assert.equal(f.video.paused,true);assert.equal(f.plays,1);
+  app.tick(restarted.when+3.001);await flush();assert.equal(f.plays,2);assert.ok(f.video.currentTime<.01);await n.mobileBackButton.click();
+});
+test('the video starts on the visible chart hit line after device timing calibration',async()=>{
+  const states=[],app=setup({preferences:{timingOffset:200},chartFixture:[{lane:0,time:3,duration:0}],browserOverrides:{RiffBackground:{selectSong:()=>{},pause:()=>{},sync:value=>states.push(value),mode:'video'}}}),n=app.nodes;
+  await app.upload();await until(()=>!n.saveCurrentButton.disabled);await n.playButton.click();await until(()=>app.sources.length===1);const source=app.sources[0];
+  app.tick(source.when+3.19);assert.equal(states.at(-1).playing,false);assert.equal(states.at(-1).time,0);app.tick(source.when+3.21);assert.equal(states.at(-1).playing,true);assert.ok(Math.abs(states.at(-1).time-.01)<.001);await n.mobileBackButton.click();
+});
 test('Play track schedules neither audio nor count-in until video preparation finishes, and re-prepares on resume',async()=>{
   const preparations=[],states=[];let finish;
   const bg={mode:'video',pause:()=>{},selectSong:()=>{},sync:value=>states.push(value),prepare:options=>{preparations.push(options);return new Promise(resolve=>finish=resolve);}};
   const app=setup({chartFixture:[{lane:0,time:2,duration:0}],browserOverrides:{RiffBackground:bg}}),n=app.nodes;
   await app.upload();await until(()=>!n.saveCurrentButton.disabled);await n.playButton.click();await until(()=>preparations.length===1);
   assert.equal(app.sources.length,0);assert.equal(n.announceSmall.textContent,'PREPARING VIDEO');app.tick(10);assert.equal(states.at(-1).playing,false);assert.equal(preparations[0].time,0);
-  finish();await until(()=>app.sources.length===1);const source=app.sources[0];assert.ok(source.when>10);app.tick(source.when-.5);assert.equal(states.at(-1).playing,false);app.tick(source.when);assert.equal(states.at(-1).playing,true);
-  app.tick(source.when+2);await n.pauseButton.click();await n.playButton.click();await until(()=>preparations.length===2);assert.equal(preparations[1].time,2);assert.equal(app.audio.state,'suspended');app.tick(source.when+3);assert.equal(states.at(-1).playing,false);
+  finish();await until(()=>app.sources.length===1);const source=app.sources[0];assert.ok(source.when>10);app.tick(source.when-.5);assert.equal(states.at(-1).playing,false);app.tick(source.when);assert.equal(states.at(-1).playing,false);app.tick(source.when+2);assert.equal(states.at(-1).playing,true);
+  app.tick(source.when+2);await n.pauseButton.click();await n.playButton.click();await until(()=>preparations.length===2);assert.equal(preparations[1].time,0);assert.equal(app.audio.state,'suspended');app.tick(source.when+3);assert.equal(states.at(-1).playing,false);
   finish();await until(()=>n.playText.textContent==='RESTART TRACK');assert.equal(app.audio.state,'running');await n.mobileBackButton.click();
 });
 test('video readiness failure prevents chart/audio start and shows the video-specific recovery message',async()=>{
@@ -142,7 +161,7 @@ test('game transport drives video from song audio through count-in, play, pause 
 test('uploaded song video follows preview seek and practice loop speed including the practice count-in',async()=>{
   const calls=[],songs=[],app=setup({chartFixture:[{lane:0,time:2,duration:0},{lane:0,time:6,duration:0}],browserOverrides:{RiffBackground:{selectSong:id=>songs.push(id),sync:value=>calls.push(value),pause:()=>{},mode:'video'}}}),n=app.nodes;
   await app.upload();await until(()=>!n.saveCurrentButton.disabled);assert.equal(songs.at(-1),[...app.savedSongs.keys()][0]);
-  n.previewPosition.value='5';await n.previewButton.click();await until(()=>app.sources.length>0);const preview=app.sources.at(-1);app.tick(preview.when+1);assert.ok(Math.abs(calls.at(-1).time-6)<.001);await n.mobileBackButton.click();
-  n.loopStart.value='2';n.loopEnd.value='8';n.practiceRate.value='.5';await n.practiceLaunch.click();await until(()=>app.sources.length>1);const practice=app.sources.at(-1);app.tick(practice.when-1);assert.equal(calls.at(-1).playing,false);assert.equal(calls.at(-1).time,2);
-  app.tick(practice.when+2);assert.equal(calls.at(-1).rate,.5);assert.ok(Math.abs(calls.at(-1).time-3)<.001);app.tick(practice.when+13);assert.ok(Math.abs(calls.at(-1).time-2.5)<.001);await n.mobileBackButton.click();
+  n.previewPosition.value='5';await n.previewButton.click();await until(()=>app.sources.length>0);const preview=app.sources.at(-1);app.tick(preview.when+1);assert.ok(Math.abs(calls.at(-1).time-4)<.001);await n.mobileBackButton.click();
+  n.loopStart.value='2';n.loopEnd.value='8';n.practiceRate.value='.5';await n.practiceLaunch.click();await until(()=>app.sources.length>1);const practice=app.sources.at(-1);app.tick(practice.when-1);assert.equal(calls.at(-1).playing,false);assert.equal(calls.at(-1).time,0);
+  app.tick(practice.when+2);assert.equal(calls.at(-1).rate,.5);assert.ok(Math.abs(calls.at(-1).time-1)<.001);app.tick(practice.when+13);assert.ok(Math.abs(calls.at(-1).time-.5)<.001);await n.mobileBackButton.click();
 });

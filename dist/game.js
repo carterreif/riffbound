@@ -17,6 +17,8 @@
   let audioContext=null, master=null, musicBuffer=null, source=null, startTime=0, frozenTime=0;
   let song=null,uploadGeneration=0,playbackGeneration=0,cancelAnalysis=null,cancelLookup=null,previewing=false;
   let transportSeek=0,playRate=1,practiceLoop=null,loopCycle=0,practicePass=1,frozenInputTime=0;
+  let videoChartStart=Infinity;
+  const videoPosition=time=>Math.max(0,time-videoChartStart);
   let calibrationTest=null,calibrationTimer=null;
   let controllerInput=null,controllerFocused=true;
   let setlistSongs=[],setlistGeneration=0,setlistError='';
@@ -169,7 +171,8 @@
   }
   function newSession(){
     if(controllerInput)controllerInput.setContext(controllerContext());
-    session=new E.Session(difficulty,mode,instrument,{drumLayout:D.drumLayout(song?.quality),notes:T.segment(chartNotes(),practiceLoop),musicEnd:practiceLoop?.end??song?.musicEnd??E.MUSIC_END});session.onJudge=judge;session.onMilestone=n=>{
+    const notes=chartNotes();videoChartStart=notes.reduce((first,n)=>Number.isFinite(n.time)?Math.min(first,n.time):first,Infinity);
+    session=new E.Session(difficulty,mode,instrument,{drumLayout:D.drumLayout(song?.quality),notes:T.segment(notes,practiceLoop),musicEnd:practiceLoop?.end??song?.musicEnd??E.MUSIC_END});session.onJudge=judge;session.onMilestone=n=>{
       const el=$('streakCallout');el.textContent=`${n} NOTE STREAK`;el.classList.remove('show');void el.offsetWidth;el.classList.add('show');
     };
     particles.length=0;flashes.fill(0);clearHeld();finishScheduled=false;
@@ -1098,7 +1101,7 @@
       const seek=practiceLoop?.start??(preview?Math.max(0,Math.min(offset,(song?.musicEnd??E.MUSIC_END)-.1)):0),lead=preview?0:4*trackBeat()/playRate;
       if(window.RiffBackground?.prepare){
         if(window.RiffBackground.mode==='video')setAnnouncement('PREPARING VIDEO','MATCHING START FRAME…');
-        await window.RiffBackground.prepare({time:seek,rate:playRate});
+        await window.RiffBackground.prepare({time:videoPosition(seek),rate:playRate});
         if(playback!==playbackGeneration)return;
       }
       // Close sheets before starting, including restart from the results screen.
@@ -1126,7 +1129,7 @@
     if(state!=='paused')return;
     const playback=playbackGeneration;
     try{
-      if(window.RiffBackground?.prepare)await window.RiffBackground.prepare({time:previousState==='countin'?Math.max(frozenTime,transportSeek):frozenTime,rate:playRate});
+      if(window.RiffBackground?.prepare)await window.RiffBackground.prepare({time:videoPosition(previousState==='countin'?Math.max(frozenInputTime,transportSeek):frozenInputTime),rate:playRate});
       if(state!=='paused'||playback!==playbackGeneration)return;
       await audioContext.resume();if(state!=='paused'||playback!==playbackGeneration)return;state=previousState==='countin'?'countin':'playing';updateButtons();setAnnouncement('','',false);
     }catch(error){if(playback===playbackGeneration)showMessage(error.backgroundVideo?error.message:'Tap Resume track to enable sound.');}
@@ -1378,7 +1381,8 @@
         if(!practiceLoop&&t>=trackDuration())finish();
       }
     }
-    window.RiffBackground?.sync({time:state==='finished'?trackDuration():state==='countin'?Math.max(t,transportSeek):t,playing:running()&&(state!=='countin'||t>=transportSeek),rate:playRate});
+    const videoChartTime=state==='finished'?trackDuration():state==='countin'?Math.max(inputTime(),transportSeek):inputTime();
+    window.RiffBackground?.sync({time:videoPosition(videoChartTime),playing:running()&&(state!=='countin'||t>=transportSeek)&&videoChartTime>=videoChartStart,rate:playRate});
     if(!window.RiffBackground||window.RiffBackground.mode==='stage')band.draw({time:state==='finished'?trackDuration():t,wallTime:now/1000,state,energy:session.energy,streak:session.streak,overdrive:session.overdrive,instrument,reducedMotion,beatDuration:trackBeat(),duration:trackDuration(),percussion:song?.percussion??null});
     draw(inputTime(),dt,now);if(now-lastUi>70){updateUi(state==='finished'?trackDuration():t);lastUi=now;}requestAnimationFrame(frame);
   }
