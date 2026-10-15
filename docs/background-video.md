@@ -2,7 +2,9 @@
 
 Version 104 adds **Backgrounds / video** at Soundcheck. Choose the Riffbound concert stage, a dark stage, or a local video. Open a song first to customize its background. Iron Voltage has its own selection too.
 
-Choose your own Guitar Hero gameplay footage, concert clip or music video. MP4 and WebM are recommended; other formats depend on the browser's codecs. Files must be non-empty and at most 500 MB. No Guitar Hero footage is bundled or downloaded automatically.
+Choose your own Guitar Hero gameplay footage, concert clip or music video. MP4 and WebM are recommended; other formats depend on the browser's codecs. Files must be non-empty. Videos up to 500 MB can be stored; larger videos remain playable for this session and must be selected again after reopening. No Guitar Hero footage is bundled or downloaded automatically.
+
+The chooser keeps the selected filename visible and includes a muted video preview. Close it with Done to return to the chart. Invalid files show their filename and specific error; browser codec errors suggest H.264 MP4 or WebM.
 
 Video is always muted. The game's original song audio remains the playback clock and the chart stays above the video. Video darkness can be adjusted from 0–80%; the highway keeps its opaque surface and foreground pads. Choosing a video disables the hidden animated-band draw loop.
 

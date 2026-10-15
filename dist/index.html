@@ -117,7 +117,7 @@
       </aside>
 
       <section class="stage" aria-label="Five-lane rhythm game">
-        <video id="backgroundVideo" muted playsinline preload="metadata" aria-hidden="true" hidden></video>
+        <video id="backgroundVideo" muted playsinline preload="auto" aria-hidden="true" hidden></video>
         <canvas id="performance" aria-hidden="true"></canvas>
         <div class="stage-top"><span id="stageStatus" class="stage-status">SOUNDCHECK</span><button id="mobilePlayButton" class="quiet mobile-play">Play yourself</button><fieldset id="instrumentGroup" class="instrument-picker"><legend class="visually-hidden">Instrument to play</legend><label><input type="radio" name="instrument" value="guitar" checked><span>Guitar</span></label><label><input type="radio" name="instrument" value="drums"><span>Drums</span></label><label><input type="radio" name="instrument" value="bass"><span>Bass</span></label><label><input type="radio" name="instrument" value="vocals"><span>Vocals</span></label></fieldset></div>
         <canvas id="highway" aria-label="Notes scroll down five colored lanes toward the fret line. Use D, F, J, K, and L or the touch buttons below."></canvas>
@@ -159,9 +159,11 @@
     <div class="eyebrow">YOUR SONG. YOUR STAGE.</div><h2 id="backgroundHeading">Choose a background</h2>
     <p id="backgroundSong" class="secondary"></p>
     <label class="select-label" for="backgroundMode">Background<select id="backgroundMode"><option value="stage">Riffbound concert stage</option><option value="dark">Dark stage</option><option value="video">My video</option></select></label>
-    <label for="backgroundFile">Choose a video<input id="backgroundFile" type="file" accept="video/*,.mp4,.webm,.mov,.m4v,.ogv" aria-describedby="backgroundVideoHint backgroundFilename"></label>
-    <p id="backgroundVideoHint" class="secondary">Use your own Guitar Hero Metallica gameplay footage, music video or concert clip. MP4 / WebM, up to 500 MB. The video stays on this device and is muted; your song supplies the audio.</p>
+    <label for="backgroundFile">Choose a video<input id="backgroundFile" type="file" accept="video/*,.mp4,.webm,.mov,.m4v,.ogv,.mkv,.avi,.mpg,.mpeg,.ts,.m2ts" aria-describedby="backgroundVideoHint backgroundFilename"></label>
+    <p id="backgroundVideoHint" class="secondary">Use your own Guitar Hero Metallica gameplay footage, music video or concert clip. H.264 MP4 / WebM is recommended. Videos up to 500 MB can save on this device; larger videos play for this session. The video stays local and muted; your song supplies the audio.</p>
     <p id="backgroundFilename" class="secondary">No video selected for this song.</p>
+    <video id="backgroundPreview" controls muted playsinline preload="auto" aria-label="Selected background video preview" hidden></video>
+    <p class="secondary">Check the video preview here, then choose Done and Play track to see it behind your chart.</p>
     <label for="backgroundOffset">Video position at song start (seconds)<input id="backgroundOffset" type="number" min="-900" max="900" step="0.1" value="0" aria-describedby="backgroundOffsetHint"></label>
     <p id="backgroundOffsetHint" class="secondary">For a video with a 10-second intro, enter 10. A negative number starts the video later. Video follows pause, restart, preview and practice speed; chart timing is unchanged.</p>
     <label class="highway-speed" for="backgroundDim">Video darkness <span id="backgroundDimValue">35%</span><input id="backgroundDim" type="range" min="0" max="80" step="5" value="35"></label>

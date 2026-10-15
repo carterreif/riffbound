@@ -41,11 +41,38 @@ test('bad files, unsupported codecs, quota failures and rejected play keep chart
   assert.equal(await p.choose(Object.assign(new Blob(['bad']),{name:'notes.chart'})),false);assert.equal(p.mode,'stage');
   await p.choose(f.file);assert.match(f.messages.at(-1).message,/works for this session.*could not be saved/);assert.equal(p.busy,false);f.events.loadedmetadata();
   f.video.play=()=>Promise.reject(Error('Unsupported'));p.sync({time:1,playing:true});await flush();assert.match(f.messages.at(-1).message,/could not play/);
-  f.events.error();assert.equal(p.mode,'stage');assert.equal(f.video.hidden,true);assert.equal(f.classes.has('video-background'),false);
+  f.video.error={code:4};f.events.error();assert.equal(p.mode,'stage');assert.equal(f.video.hidden,true);assert.equal(f.classes.has('video-background'),false);assert.match(f.messages.at(-1).message,/My Metallica gameplay.mp4.*media error 4.*H.264/);
 });
 test('pending background writes block reload, and a late video play completion cannot undo a pause',async()=>{
   let finish;const f=fixture({get:async()=>null,put:()=>new Promise(resolve=>finish=resolve)}),p=f.player;await p.selectSong('a');const pending=p.choose(f.file);await flush();assert.equal(p.busy,true);finish();await pending;assert.equal(p.busy,false);
   f.events.loadedmetadata();let played;f.video.play=()=>new Promise(resolve=>played=()=>{f.video.paused=false;resolve();});p.sync({time:1,playing:true});await flush();p.pause();played();await flush();assert.equal(f.video.paused,true);
+});
+test('cancel, empty and wrong files have distinct results; large videos play without writing their blob',async()=>{
+  const f=fixture(),p=f.player;await p.selectSong('a');await p.choose(f.file);const count=f.messages.length;
+  assert.equal(await p.choose(null),false);assert.equal(f.messages.length,count);assert.equal(p.hasVideo,true);
+  await p.choose({name:'Empty.mp4',size:0,type:'video/mp4'});assert.match(f.messages.at(-1).message,/Empty.mp4.*empty/);
+  await p.choose({name:'Shortcut.url',size:40,type:''});assert.match(f.messages.at(-1).message,/Shortcut.url.*not a video/);
+  await p.choose({name:'Long gameplay.mp4',size:700*1024*1024,type:''});assert.equal(p.mode,'video');assert.equal(f.entries.get('a').file,null);assert.match(f.messages.at(-1).message,/larger than 500 MB.*not stored/);
+  f.events.loadedmetadata();p.sync({time:12,playing:true});await flush();assert.equal(f.video.paused,false);assert.equal(f.video.preload,'auto');
+});
+test('a late successful storage write cannot hide the actual codec error',async()=>{
+  let finish;const f=fixture({get:async()=>null,put:()=>new Promise(resolve=>finish=resolve)});await f.player.selectSong('a');const pending=f.player.choose(f.file);await flush();
+  f.video.error={code:4};f.events.error();finish();await pending;assert.match(f.messages.at(-1).message,/media error 4/);assert.doesNotMatch(f.messages.at(-1).message,/Background saved/);
+});
+test('real picker wiring captures the file before disabling, retains its name, and opens the chooser preview',async()=>{
+  const vm=require('node:vm'),nodes={},classes=new Set();
+  for(const id of ['backgroundVideo','backgroundPreview','backgroundDialog','backgroundFile','backgroundMode','backgroundOffset','backgroundDim','backgroundRemove','backgroundDimValue','backgroundFilename','backgroundStatus']){
+    nodes[id]={value:'',style:{},files:[],listeners:{},hidden:true,addEventListener(type,fn){(this.listeners[type]??=[]).push(fn);},async emit(type){for(const fn of this.listeners[type]||[])await fn();},pause(){this.paused=true;},load(){},removeAttribute(name){delete this[name];}};
+  }
+  const picker=nodes.backgroundFile;let disabled=false;Object.defineProperty(picker,'disabled',{get:()=>disabled,set:value=>{disabled=value;if(value)picker.files=[];}});
+  nodes.backgroundVideo.closest=()=>({classList:{toggle:(c,on)=>on?classes.add(c):classes.delete(c),remove:c=>classes.delete(c)}});
+  const window={document:{getElementById:id=>nodes[id]},URL:{createObjectURL:()=> 'blob:selected-video',revokeObjectURL:()=>{}}};
+  vm.runInNewContext(fs.readFileSync(require.resolve('../dist/background-video.js'),'utf8'),{window});await window.RiffBackground.selectSong('a');
+  picker.files=[{name:'My footage.mp4',type:'video/mp4',size:123}];picker.value='C:\\fakepath\\My footage.mp4';await picker.emit('change');
+  assert.equal(nodes.backgroundFilename.textContent,'My footage.mp4');assert.equal(picker.value,'C:\\fakepath\\My footage.mp4');assert.equal(nodes.backgroundMode.value,'video');assert.equal(nodes.backgroundPreview.src,'blob:selected-video');assert.equal(nodes.backgroundPreview.hidden,false);assert.ok(classes.has('video-background'));
+  await nodes.backgroundDim.emit('change');assert.equal(picker.value,'C:\\fakepath\\My footage.mp4');await window.RiffBackground.selectSong('a');assert.equal(picker.value,'C:\\fakepath\\My footage.mp4');
+  nodes.backgroundPreview.paused=false;await nodes.backgroundDialog.emit('close');assert.equal(nodes.backgroundPreview.paused,true);
+  await nodes.backgroundRemove.emit('click');assert.equal(picker.value,'');assert.equal(nodes.backgroundPreview.hidden,true);assert.equal(nodes.backgroundRemove.disabled,true);
 });
 
 const adapter=require.resolve('./upload-flow.test.cjs'),code=fs.readFileSync(adapter,'utf8').split('\ntest(')[0],{setup,until}=new Function('require',code+'\nreturn {setup,until};')(createRequire(adapter));
