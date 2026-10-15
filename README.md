@@ -1,6 +1,8 @@
 # Riffbound
 
-The version 103 display patch reads the loaded game version from its asset manifest instead of a stale HTML label. Manage songs and Install / offline now show the same actual release, including after future updates; the offline cache revision is 103-2. Saved songs and controller mappings are retained.
+Version 104 adds **Backgrounds / video**: choose the concert stage, a dark stage or your own muted video behind the chart. Each song remembers its video, offset and darkness on this device. Video follows the song's preview, pause, restart and practice transport; the original song audio remains audible. See [background video](docs/background-video.md) for settings and verification limits. The offline cache revision is 104-1.
+
+The version 103 display patch reads the loaded game version from its asset manifest instead of a stale HTML label. Manage songs and Install / offline show the same actual release, including after future updates. Saved songs and controller mappings are retained.
 
 Version 103 makes supported controller mappings built in and active on connection. Browser-standard gamepads are ready for Guitar, Bass, vocal pitch pads and four/five-lane Drums. Recognized standard-mapped Guitar Hero drum kits and guitars receive instrument-specific defaults; generically named Xbox devices need only a saved instrument-type choice. MIDI drums receive General MIDI mappings after permission, with a separate built-in MIDI pitch-pad option. Custom and explicitly cleared layouts remain authoritative; Restore built-in layout is explicit. Alternate drum controls retrigger independently when their input states overlap. See docs/controller-input.md for profiles and hardware limits.
 

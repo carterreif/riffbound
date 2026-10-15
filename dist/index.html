@@ -109,6 +109,7 @@
         </div></fieldset>
         <p id="modeHint" class="mode-hint">Press a fret key as its note hits the line.</p>
         <p class="mobile-tip">Touch to play · Use several fingers for chords and drum hits. Rotate your phone for wider pads.</p>
+        <button id="backgroundButton" class="quiet background-button" aria-haspopup="dialog">Backgrounds / video</button>
         <label class="highway-speed" for="highwaySpeed">Highway speed <span id="highwaySpeedValue">1.0×</span><input id="highwaySpeed" type="range" min="0.7" max="1.6" step="0.1" value="1"></label>
         <button id="playButton" class="play-button"><span class="play-triangle">▶</span><span id="playText">PLAY TRACK</span><span class="button-arrow">↗</span></button>
         <p id="startHint" class="start-hint">Sound on. Headphones recommended.</p>
@@ -116,6 +117,7 @@
       </aside>
 
       <section class="stage" aria-label="Five-lane rhythm game">
+        <video id="backgroundVideo" muted playsinline preload="metadata" aria-hidden="true" hidden></video>
         <canvas id="performance" aria-hidden="true"></canvas>
         <div class="stage-top"><span id="stageStatus" class="stage-status">SOUNDCHECK</span><button id="mobilePlayButton" class="quiet mobile-play">Play yourself</button><fieldset id="instrumentGroup" class="instrument-picker"><legend class="visually-hidden">Instrument to play</legend><label><input type="radio" name="instrument" value="guitar" checked><span>Guitar</span></label><label><input type="radio" name="instrument" value="drums"><span>Drums</span></label><label><input type="radio" name="instrument" value="bass"><span>Bass</span></label><label><input type="radio" name="instrument" value="vocals"><span>Vocals</span></label></fieldset></div>
         <canvas id="highway" aria-label="Notes scroll down five colored lanes toward the fret line. Use D, F, J, K, and L or the touch buttons below."></canvas>
@@ -151,6 +153,21 @@
     <div id="statusMessage" class="status-message" role="status"></div>
     <div id="saveStatus" class="save-status" role="status"></div>
   </div>
+
+  <dialog id="backgroundDialog" class="game-dialog tools-dialog" aria-labelledby="backgroundHeading">
+    <button class="close-dialog" data-close="backgroundDialog" aria-label="Close backgrounds">×</button>
+    <div class="eyebrow">YOUR SONG. YOUR STAGE.</div><h2 id="backgroundHeading">Choose a background</h2>
+    <p id="backgroundSong" class="secondary"></p>
+    <label class="select-label" for="backgroundMode">Background<select id="backgroundMode"><option value="stage">Riffbound concert stage</option><option value="dark">Dark stage</option><option value="video">My video</option></select></label>
+    <label for="backgroundFile">Choose a video<input id="backgroundFile" type="file" accept="video/*,.mp4,.webm,.mov,.m4v,.ogv" aria-describedby="backgroundVideoHint backgroundFilename"></label>
+    <p id="backgroundVideoHint" class="secondary">Use your own Guitar Hero Metallica gameplay footage, music video or concert clip. MP4 / WebM, up to 500 MB. The video stays on this device and is muted; your song supplies the audio.</p>
+    <p id="backgroundFilename" class="secondary">No video selected for this song.</p>
+    <label for="backgroundOffset">Video position at song start (seconds)<input id="backgroundOffset" type="number" min="-900" max="900" step="0.1" value="0" aria-describedby="backgroundOffsetHint"></label>
+    <p id="backgroundOffsetHint" class="secondary">For a video with a 10-second intro, enter 10. A negative number starts the video later. Video follows pause, restart, preview and practice speed; chart timing is unchanged.</p>
+    <label class="highway-speed" for="backgroundDim">Video darkness <span id="backgroundDimValue">35%</span><input id="backgroundDim" type="range" min="0" max="80" step="5" value="35"></label>
+    <p class="secondary">Backgrounds save separately for each song on this device. Video files are not included in .riffpack backups.</p>
+    <p id="backgroundStatus" role="status"></p><div class="tool-actions"><button id="backgroundRemove" class="quiet" disabled>Remove video</button><button class="upload-button" data-close="backgroundDialog">Done</button></div>
+  </dialog>
 
   <dialog id="addSongDialog" class="game-dialog tools-dialog" aria-labelledby="addSongHeading">
     <button class="close-dialog" data-close="addSongDialog" aria-label="Close add song">×</button>
@@ -257,6 +274,7 @@
   <script src="performance-motion.js"></script>
   <script src="stage-mesh.js"></script>
   <script src="stage.js"></script>
+  <script src="background-video.js"></script>
   <script src="game.js"></script>
   <script src="offline-assets.js"></script>
   <script src="offline.js"></script>
