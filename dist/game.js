@@ -1210,7 +1210,7 @@
       if(playback!==playbackGeneration)return;
       const seek=practiceLoop?.start??(preview?Math.max(0,Math.min(offset,(song?.musicEnd??E.MUSIC_END)-.1)):0),lead=preview?0:4*trackBeat()/playRate;
       if(window.RiffBackground?.prepare){
-        if(window.RiffBackground.mode==='video')setAnnouncement('PREPARING VIDEO','MATCHING START FRAME…');
+        if(window.RiffBackground.mode==='video')setAnnouncement('PREPARING VIDEO',window.RiffBackground.youtube?'QUEUING YOUTUBE VIDEO…':'MATCHING START FRAME…');
         await window.RiffBackground.prepare({time:videoPosition(seek),rate:playRate});
         if(playback!==playbackGeneration)return;
       }

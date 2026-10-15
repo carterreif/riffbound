@@ -1,5 +1,7 @@
 # Riffbound
 
+Version 118 fixes YouTube links getting stuck on Matching start frame. YouTube now acknowledges a queued start position before song audio is scheduled, without waiting for a paused decoded frame or metadata that may only arrive during playback. The queued position stays held through count-in and begins at the chart's first note. Pause, restart, sections and supported practice speeds retain their timing; preparation errors also appear beside the link button. The offline cache revision is 118-1.
+
 Version 117 accepts YouTube short/watch/Shorts/embed links through the official embedded player and displays link feedback beside Use video link. YouTube backgrounds remain muted, save with each song and link backup, and follow the chart transport. Unsupported YouTube practice speeds and embedding/playback failures give explicit recovery messages. Precise timing still depends on YouTube buffering and keyframes. The offline cache revision is 117-1.
 
 Version 116 adds direct HTTPS video links in Backgrounds / video alongside local file uploads. Links follow the same first-note timing, preview, pause, restart and practice controls, save per song and survive chart + video-link backups. Linked videos need internet access; YouTube/Vimeo page links are not supported. The offline cache revision is 116-1.
