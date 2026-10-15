@@ -1,5 +1,7 @@
 # Riffbound
 
+Version 115 adds a pause menu for Guitar, Drums, Bass and Vocals: Resume, Practice a section, Restart, Change difficulty, and Quit to main menu. Resume preserves the current position and score; restarting practice retains its range and speed. Difficulty changes restart the current song or section with a fresh score. The offline cache revision is 115-1.
+
 Version 114 prevents repeated automatic page restarts when a browser keeps loading a stale cached copy. Update attempts are remembered for the current tab; the game remains playable and offers a manual retry. Offline downloads reject a runtime manifest from a different release before replacing cached files. The offline cache revision is 114-1.
 
 Version 113 adds **Go back to section** to full-song and practice results for Guitar, Drums, Bass and Vocals. It opens the section chooser for the same song, instrument and difficulty, including after a perfect run, without replaying audio or discarding the saved result. The offline cache revision is 113-1.

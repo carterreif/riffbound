@@ -206,3 +206,6 @@
 .results.practice-results .result-grid{grid-template-columns:repeat(2,1fr)}#resultNotes{white-space:pre-line}#practiceResultPercentage{color:var(--acid)}
 
 #resultChooseSection{margin:8px 0 12px}
+
+/* One pause sheet for every instrument, with comfortable keyboard/touch targets. */
+.pause-menu{width:min(470px,calc(100% - 32px))}.pause-menu h2{margin-bottom:12px}.pause-menu #pauseSummary{overflow-wrap:anywhere;margin-bottom:22px}.pause-actions{display:grid;gap:10px}.pause-actions>button{width:100%;min-height:48px;margin:0;text-align:center;justify-content:center}.pause-actions #pauseQuit{margin-top:8px}.pause-actions .select-label{display:grid;gap:8px;font-size:14px}.pause-actions select{width:100%;min-height:48px;border:1px solid #586445;border-radius:4px;padding:10px;background:#0b110d;color:#f5f4ed;font:inherit}.pause-actions #pauseDifficultyPanel{padding:14px;border:1px solid #414c36;border-radius:5px}.pause-actions #pauseDifficultyPanel .play-button{width:100%;font-size:12px;justify-content:center}#pauseStatus:empty{display:none}

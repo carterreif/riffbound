@@ -1,0 +1,13 @@
+# Pause menu — version 115
+
+Pause, Escape or a mapped controller Start/pause input opens one menu for Guitar, Drums, Bass and pitch-pad Vocals. It also works during count-in, chart preview, single-pass practice and continuous practice. The menu shows the current song, instrument, difficulty and position; practice also identifies its section and speed.
+
+- **Resume song / practice / preview** resumes the same audio source, clock and score. Paired video is prepared at the frozen chart time before playback resumes. Failed video preparation keeps the menu usable with an explanation. Repeated Resume clicks cannot start concurrent preparations.
+- **Practice a section** opens the existing named section chooser without starting audio. Closing that chooser returns to the pause menu. Starting practice begins a fresh section attempt for the same instrument and difficulty.
+- **Restart song / practice / preview** resets the attempt and score. Practice retains its original bounds, speed and repeat setting, including if the chooser's form fields were subsequently changed. Preview retains its preview start position and remains autoplay.
+- **Change difficulty** reveals Easy, Medium, Hard and Expert. The explicit restart action selects that instrument's existing difficulty chart and starts the song or practice section again with a fresh score. It neither searches for new charts nor analyzes audio.
+- **Quit to main menu** stops audio/video and returns to soundcheck with the current song still open. Incomplete attempts are not saved as best scores. Existing songs, audio, charts, backgrounds, controller mappings and saved scores remain intact.
+
+Pause-menu buttons use native keyboard and touch activation with at least 48-pixel targets. Escape/cancel resumes. R restarts outside form controls. Gameplay pad input is suppressed while the pause menu is open; a mapped pause action can still resume after a fresh press. Other tool dialogs pause without stacking a second pause menu underneath. Closing a tool while still paused returns to the pause menu. Blur and visibility pauses use the same menu. Automatic updates remain blocked during a paused run and while its menu is open.
+
+Validation exercises all actions for every instrument on desktop and mobile adapters, every difficulty on a full-song restart, frozen practice settings, saved-song integrity, controller Start, keyboard handling, count-in, preview, failed/stale video preparation and cached HTML without the new controls. Existing playback, practice/results, video and update regressions are included. No supported browser QA surface was available; physical-controller and visual-layout checks remain to be confirmed on a device.

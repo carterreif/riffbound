@@ -75,3 +75,9 @@ test('generic Xbox kit needs only one instrument choice; switching layouts loads
 test('cached page without built-in setup controls still runs default input and existing mapping UI',async()=>{
  const r=appRig({missingControls:['controllerProfile','controllerMappingMode','controllerRestoreBuiltins']});await r.open();await r.app.nodes.controllerButton.click();assert.match(r.row('kick').children[1].textContent,/Button 6/);await r.learn('kick',7,.1);assert.match(r.row('kick').children[1].textContent,/Button 8/);
 });
+
+
+test('the built-in Start mapping opens the pause menu, suppresses pads and resumes with a fresh button press',async()=>{
+ const r=appRig({deviceName:'Xbox 360 Controller'}),{app}=r,n=app.nodes;await r.open();await n.playButton.click();await until(()=>n.playText.textContent==='RESTART TRACK');const start=app.sources[0].when;app.tick(start+.5);r.button(9,true);app.tick(start+.6);assert.equal(n.pauseDialog.open,true);assert.equal(n.pauseResume.textContent,'Resume song');app.tick(start+.61);assert.equal(n.pauseDialog.open,true);
+ r.button(9,false);app.tick(start+.62);r.button(1,true);app.tick(start+1);assert.equal(app.frets[0].classList.contains('active'),false);assert.equal(n.score.textContent,'000,000');r.button(1,false);app.tick(start+1.01);r.button(9,true);app.tick(start+1.02);await until(()=>n.playText.textContent==='RESTART TRACK');assert.equal(n.pauseDialog.open,false);assert.equal(app.sources.length,1);
+});

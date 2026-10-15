@@ -18,7 +18,7 @@
   let audioContext=null, master=null, musicBuffer=null, source=null, startTime=0, frozenTime=0;
   let song=null,uploadGeneration=0,playbackGeneration=0,cancelAnalysis=null,cancelLookup=null,previewing=false;
   let transportSeek=0,playRate=1,practiceLoop=null,loopCycle=0,practicePass=1,frozenInputTime=0;
-  let videoChartStart=Infinity;
+  let videoChartStart=Infinity,resuming=false;
   let lastMissTime=null,trainingContext='',trainingNotes=null;
   let practiceSections=[],practiceSectionsOwner='';
   const videoPosition=time=>Math.max(0,time-videoChartStart);
@@ -90,6 +90,9 @@
     $('playPartStatus').textContent=song?`${partName(instrument)} · ${D.NAMES[difficulty]} selected. Choose a part, then Preview chart or Play track.`+(song.quality?.imports?.[instrument]?' Using this instrument’s authored chart.':' Using an audio estimate for this instrument; overlapping sounds can be misidentified.')+(missing.length?` No playable chart for ${missing.map(partName).join(', ')}. Try an authored chart or isolated audio for that part.`:''):'';
   }
   function updateButtons(){
+    if($('pauseResume')){$('pauseResume').disabled=resuming;$('pauseResume').textContent=resuming?'Resuming…':practiceLoop?'Resume practice':previewing?'Resume preview':'Resume song';}
+    if($('pausePractice'))$('pausePractice').disabled=resuming||song?.chartOnly===true;
+    for(const id of ['pauseDifficultyToggle','pauseApplyDifficulty'])if($(id))$(id).disabled=resuming;
     for(const id of ['savePracticeSection','removePracticeSection'])if($(id))$(id).disabled=!Sections||!song||busy()||pendingSaves>0;
     if($('retryButton')){$('retryButton').disabled=busy()||!['playing','countin','paused','finished'].includes(state);$('retryButton').setAttribute('aria-label',practiceLoop?'Retry practice section (R)':'Retry track (R)');}
     if($('practiceMissButton'))$('practiceMissButton').disabled=!T.missedSection?.(lastMissTime,song?.musicEnd??E.MUSIC_END)||previewing||song?.chartOnly===true;
@@ -899,7 +902,7 @@
     const error=(now-test.start-index*.5)*1000;if(Math.abs(error)>250)return;test.errors.set(index,error);
     $('calibrationStatus').textContent=`${test.errors.size} taps recorded. Keep following the clicks…`;
   }
-  function openTool(id){if(busy())return;if(running())pause();$(id).showModal();}
+  function openTool(id){if(busy()||resuming)return;if(running())pause({showMenu:false});closePauseMenu();$(id).showModal();}
   function audioFileError(file){return !file?'Choose an audio file first.':file.size>80*1024*1024||file.size===0?'Choose a non-empty audio file up to 80 MB.':'';}
   function canReuseOpenAudio(){return !!song?.buffer&&Library.audioStatus(song.audioBlob).ok;}
   async function findSongWithoutAudio(identity,targets){
@@ -1186,7 +1189,7 @@
   function countClick(when,last=false){
     const o=audioContext.createOscillator(),g=audioContext.createGain();o.frequency.value=last?1100:750;o.type='sine';g.gain.setValueAtTime(.12,when);g.gain.exponentialRampToValueAtTime(.001,when+.09);o.connect(g);g.connect(master);o.start(when);o.stop(when+.1);countNodes.push(o);
   }
-  function stopAudio(){window.RiffBackground?.pause();playbackGeneration++;if(source){try{source.stop();}catch{}source.disconnect();source=null;}for(const node of countNodes){try{node.stop();}catch{}node.disconnect();}countNodes.length=0;}
+  function stopAudio(){closePauseMenu();resuming=false;window.RiffBackground?.pause();playbackGeneration++;if(source){try{source.stop();}catch{}source.disconnect();source=null;}for(const node of countNodes){try{node.stop();}catch{}node.disconnect();}countNodes.length=0;}
   async function play({preview=false,offset=0,practice=false,practiceSettings=null}={}){
     if(busy())return;
     if(song?.chartOnly&&!preview){showMessage('Attach your audio in Manage songs for song playback. You can preview these notes without music.');return;}
@@ -1227,26 +1230,48 @@
       showMessage(err.backgroundVideo?err.message:'Sound could not start. Try Play track again, or open this game in a current Chrome, Edge, Firefox, or Safari browser.');
     }
   }
-  function pause(){
+  function closePauseMenu(){if($('pauseDialog')?.open)$('pauseDialog').close();}
+  function showPauseMenu(){
+    const dialog=$('pauseDialog');if(!dialog||dialog.open||state!=='paused'||controllerModalOpen())return;
+    $('pauseSummary').textContent=`${song?.title||'Iron Voltage'} · ${partName(instrument)} · ${D.NAMES[difficulty]} · ${formatTime(Math.max(0,frozenTime))}`+(practiceLoop?` · ${practiceLoop.name} · ${Math.round(playRate*100)}% speed`:'');
+    $('pauseRestart').textContent=practiceLoop?'Restart practice':previewing?'Restart preview':'Restart song';
+    $('pausePractice').disabled=song?.chartOnly===true;
+    $('pauseDifficulty').value=difficulty;$('pauseDifficultyPanel').hidden=true;$('pauseDifficultyToggle').setAttribute('aria-expanded','false');$('pauseStatus').textContent='';
+    updateButtons();dialog.showModal();
+  }
+  function pause({showMenu=true}={}){
     window.RiffBackground?.pause();
-    if(!running())return;frozenTime=currentTime();frozenInputTime=inputTime();previousState=state;state='paused';clearHeld();audioContext.suspend().catch(()=>{});updateButtons();
+    if(!running()){if(showMenu)showPauseMenu();return;}frozenTime=currentTime();frozenInputTime=inputTime();previousState=state;state='paused';clearHeld();audioContext.suspend().catch(()=>{});updateButtons();
     setAnnouncement('TAKE A BREATHER','PAUSED');$('stageStatus').textContent='PAUSED';
+    if(showMenu)showPauseMenu();
   }
   async function resume(){
-    if(state!=='paused')return;
-    const playback=playbackGeneration;
+    if(state!=='paused'||resuming)return;
+    const playback=playbackGeneration;resuming=true;updateButtons();if($('pauseStatus'))$('pauseStatus').textContent='';
     try{
       if(window.RiffBackground?.prepare)await window.RiffBackground.prepare({time:videoPosition(previousState==='countin'?Math.max(frozenInputTime,transportSeek):frozenInputTime),rate:playRate});
       if(state!=='paused'||playback!==playbackGeneration)return;
-      await audioContext.resume();if(state!=='paused'||playback!==playbackGeneration)return;state=previousState==='countin'?'countin':'playing';updateButtons();setAnnouncement('','',false);
-    }catch(error){if(playback===playbackGeneration)showMessage(error.backgroundVideo?error.message:'Tap Resume track to enable sound.');}
+      await audioContext.resume();if(state!=='paused'||playback!==playbackGeneration)return;state=previousState==='countin'?'countin':'playing';closePauseMenu();updateButtons();setAnnouncement('','',false);
+    }catch(error){if(playback===playbackGeneration){const message=error.backgroundVideo?error.message:'Tap Resume track to enable sound.';showMessage(message);if($('pauseStatus'))$('pauseStatus').textContent=message;}}
+    finally{if(playback===playbackGeneration){resuming=false;updateButtons();}}
   }
-  function togglePause(){if(state==='paused')resume();else pause();}
+  function togglePause(){return state==='paused'?resume():pause();}
   function retryCurrentRun(){
     if(busy()||!['playing','countin','paused','finished'].includes(state))return;
     const options={practice:!!practiceLoop,practiceSettings:practiceLoop?{...practiceLoop}:null,preview:previewing,offset:previewing?transportSeek:0};
     if(state==='paused')state='finished';return play(options);
   }
+  $('pauseResume')?.addEventListener('click',()=>resume());
+  $('pausePractice')?.addEventListener('click',()=>{if(state==='paused'&&!resuming)openPractice();});
+  $('pauseRestart')?.addEventListener('click',()=>retryCurrentRun());
+  $('pauseQuit')?.addEventListener('click',()=>reset());
+  $('pauseDifficultyToggle')?.addEventListener('click',()=>{if(resuming)return;const panel=$('pauseDifficultyPanel');panel.hidden=!panel.hidden;$('pauseDifficultyToggle').setAttribute('aria-expanded',String(!panel.hidden));});
+  $('pauseApplyDifficulty')?.addEventListener('click',()=>{
+    const next=$('pauseDifficulty').value;if(state!=='paused'||resuming||!D.LEVELS.includes(next))return;
+    difficulty=next;document.querySelectorAll('input[name=difficulty]').forEach(input=>input.checked=input.value===difficulty);refreshInstrument();
+    return retryCurrentRun();
+  });
+  $('pauseDialog')?.addEventListener('cancel',event=>{event.preventDefault();return resume();});
   function reset(){
     stopAudio();state='idle';previewing=false;practiceLoop=null;playRate=1;newSession();
     $('resultDialog').close();setAnnouncement('YOUR STAGE IS WAITING','LET IT RIP.');updateButtons();updateUi(0);refreshBest();
@@ -1290,7 +1315,7 @@
   function kickDown(){if(previewing||instrument!=='drums'||held.has(E.KICK_LANE))return;held.add(E.KICK_LANE);$('kickButton').classList.add('active');flashes[E.KICK_LANE]=.3;if(running())session.tap(E.KICK_LANE,inputTime());}
   function kickUp(){held.delete(E.KICK_LANE);$('kickButton').classList.remove('active');}
   // Track each finger/key separately so releasing one cannot cancel another hold.
-  function pressInput(id,lane){if(inputOwners.has(id))return;inputOwners.set(id,lane);if(instrument==='drums'&&held.has(lane)&&running()&&!previewing&&(session.findTap(lane,inputTime())||session.findRoll(lane,inputTime()))){session.tap(lane,inputTime());flashes[lane]=.6;return;}if(lane===E.KICK_LANE)kickDown();else laneDown(lane);}
+  function pressInput(id,lane){if($('pauseDialog')?.open||inputOwners.has(id))return;inputOwners.set(id,lane);if(instrument==='drums'&&held.has(lane)&&running()&&!previewing&&(session.findTap(lane,inputTime())||session.findRoll(lane,inputTime()))){session.tap(lane,inputTime());flashes[lane]=.6;return;}if(lane===E.KICK_LANE)kickDown();else laneDown(lane);}
   function releaseInput(id){if(!inputOwners.has(id))return;const lane=inputOwners.get(id);inputOwners.delete(id);if([...inputOwners.values()].includes(lane))return;if(lane===E.KICK_LANE)kickUp();else laneUp(lane);}
   function drive(){if(!previewing&&running()&&currentTime()>=0&&session.activate()){
     const el=$('streakCallout');el.textContent='OVERDRIVE ENGAGED';el.classList.remove('show');void el.offsetWidth;el.classList.add('show');updateUi(currentTime());
@@ -1304,18 +1329,23 @@
       if(!down){releaseInput(id);return;}
       if(controllerModalOpen()||editingInput(document.activeElement)||!controllerFocused||document.hidden||busy())return;
       if(action==='pause'){if(running()||state==='paused')togglePause();return;}
-      if(!running()||previewing)return;
+      if($('pauseDialog')?.open||!running()||previewing)return;
       if(action.startsWith('lane'))pressInput(id,Number(action.slice(4)));
       else if(action==='kick'&&instrument==='drums')pressInput(id,E.KICK_LANE);
       else if(action==='strum')strum();else if(action==='overdrive')drive();
     }});
-    window.RiffControllerSetup({document,hub:controllerInput,getContext:controllerContext,beforeOpen:()=>{if(running())pause();clearHeld();}});
+    window.RiffControllerSetup({document,hub:controllerInput,getContext:controllerContext,beforeOpen:()=>{if(running())pause({showMenu:false});closePauseMenu();clearHeld();}});
   }
   document.addEventListener('keydown',event=>{
     if($('backgroundDialog')?.open)return;
     if($('controllerDialog')?.open)return;
     if($('timingDialog').open){if(event.code==='Space'){event.preventDefault();if(!event.repeat)calibrationTap();}return;}
     if($('helpDialog').open||$('resultDialog').open||$('libraryDialog').open||$('practiceDialog').open||$('offlineDialog').open||$('chartFilesDialog').open||$('addSongDialog').open||$('backupDialog')?.open)return;
+    if($('pauseDialog')?.open){
+      if(event.code==='Escape'){event.preventDefault();if(!event.repeat)resume();}
+      else if(event.code==='KeyR'&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!editingInput(event.target)){event.preventDefault();if(!event.repeat)retryCurrentRun();}
+      return;
+    }
     if(editingInput(event.target))return;
     if(event.code==='KeyR'&&!event.ctrlKey&&!event.metaKey&&!event.altKey){event.preventDefault();if(!event.repeat)retryCurrentRun();return;}
     const lane=E.KEYS.indexOf(event.code);
@@ -1326,7 +1356,7 @@
     if(instrument==='drums'&&['ShiftLeft','ShiftRight'].includes(event.code)){event.preventDefault();if(!event.repeat)drive();}
     if(event.code==='Enter'){event.preventDefault();if(!event.repeat){if(state==='idle'||state==='finished')play();else if(state==='paused')resume();else if(instrument==='drums')pressInput('key:Enter',E.KICK_LANE);else strum();}}
   });
-  document.addEventListener('keyup',event=>{if(E.KEYS.includes(event.code)||event.code==='Enter'||event.code==='Space'){releaseInput(`key:${event.code}`);if(!editingInput(event.target))event.preventDefault();}});
+  document.addEventListener('keyup',event=>{if(E.KEYS.includes(event.code)||event.code==='Enter'||event.code==='Space'){releaseInput(`key:${event.code}`);if(!editingInput(event.target)&&!$('pauseDialog')?.open)event.preventDefault();}});
   [...fretButtons,$('kickButton')].forEach((button,lane)=>{
     button.addEventListener('pointerdown',event=>{event.preventDefault();if(event.button>0)return;button.setPointerCapture(event.pointerId);pressInput(`pointer:${event.pointerId}`,lane);});
     const release=event=>releaseInput(`pointer:${event.pointerId}`);
@@ -1350,14 +1380,15 @@
   $('previewButton').addEventListener('click',event=>{event.currentTarget.blur();if(previewing)reset();else if(song)play({preview:true,offset:Number($('previewPosition').value)});});
   $('previewPosition').addEventListener('input',()=>{$('previewTime').textContent=formatTime(Number($('previewPosition').value));});
   $('previewPosition').addEventListener('change',()=>{if(previewing&&!busy())play({preview:true,offset:Number($('previewPosition').value)});});
-  $('pauseButton').addEventListener('click',event=>{event.currentTarget.blur();togglePause();});
+  $('pauseButton').addEventListener('click',event=>{event.currentTarget.blur();return togglePause();});
   $('retryButton')?.addEventListener('click',event=>{event.currentTarget.blur();return retryCurrentRun();});
   $('driveButton').addEventListener('click',event=>{event.currentTarget.blur();drive();});
   $('replayButton').addEventListener('click',()=>{$('resultDialog').close();state='finished';return play({practice:!!practiceLoop,practiceSettings:practiceLoop?{...practiceLoop}:null});});
   $('backButton').addEventListener('click',reset);
   $('resultDialog').addEventListener('cancel',event=>{event.preventDefault();reset();});
-  $('helpButton').addEventListener('click',()=>{if(running())pause();$('helpDialog').showModal();});
+  $('helpButton').addEventListener('click',()=>openTool('helpDialog'));
   document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>$(b.dataset.close).close()));
+  for(const id of ['backgroundDialog','controllerDialog','timingDialog','helpDialog','libraryDialog','practiceDialog','offlineDialog','chartFilesDialog','addSongDialog','backupDialog'])$(id)?.addEventListener('close',()=>showPauseMenu());
   document.querySelectorAll('input[name=difficulty]').forEach(input=>input.addEventListener('change',()=>{
     if(active())return;difficulty=input.value;newSession();refreshInstrument();updateUi(0);
   }));
@@ -1381,7 +1412,7 @@
   setVolume();
   document.addEventListener('visibilitychange',()=>{if(document.hidden){pause();clearHeld();}});
   window.addEventListener('blur',()=>{controllerFocused=false;pause();clearHeld();});
-  window.addEventListener('focus',()=>{controllerFocused=true;});
+  window.addEventListener('focus',()=>{controllerFocused=true;showPauseMenu();});
 
   function updateUi(t){
     $('score').textContent=Math.floor(session.score).toLocaleString('en-US',{minimumIntegerDigits:6});$('streak').textContent=session.streak;
@@ -1519,7 +1550,7 @@
   const resumeKey='riffbound-update-resume-v1';
   window.RiffUpdateSafety={
     canReload(manual=false){
-      const dialogs=['backgroundDialog','libraryDialog','backupDialog','addSongDialog','chartFilesDialog','practiceDialog','timingDialog','helpDialog','resultDialog','controllerDialog',...(manual?[]:['offlineDialog'])];
+      const dialogs=['pauseDialog','backgroundDialog','libraryDialog','backupDialog','addSongDialog','chartFilesDialog','practiceDialog','timingDialog','helpDialog','resultDialog','controllerDialog',...(manual?[]:['offlineDialog'])];
       return !exportingVideo&&!window.RiffBackground?.busy&&!active()&&!previewing&&!calibrationTest&&!pendingSaves&&!importingBackup&&!backupSaving&&(!song||song===savedSong)&&!dialogs.some(id=>$(id)?.open);
     },
     prepareReload(manual=false){
