@@ -24,7 +24,7 @@
   let practiceSections=[],practiceSectionsOwner='';
   const videoPosition=time=>Math.max(0,time-videoChartStart);
   let calibrationTest=null,calibrationTimer=null;
-  let controllerInput=null,controllerFocused=true;
+  let controllerInput=null,controllerFocused=true,audioDrums=null,audioDrumRun=false;
   let setlistSongs=[],setlistGeneration=0,setlistError='',savedVideoIds=new Set(),linkedVideoIds=new Set();
   let pendingSaves=0,reconnectingAudio=false,savedSong=null,saveSerial=0,importingBackup=false;
   let chartDraft=null,chartReviewGeneration=0;
@@ -70,7 +70,7 @@
   };
   const effectiveMode=()=>['drums','vocals'].includes(instrument)?'tap':mode;
   const bestBaseKey=()=>song?.quality?.imports?.[instrument]?`riffbound-import-${song.id}-${song.quality.imports[instrument].id}-${instrument}-${difficulty}-${effectiveMode()}`:song?.quality?.scoreReview&&instrument==='drums'&&(song.quality.preserveEasyMedium===false||['expert','hard'].includes(difficulty))?`riffbound-${song.quality.scoreReference||'inbloom'}-score-v${song.quality.scoreRevision||2}-${song.id}-${difficulty}-${effectiveMode()}`:difficulty==='expert'?(song?`riffbound-upload-${instrument==='drums'?'v5':'v3'}-${song.id}-${instrument}-expert-${effectiveMode()}`:instrument==='guitar'?`riffbound-best-v1-expert-${mode}`:`riffbound-best-v2-${instrument}-expert-${effectiveMode()}`):`riffbound-difficulty-v1-${song?.id||'demo'}-${instrument}-${difficulty}-${effectiveMode()}`;
-  const bestKey=()=>bestBaseKey()+(fourLaneDrums()?'-four-drums-v1':instrument==='drums'?'-separate-five-drums-v2':'')+(song?.quality?.chartAdjustments?.[instrument]?`-shift-${song.quality.chartAdjustments[instrument]}`:'');
+  const bestKey=()=>bestBaseKey()+(instrument==='drums'&&audioDrumRun?'-audio-drums-v1':'')+(fourLaneDrums()?'-four-drums-v1':instrument==='drums'?'-separate-five-drums-v2':'')+(song?.quality?.chartAdjustments?.[instrument]?`-shift-${song.quality.chartAdjustments[instrument]}`:'');
   function readBest(){try{return Number(localStorage.getItem(bestKey())||0);}catch{return 0;}}
   function refreshBest(){const n=readBest();$('localBest').textContent=n?n.toLocaleString():'—';}
   function setAnnouncement(small,big,visible=true,countdown=false){
@@ -196,6 +196,7 @@
     }
   }
   function newSession(){
+    audioDrumRun=!!audioDrums?.enabled;
     if(controllerInput)controllerInput.setContext(controllerContext());
     const notes=chartNotes(),context=[song?.id||'demo',instrument,difficulty].join(':');
     if(context!==trainingContext||song&&notes!==trainingNotes){lastMissTime=null;trainingContext=context;trainingNotes=notes;}
@@ -1356,11 +1357,30 @@
       if(controllerModalOpen()||editingInput(document.activeElement)||!controllerFocused||document.hidden||busy())return;
       if(action==='pause'){if(running()||state==='paused')togglePause();return;}
       if($('pauseDialog')?.open||!running()||previewing)return;
+      if(instrument==='drums'&&audioDrums?.enabled&&(action.startsWith('lane')||action==='kick'))return;
       if(action.startsWith('lane'))pressInput(id,Number(action.slice(4)));
       else if(action==='kick'&&instrument==='drums')pressInput(id,E.KICK_LANE);
       else if(action==='strum')strum();else if(action==='overdrive')drive();
     }});
     window.RiffControllerSetup({document,hub:controllerInput,getContext:controllerContext,beforeOpen:()=>{if(running())pause({showMenu:false});closePauseMenu();clearHeld();}});
+  }
+  if(window.RiffAudioDrumInput&&window.RiffAudioDrumSetup&&$('audioDrumConnect')){
+    const A=window.RiffAudioDrumInput;
+    audioDrums=new A.Input({navigator:window.navigator,storage:localStorage,
+      createContext:()=>{const C=window.AudioContext||window.webkitAudioContext;if(!C)throw Error('This browser does not support audio capture.');return new C({latencyHint:'interactive'});},
+      createWorklet:(context,processorOptions)=>new window.AudioWorkletNode(context,'riff-drum-capture',{numberOfInputs:1,numberOfOutputs:1,outputChannelCount:[1],processorOptions}),
+      onDisconnect:()=>{if(audioDrumRun&&running())pause();},
+      onHit:event=>{
+        if(instrument!=='drums'||!running()||previewing||controllerModalOpen()||editingInput(document.activeElement)||document.hidden||!controllerFocused||busy()||controllerInput?.enabled===false)return;
+        const age=(performance.now()-event.at)/1000;if(!Number.isFinite(age)||age<-.02||age>.3)return;
+        const time=inputTime()-(Math.max(0,age)+event.latency/1000)*playRate;
+        if(practiceLoop&&time<practiceLoop.start)return;
+        audioDrumRun=true;
+        const lanes=new Set(event.roles.map(role=>A.Core.lane(role,fourLaneDrums())).filter(Number.isInteger));
+        for(const lane of lanes){session.tap(lane,time);flashes[lane]=.65;}
+      }});
+    window.RiffAudioDrumSetup({document,input:audioDrums});
+    window.addEventListener('pagehide',()=>audioDrums.stop());
   }
   document.addEventListener('keydown',event=>{
     if($('backgroundDialog')?.open)return;
@@ -1436,8 +1456,8 @@
   $('volume').addEventListener('input',event=>{const next=Math.max(0,Math.min(1,Number(event.target.value)/100));if(!Number.isFinite(next))return;if(volume>0)preMute=volume;volume=next;if(volume>0)preMute=volume;muted=volume===0;setVolume();preferences();});
   $('muteButton').addEventListener('click',()=>{if(muted||volume===0){muted=false;volume=preMute||.7;}else{preMute=volume;muted=true;}setVolume();preferences();});
   setVolume();
-  document.addEventListener('visibilitychange',()=>{if(document.hidden){pause();clearHeld();}});
-  window.addEventListener('blur',()=>{controllerFocused=false;pause();clearHeld();});
+  document.addEventListener('visibilitychange',()=>{if(document.hidden){pause();clearHeld();audioDrums?.stop('Audio stopped while the page was hidden. Reconnect in Controllers / drums.');}});
+  window.addEventListener('blur',()=>{controllerFocused=false;pause();clearHeld();audioDrums?.stop('Audio stopped when the window lost focus. Reconnect in Controllers / drums.');});
   window.addEventListener('focus',()=>{controllerFocused=true;showPauseMenu();});
 
   function updateUi(t){
@@ -1577,7 +1597,7 @@
   window.RiffUpdateSafety={
     canReload(manual=false){
       const dialogs=['pauseDialog','backgroundDialog','libraryDialog','backupDialog','addSongDialog','chartFilesDialog','practiceDialog','timingDialog','helpDialog','resultDialog','controllerDialog',...(manual?[]:['offlineDialog'])];
-      return !exportingVideo&&!window.RiffBackground?.busy&&!active()&&!previewing&&!calibrationTest&&!pendingSaves&&!importingBackup&&!backupSaving&&(!song||song===savedSong)&&!dialogs.some(id=>$(id)?.open);
+      return !audioDrums?.stream&&!audioDrums?.connecting&&!exportingVideo&&!window.RiffBackground?.busy&&!active()&&!previewing&&!calibrationTest&&!pendingSaves&&!importingBackup&&!backupSaving&&(!song||song===savedSong)&&!dialogs.some(id=>$(id)?.open);
     },
     prepareReload(manual=false){
       if(!this.canReload(manual))return false;

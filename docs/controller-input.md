@@ -1,5 +1,13 @@
 # Controllers and drum mapping
 
+## Sensor-only audio input — version 126
+
+For live acoustic sound through an EAD USB audio input or microphone, use the new
+**Audio drum recognition · experimental** panel. Its soundcheck learns drum sounds
+instead of MIDI note numbers. See [audio-drums.md](audio-drums.md) for setup,
+privacy, lifecycle, timing and recognition limits. This extends the MIDI-only
+support described in the historical release notes below.
+
 ## First-time Windows driver setup — version 125
 
 **Controllers / drums → Yamaha EAD drums → First-time Windows setup · Yamaha
