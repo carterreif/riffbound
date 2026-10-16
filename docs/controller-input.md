@@ -1,5 +1,58 @@
 # Controllers and drum mapping
 
+## EAD10 / EAD20 / EAD50 built-in setups — version 124
+
+After **Enable MIDI inputs** grants permission, a MIDI input name containing
+EAD10, EAD20 or EAD50 (including spaces/hyphens/underscores) automatically selects
+its named profile. Device names alone do not grant permission. No manual learning
+or preset button is required for standard percussion note assignments. If the
+browser reports only a generic adapter name, choose the model in **EAD model** or
+**Built-in instrument setup** once. Other EAD setups can use **Other EAD / General
+MIDI**. Explicit profile choices, including turning EAD off, persist across
+reloads and reconnects and take priority over device-name detection.
+
+Every EAD profile supplies both four- and five-lane drum maps. The song picks the
+applicable layout. All three models intentionally share Riffbound's standard
+percussion-note convention; they are not claimed to be three different verified
+factory scene maps. EAD10 and EAD20/50 outgoing notes can be changed per scene/
+trigger source. The preset does not transmit configuration, SysEx or notes to the
+module. Set the scene's outgoing notes to the convention below, or customize only
+a differing control. Matching scenes work immediately with every drum color and
+kick preassigned. Custom or deliberately cleared layouts still override defaults;
+**Restore built-in layout** or **Load complete EAD mapping** restores only the
+selected device/layout, leaving other custom layouts intact.
+
+| Trigger role | MIDI notes accepted on any channel | Five lanes | Four lanes |
+| --- | --- | --- | --- |
+| Snare / rim | 38, 40, 37 | Red | Red |
+| Closed/open/pedal hi-hat | 42, 44, 46 | Yellow | Yellow |
+| High / middle toms | 45, 47, 48, 50 | Blue | Blue |
+| Floor toms | 41, 43 | Green | Green |
+| Crash / china / splash | 49, 52, 55, 57 | Orange | Green |
+| Ride / bell | 51, 53, 59 | Orange | Blue |
+| Kick / second kick | 35, 36 | Kick | Kick |
+
+Recommended scene notes are snare 38, hi-hat 42, tom 48, cymbal 49, floor tom 41
+and kick 36. Pause and Overdrive retain keyboard/touch controls; no factory EAD
+buttons or spare-pad notes are invented for commands. Spare MIDI controls can be
+learned explicitly. MIDI CC hi-hat position, aftertouch/choke and note-offs do not
+score extra hits. This does not infer pads from microphone audio or supply missing
+physical triggers. The chosen model's official driver/manual link is shown in
+setup; each model uses its USB TO HOST connection to a computer.
+
+Sources: [EAD10 reference manual, Scene Edit / Voice 4/4, pp. 17–19](https://usa.yamaha.com/files/download/other_assets/9/1134019/ead10_en_rm_a0.pdf)
+and [EAD50/EAD20 user guide, Kit / Voice / Voice MIDI](https://usa.yamaha.com/files/download/other_assets/7/2939157/EAD50_20_user_guide_En_A0.pdf).
+These document configurable trigger note numbers, not guaranteed scene-wide
+factory assignments. Driver/manual links:
+[EAD10](https://usa.yamaha.com/products/musical_instruments/drums/ea_drums/ead/ead10/downloads.html),
+[EAD20](https://usa.yamaha.com/products/musical_instruments/drums/ea_drums/ead/ead20/downloads.html),
+[EAD50](https://usa.yamaha.com/products/musical_instruments/drums/ea_drums/ead/ead50/downloads.html).
+
+Validation uses production MIDI/setup/gameplay code for all three models and
+both layouts, including automatic detection, generic-adapter selection, custom
+mapping persistence, independent cymbal/floor-tom scoring, and permission/error
+paths. Physical EAD10/20/50 hardware was not available for testing.
+
 ## Yamaha EAD / EAD50 — version 123
 
 Open **Controllers / drums → Enable MIDI inputs**, allow access, select the EAD

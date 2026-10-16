@@ -4,21 +4,23 @@
   const STORAGE_KEY='riffbound-controller-mappings-v1';
   const CONTEXTS=['drums-four','drums-five','frets'];
   const ACTIONS=['lane0','lane1','lane2','lane3','lane4','kick','strum','overdrive','pause'];
-  const PROFILES={auto:'Automatic',standard:'Standard gamepad','gh-drums':'Guitar Hero Xbox 360 drums',guitar:'Five-fret guitar / bass','midi-drums':'General MIDI drums','ead-drums':'Yamaha EAD / EAD50 MIDI drums','midi-pads':'MIDI pitch pads',none:'Custom only'};
+  const PROFILES={auto:'Automatic',standard:'Standard gamepad','gh-drums':'Guitar Hero Xbox 360 drums',guitar:'Five-fret guitar / bass','midi-drums':'General MIDI drums','ead-drums':'Yamaha EAD · General MIDI','ead10-drums':'Yamaha EAD10','ead20-drums':'Yamaha EAD20','ead50-drums':'Yamaha EAD50','midi-pads':'MIDI pitch pads',none:'Custom only'};
+  const EAD_PROFILES=['ead-drums','ead10-drums','ead20-drums','ead50-drums'];
+  const isEad=profile=>EAD_PROFILES.includes(profile);
   function detectProfile(device){
-    if(device.kind==='midi')return 'midi-drums';
+    if(device.kind==='midi'){const model=(device.name||'').match(/\bead[\s_-]?(10|20|50)\b/i);return model?'ead'+model[1]+'-drums':'midi-drums';}
     if(!device.standard)return 'none';
     const name=device.name.toLowerCase();
     if(/1430.*(?:02a8|0805)/.test(name)||/(?:guitar\s*hero|band\s*hero|ghwt|warriors of rock|redoctane).*(?:drum|kit)/.test(name))return 'gh-drums';
     if(/guitar/.test(name)&&!/drum/.test(name))return 'guitar';
     return 'standard';
   }
-  const profileChoices=device=>['auto',...(device.kind==='midi'?['midi-drums','ead-drums','midi-pads']:device.standard?['standard','gh-drums','guitar']:[]),'none'];
+  const profileChoices=device=>['auto',...(device.kind==='midi'?['midi-drums',...EAD_PROFILES,'midi-pads']:device.standard?['standard','gh-drums','guitar']:[]),'none'];
   function builtin(device,context,profile){
     if(profile==='auto')profile=detectProfile(device);
     if(profile==='none')return {};
-    // EAD scenes have configurable note numbers. GM is a starting point, not a factory-scene claim.
-    if(profile==='midi-drums'||profile==='ead-drums')return device.kind==='midi'&&context!=='frets'?preset('midi',context):{};
+    if(isEad(profile))return preset(device.kind,context,profile)||{};
+    if(profile==='midi-drums')return device.kind==='midi'&&context!=='frets'?preset('midi',context):{};
     if(profile==='midi-pads')return context==='frets'?{...Object.fromEntries([60,62,64,65,67].map((note,i)=>['lane'+i,[[`n:*:${note}`]]])),strum:[['n:*:72']],overdrive:[['n:*:74']],pause:[['n:*:76']]}:{};
     if(profile==='guitar')return context==='frets'?preset('gamepad','frets'):{};
     if(profile==='gh-drums'){
@@ -48,6 +50,18 @@
   }
   function preset(kind,context,name='standard'){
     const map={};const add=(a,...tokens)=>map[a]=tokens.map(t=>[t]);
+    // Riffbound's complete EAD layout uses standard percussion note roles.
+    // Models/scenes can reassign notes; no hardware configuration is sent.
+    if(isEad(name)){
+      if(kind!=='midi'||!['drums-four','drums-five'].includes(context))return null;
+      const four=context==='drums-four';
+      add('lane0','n:*:38','n:*:40','n:*:37');
+      add('lane1','n:*:42','n:*:44','n:*:46');
+      add('lane2',...[45,47,48,50,...(four?[51,53,59]:[])].map(n=>'n:*:'+n));
+      add(four?'lane3':'lane4','n:*:41','n:*:43');
+      for(const note of [49,52,55,57,...(four?[]:[51,53,59])])(map.lane3??=[]).push(['n:*:'+note]);
+      add('kick','n:*:35','n:*:36');return map;
+    }
     // Browser standard mapping: A=0, B=1, X=2, Y=3, LB=4, RB=5.
     // GH kit pads: B/Y/X/RB/A; pedal: LB. This is not the guitar preset.
     if(name==='ghwt-xbox360'){
@@ -77,7 +91,7 @@
     }
     save(){try{this.storage?.setItem(STORAGE_KEY,JSON.stringify({version:1,enabled:this.enabled,profiles:Object.fromEntries(this.profiles),deviceProfiles:Object.fromEntries(this.deviceProfiles)}));this.storageError='';}catch{this.storageError='Mapping works for this visit, but the browser could not save it. Allow site storage to keep it.';}this.onChange();}
     list(){return [...this.devices.values()].map(({id,key,name,kind,standard})=>({id,key,name,kind,standard:!!standard,...this.profileInfo(id)}));}
-    profileInfo(id,context=this.context){const d=this.devices.get(id);if(!d)return {};let choice=this.deviceProfiles.get(d.key)||'auto';if(!profileChoices(d).includes(choice))choice='auto';const effective=choice==='auto'?detectProfile(d):choice;return {profile:choice,profileLabel:PROFILES[effective],custom:Object.hasOwn(this.profiles.get(d.key)||{},context)};}
+    profileInfo(id,context=this.context){const d=this.devices.get(id);if(!d)return {};let choice=this.deviceProfiles.get(d.key)||'auto';if(!profileChoices(d).includes(choice))choice='auto';const effective=choice==='auto'?detectProfile(d):choice;return {profile:choice,effectiveProfile:effective,profileLabel:PROFILES[effective],custom:Object.hasOwn(this.profiles.get(d.key)||{},context)};}
     mapping(id,context=this.context){const d=this.devices.get(id);if(!d)return {};const stored=this.profiles.get(d.key);return Object.hasOwn(stored||{},context)?stored[context]:builtin(d,context,this.profileInfo(id).profile);}
     selectProfile(id,choice){const d=this.devices.get(id);if(!d||!profileChoices(d).includes(choice))return false;this.cancelLearn();this.release(d);d.ready=false;this.deviceProfiles.set(d.key,choice);this.save();return true;}
     restoreBuiltin(id,context){const d=this.devices.get(id);if(!d)return;this.cancelLearn();this.release(d);d.ready=false;const p=this.profiles.get(d.key);if(p)delete p[context];this.save();}
@@ -157,5 +171,5 @@
       this.updateActions(d,all);
     }
   }
-  return {Hub,STORAGE_KEY,CONTEXTS,PROFILES,profileChoices,detectProfile,builtin,actions,labels,bindingLabel,preset,matches};
+  return {Hub,STORAGE_KEY,CONTEXTS,PROFILES,EAD_PROFILES,isEad,profileChoices,detectProfile,builtin,actions,labels,bindingLabel,preset,matches};
 });

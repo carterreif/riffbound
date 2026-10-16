@@ -1,5 +1,7 @@
 # Riffbound
 
+Version 124 adds automatic named-MIDI detection and selectable built-in EAD10, EAD20 and EAD50 profiles. Every drum color and kick has a ready mapping in both layouts, including standard rim/hi-hat/tom/cymbal alternates. Generic MIDI adapters can select their model once; custom maps remain available. Scenes with different outgoing notes need matching module settings or overrides; these presets do not reprogram Yamaha hardware. The offline cache revision is 124-1.
+
 Version 123 adds a saved **Use EAD / EAD50 MIDI drums** option in Controllers / drums. Enable MIDI, select the module input and a drum layout, then turn it on. General MIDI starter notes and pad learning support both layouts; five-lane Orange and Green remain independent. EAD scenes must send distinct trigger notes: microphone audio alone does not provide per-pad input. Windows connection/driver guidance is included. The offline cache revision is 123-1.
 
 Version 122 gives five-lane play an active, separate Orange cymbal lane. Clone Hero Pro cymbal/tom roles are preserved during MIDI/.chart import and backups, then used for five-lane conversion. Older/standard four-pad charts use an explicitly labeled estimated cymbal/tom split guided by existing accents and chords. Conversion keeps source attack times and the original four-pad chart; same-pad simultaneous cymbals merge in the play view. Orange and Green require independent hits/rolls throughout gameplay. The offline cache revision is 122-1.

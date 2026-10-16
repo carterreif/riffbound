@@ -110,15 +110,34 @@ test('MIDI defaults work after permission with no preset action, and MIDI pitch 
  r.hub.selectProfile('midi:kit','midi-pads');r.hub.setContext('frets');r.hub.midiMessage('midi:kit',[0x90,60,80]);r.hub.midiMessage('midi:kit',[0x90,72,80]);assert.deepEqual(downs(r).slice(-2),['lane0','strum']);
 });
 
-test('EAD is an opt-in MIDI-only profile with separate five-lane cymbal/tom inputs and persistent custom notes',async()=>{
+test('EAD profile selection is MIDI-only with separate five-lane cymbal/tom inputs and persistent custom notes',async()=>{
  const r=rig();r.connect();assert.equal(r.hub.selectProfile('gamepad:0','ead-drums'),false);
  r.inputs.set('ead',{id:'ead',name:'EAD50 Port 1',manufacturer:'Yamaha'});await r.hub.enableMidi();const id='midi:ead';
- assert.equal(r.hub.profileInfo(id).profile,'auto','permission alone does not turn EAD setup on');
+ assert.equal(r.hub.profileInfo(id).profile,'auto');assert.equal(r.hub.profileInfo(id).effectiveProfile,'ead50-drums','named EAD automatically loads its setup after explicit MIDI permission');
  assert.equal(r.hub.selectProfile(id,'ead-drums'),true);assert.deepEqual(r.hub.mapping(id,'frets'),{});r.hub.setBlocked(false);
  for(const note of [38,42,48,49,41,36])r.hub.midiMessage(id,[0x99,note,90]);assert.deepEqual(downs(r),['lane0','lane1','lane2','lane3','lane4','kick']);
  r.events.length=0;r.hub.setContext('drums-four');for(const note of [38,42,48,49,41,36])r.hub.midiMessage(id,[0x99,note,90]);assert.deepEqual(downs(r),['lane0','lane1','lane2','lane3','lane3','kick']);
  r.hub.assign(id,'drums-five','lane3',['n:9:52']);const custom=structuredClone(r.hub.mapping(id,'drums-five'));
  r.hub.selectProfile(id,'midi-drums');assert.deepEqual(r.hub.mapping(id,'drums-five'),custom);r.hub.selectProfile(id,'ead-drums');
  const fresh=rig({data:r.data});fresh.inputs.set('ead',{id:'ead',name:'EAD50 Port 1',manufacturer:'Yamaha'});await fresh.hub.enableMidi();assert.equal(fresh.hub.profileInfo(id).profile,'ead-drums');assert.deepEqual(fresh.hub.mapping(id,'drums-five'),custom);
- fresh.hub.restoreBuiltin(id,'drums-five');assert.deepEqual(fresh.hub.mapping(id,'drums-five').lane3,API.preset('midi','drums-five').lane3);
+ fresh.hub.restoreBuiltin(id,'drums-five');assert.deepEqual(fresh.hub.mapping(id,'drums-five').lane3,API.preset('midi','drums-five','ead-drums').lane3);
+});
+
+test('named EAD10/20/50 MIDI inputs get complete built-ins automatically without mapping or storage writes',async()=>{
+ for(const model of [10,20,50]){
+  const r=rig();r.inputs.set('ead',{id:'ead',name:`Yamaha EAD-${model} Port 1`});assert.equal(r.hub.midi,null);await r.hub.enableMidi();const id='midi:ead';assert.equal(r.hub.profileInfo(id).effectiveProfile,`ead${model}-drums`);assert.equal(r.data.size,0);
+  for(const layout of ['four','five']){
+   const context='drums-'+layout,map=r.hub.mapping(id,context);assert.deepEqual(Object.keys(map).sort(),API.actions(context).filter(a=>!['pause','overdrive'].includes(a)).sort());
+   const seen=new Set();for(const bs of Object.values(map))for(const [n] of bs){assert.ok(!seen.has(n),'no note triggers two drum colors');seen.add(n);}
+   r.events.length=0;r.hub.setContext(context);r.hub.setBlocked(false);for(const note of layout==='four'?[38,42,48,41,36]:[38,42,48,49,41,36])r.hub.midiMessage(id,[0x99,note,100]);assert.deepEqual(downs(r),layout==='four'?['lane0','lane1','lane2','lane3','kick']:['lane0','lane1','lane2','lane3','lane4','kick']);
+  }
+  r.hub.selectProfile(id,'midi-drums');assert.equal(r.hub.profileInfo(id).effectiveProfile,'midi-drums');const fresh=rig({data:r.data});fresh.inputs.set('ead',{id:'ead',name:`Yamaha EAD-${model} Port 1`});await fresh.hub.enableMidi();assert.equal(fresh.hub.profileInfo(id).effectiveProfile,'midi-drums','explicit off survives reconnect');
+ }
+ assert.equal(API.detectProfile({kind:'midi',name:'Bread100 MIDI'}),'midi-drums');assert.equal(API.detectProfile({kind:'gamepad',name:'EAD50',standard:false}),'none');
+});
+test('EAD maps rim, hi-hat, tom, crash and ride alternates by role, ignoring non-note MIDI events',async()=>{
+ const r=rig();r.inputs.set('ead',{id:'ead',name:'EAD20'});await r.hub.enableMidi();r.hub.setBlocked(false);
+ for(const note of [37,40,44,46,45,47,50,52,53,55,57,59,43,35])r.hub.midiMessage('midi:ead',[0x99,note,70]);assert.deepEqual(downs(r),['lane0','lane0','lane1','lane1','lane2','lane2','lane2','lane3','lane3','lane3','lane3','lane3','lane4','kick']);
+ const count=downs(r).length;for(const data of [[0xb9,4,80],[0xa9,49,90],[0x89,49,80],[0x99,49,0]])r.hub.midiMessage('midi:ead',data);assert.equal(downs(r).length,count);
+ assert.equal(API.preset('gamepad','drums-five','ead20-drums'),null);assert.equal(API.preset('midi','frets','ead10-drums'),null);
 });
