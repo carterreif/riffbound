@@ -1,5 +1,31 @@
 # Controllers and drum mapping
 
+## First-time Windows driver setup — version 125
+
+**Controllers / drums → Yamaha EAD drums → First-time Windows setup · Yamaha
+drivers** is accessible before connecting a MIDI input. It links to Yamaha's
+[USB-MIDI Windows driver page](https://usa.yamaha.com/support/updates/usb-midi-driver-win.html)
+(which lists EAD10 support) and
+[Yamaha Steinberg USB Windows driver page](https://usa.yamaha.com/support/updates/yamaha_steinberg_usb_driver_for_win.html).
+Use the model's manual to choose the supported driver for its MIDI/audio mode
+and Windows/CPU architecture, then follow Yamaha's installer instructions. The
+links open Yamaha's download/license pages; no installer is copied into the app,
+automatically downloaded or launched. No driver version is frozen into Riffbound.
+
+The driver installs on the player's Windows PC, outside the website. Riffbound
+cannot silently install drivers, confirm their OS installation status, or transfer
+them to other computers. After the supported driver is installed and the USB TO
+HOST data connection is established, reload Riffbound, enable MIDI permission
+and select the module input. Existing named-model mappings remain automatic.
+
+The same setup now states explicitly that USB microphone audio from the EAD
+sensor is not scored as a full drum kit. The current implementation reads
+independent trigger MIDI notes. A driver does not separate microphone audio into
+snare, tom, hi-hat and cymbal note messages, and no live acoustic-recognition mode
+has been added by this release. The included EAD10 sensor has stereo microphones
+and a bass-drum trigger, as documented in its
+[owner's manual](https://data.yamaha.com/files/download/other_assets/0/1133900/ZW72890_EAD10_owners_manual_En_C0.pdf).
+
 ## EAD10 / EAD20 / EAD50 built-in setups — version 124
 
 After **Enable MIDI inputs** grants permission, a MIDI input name containing

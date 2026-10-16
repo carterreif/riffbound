@@ -1,5 +1,7 @@
 # Riffbound
 
+Version 125 adds first-time Windows driver instructions and official Yamaha USB-MIDI / Steinberg USB driver download links inside Controllers / drums, available before any device connects. Drivers must be installed locally by Windows; they are not bundled, auto-installed or detected by the website. The setup clearly states that current EAD scoring requires MIDI trigger notes and does not implement full-kit recognition from sensor microphone audio. The offline cache revision is 125-1.
+
 Version 124 adds automatic named-MIDI detection and selectable built-in EAD10, EAD20 and EAD50 profiles. Every drum color and kick has a ready mapping in both layouts, including standard rim/hi-hat/tom/cymbal alternates. Generic MIDI adapters can select their model once; custom maps remain available. Scenes with different outgoing notes need matching module settings or overrides; these presets do not reprogram Yamaha hardware. The offline cache revision is 124-1.
 
 Version 123 adds a saved **Use EAD / EAD50 MIDI drums** option in Controllers / drums. Enable MIDI, select the module input and a drum layout, then turn it on. General MIDI starter notes and pad learning support both layouts; five-lane Orange and Green remain independent. EAD scenes must send distinct trigger notes: microphone audio alone does not provide per-pad input. Windows connection/driver guidance is included. The offline cache revision is 123-1.

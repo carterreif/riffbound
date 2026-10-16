@@ -274,6 +274,14 @@
     <label class="select-label">Built-in instrument setup<select id="controllerProfile"><option value="auto">Automatic</option></select></label>
     <p id="controllerMappingMode" class="secondary" role="status">Built-in setups load when a supported device connects.</p>
     <fieldset class="controller-ead"><legend>Yamaha EAD drums</legend>
+      <details class="ead-driver-setup"><summary>First-time Windows setup · Yamaha drivers</summary>
+        <p class="secondary">Install the Yamaha driver on your Windows PC once. A website cannot install a Windows device driver; it is separate from Riffbound’s built-in drum mappings.</p>
+        <div class="tool-actions"><a class="quiet" href="https://usa.yamaha.com/support/updates/usb-midi-driver-win.html" target="_blank" rel="noopener noreferrer">EAD10 USB-MIDI driver ↗</a><a class="quiet" href="https://usa.yamaha.com/support/updates/yamaha_steinberg_usb_driver_for_win.html" target="_blank" rel="noopener noreferrer">Yamaha Steinberg USB driver ↗</a></div>
+        <p class="secondary">These open Yamaha’s official download pages. Choose the driver supported by your EAD model, Windows version and computer, and follow Yamaha’s license and installation guide. EAD10 MIDI-only use and USB audio can require different drivers; check your model’s instructions.</p>
+        <ol class="secondary"><li>Download the supported Windows driver from Yamaha and extract its installer.</li><li>Run the installer on this PC. Follow its connection, permission and restart instructions.</li><li>Connect the EAD’s <b>USB TO HOST</b> port with a USB data cable, then reload Riffbound.</li><li>Choose <b>Enable MIDI inputs</b>, allow access, and select the EAD input. Named EAD models load their built-in drum mappings automatically.</li></ol>
+        <p class="secondary">Already installed? Connect the EAD and enable MIDI. Riffbound can list available MIDI inputs, but it cannot check your Windows driver installation or install it on another computer.</p>
+      </details>
+      <p class="secondary"><b>Playing with the EAD sensor alone:</b> Riffbound currently scores separate MIDI trigger/pad hits. It does not recognize the entire acoustic kit from the sensor’s microphone audio. Installing the driver does not add that recognition; full-kit sensor-only play needs a separate live-audio detection feature.</p>
       <label class="controller-toggle"><input id="controllerEadEnabled" type="checkbox" aria-describedby="controllerEadStatus controllerEadHelp"> Use Yamaha EAD drums (EAD10 / EAD20 / EAD50)</label>
       <label class="select-label">EAD model<select id="controllerEadModel"><option value="ead-drums">Other EAD / General MIDI</option><option value="ead10-drums">Yamaha EAD10</option><option value="ead20-drums">Yamaha EAD20</option><option value="ead50-drums">Yamaha EAD50</option></select></label>
       <p id="controllerEadStatus" class="secondary" role="status" aria-live="polite"></p>
