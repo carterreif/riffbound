@@ -6,6 +6,7 @@
   const Exchange=window.RiffChartExchange,ChartTiming=window.RiffChartTiming,Midi=window.RiffMidiChart;
   const PublicDemos=window.RiffPublicDemos,AuthoredReuse=window.RiffAuthoredReuse;
   const Community=window.RiffCommunityCharts;
+  const SheetMusic=window.RiffSheetMusic;
   const Recording=window.RiffRecordingAlignment;
   const SongAudio=window.RiffSongAudio;
   const PartCharts=window.RiffPartCharts;
@@ -29,13 +30,13 @@
   let chartDraft=null,chartReviewGeneration=0;
   let backupExport=null,backupSaving=false,backupTransfer=null;
   let exportingVideo=false,savingSetlistVideo=false;
-  let communityLookup=true,uploadInstrument='guitar',uploadTargetExplicit=false,pendingUpload=null;
+  let communityLookup=true,sheetMusicLookup=true,uploadInstrument='guitar',uploadTargetExplicit=false,pendingUpload=null;
   let timingOffset=0,highwaySpeed=1,volume=.7,muted=false,preMute=.7,showHitTiming=true;
   try{const saved=JSON.parse(localStorage.getItem('riffbound-preferences-v1')||'{}');timingOffset=Math.max(-250,Math.min(250,Number(saved.timingOffset)||0));highwaySpeed=Math.max(.7,Math.min(1.6,Number(saved.highwaySpeed)||1));
     if(typeof saved.showHitTiming==='boolean')showHitTiming=saved.showHitTiming;
     if(typeof saved.volume==='number'&&Number.isFinite(saved.volume))volume=Math.max(0,Math.min(1,saved.volume));
     if(typeof saved.preMute==='number'&&Number.isFinite(saved.preMute)&&saved.preMute>0)preMute=Math.min(1,saved.preMute);else if(volume>0)preMute=volume;
-    muted=saved.muted===true||volume===0;communityLookup=saved.communityLookup!==false;
+    muted=saved.muted===true||volume===0;communityLookup=saved.communityLookup!==false;sheetMusicLookup=saved.sheetMusicLookup!==false;
     if(PARTS.includes(saved.uploadInstrument)){uploadInstrument=saved.uploadInstrument;uploadTargetExplicit=true;}
   }catch{}
   const countNodes=[];
@@ -109,15 +110,15 @@
     if($('drumRepairTools'))$('drumRepairTools').hidden=!song||instrument!=='drums';
     if($('repairDrumsButton'))$('repairDrumsButton').disabled=!song||active()||pendingSaves>0;
     $('chartTargetGroup').disabled=busy();$('chartScope').disabled=active();$('partsGroup').disabled=active();$('buildPartsButton').disabled=active();
-    for(const id of ['addCommunityLookup','addLookupTitle','addLookupArtist'])$(id).disabled=active();
+    for(const id of ['addCommunityLookup','addSheetMusicLookup','addScoreFile','addLookupTitle','addLookupArtist'])$(id).disabled=active();
     $('rechartButton').disabled=active()||song?.chartOnly===true;$('findAuthoredChart').disabled=!song||active()||pendingSaves>0||!Community;$('practiceButton').disabled=busy()||song?.chartOnly===true;$('timingButton').disabled=busy();$('libraryButton').disabled=busy();
     $('saveCurrentButton').disabled=!song||busy()||pendingSaves>0;$('exportCurrentButton').disabled=!song||busy()||(!song.chartOnly&&!Library.audioStatus(song?.audioBlob).ok);
     $('reconnectAudioButton').disabled=!song||busy()||pendingSaves>0;$('importBackupButton').disabled=busy();
     for(const id of ['addSongButton','libraryAddSong'])$(id).disabled=active()||pendingSaves>0||importingBackup;
-    const hasNewAudio=!!$('addSongFile').files?.length,reuseOpenAudio=canReuseOpenAudio()&&!$('addLookupTitle').value.trim()&&!$('addLookupArtist').value.trim(),searchByName=!!$('addLookupTitle').value.trim()&&!!$('addLookupArtist').value.trim();
-    $('confirmAddSong').disabled=active()||pendingSaves>0||importingBackup||(!hasNewAudio&&!reuseOpenAudio&&!searchByName);
-    $('confirmAddSong').textContent=!hasNewAudio&&searchByName?'Find chart & audio':!hasNewAudio&&reuseOpenAudio?'Chart open song':'Chart & add to setlist';
-    if($('addSongAudioHint'))$('addSongAudioHint').textContent=hasNewAudio?'The selected file will be added as a song.':searchByName?'Finds matching charts and song audio. Missing parts can be estimated from that audio. No audio upload needed.':reuseOpenAudio?`Leave title and artist blank to reuse “${song.title}”, or enter both to find a different song’s chart.`:'No file needed: enter song title and artist below to find its chart and audio.';
+    const hasNewAudio=!!$('addSongFile').files?.length,hasScore=!!$('addScoreFile').files?.length,reuseOpenAudio=canReuseOpenAudio()&&!$('addLookupTitle').value.trim()&&!$('addLookupArtist').value.trim(),searchByName=!!$('addLookupTitle').value.trim()&&!!$('addLookupArtist').value.trim();
+    $('confirmAddSong').disabled=active()||pendingSaves>0||importingBackup||(!hasNewAudio&&!reuseOpenAudio&&!searchByName&&!hasScore);
+    $('confirmAddSong').textContent=!hasNewAudio&&!reuseOpenAudio&&hasScore&&!searchByName?'Convert score & add to setlist':!hasNewAudio&&searchByName?'Find chart & audio':!hasNewAudio&&reuseOpenAudio?'Chart open song':'Chart & add to setlist';
+    if($('addSongAudioHint'))$('addSongAudioHint').textContent=hasNewAudio?'The selected file will be added as a song.':hasScore&&!reuseOpenAudio?'Score selected. Available parts can be saved without audio; attach matching audio later for song playback.':searchByName?'Finds matching charts and song audio. Missing parts can be estimated from that audio. No audio upload needed.':reuseOpenAudio?`Leave title and artist blank to reuse “${song.title}”, or enter both to find a different song’s chart.`:'No file needed: enter song title and artist below to find its chart and audio.';
     $('setlistRetrySave').disabled=!song||busy()||pendingSaves>0;
     $('setlistExportBackup').disabled=!song||busy()||(!song.chartOnly&&!Library.audioStatus(song?.audioBlob).ok);
     $('setlistUploadProgress').hidden=state!=='analyzing';
@@ -397,7 +398,7 @@
     if(affected.includes('drums')){q.drumLayout=q.drumLayout||'five';if(q.drumLayout==='four')result.charts.drums=D.fourDrumLevels(result.charts.drums);}
     song={...previous,...result,id:previous.id,title:previous.title,filename:previous.filename,audioBlob:previous.audioBlob,buffer:previous.buffer,musicEnd:previous.musicEnd,duration:previous.duration,analysisSamples:samples,charts:mergeSongCharts(previous.charts,result),quality:{...previous.quality,...q,imports:{...previous.quality?.imports},communityReferences:{...previous.quality?.communityReferences},chartTimings:timingByPart(previous.quality),chartAdjustments:{...previous.quality?.chartAdjustments},timingReviews:{...previous.quality?.timingReviews},audioReviews:{...previous.quality?.audioReviews,...q.audioReviews},mixAnalysis:mergeMixAnalysis(previous.quality?.mixAnalysis,result),sources:{...previous.quality?.sources,...Object.fromEntries(affected.map(p=>[p,q.sources?.[p]||null]))},methods:{...previous.quality?.methods,...Object.fromEntries(affected.map(p=>[p,q.methods?.[p]||q.method||'Audio analysis']))}}};
     clearImportedParts(affected);song.quality.imports={...song.quality.imports,...q.imports};song.quality.chartTimings={...song.quality.chartTimings,...q.chartTimings};song.quality.timingReviews={...song.quality.timingReviews,...q.timingReviews};song.quality.chartAdjustments={...song.quality.chartAdjustments,...q.chartAdjustments};
-    for(const part of Object.keys(q.imports||{})){song.quality.communityReferences[part]=q.communityReferences?.[part]||q.onlineLookup?.references?.[part]||q.onlineLookup?.reference;if(!['verified-authored-drums-v1','authored-drum-track-v1','authored-recording-alignment-v1','authored-package-audio-v1'].includes(q.audioReviews?.[part]?.policy))delete song.quality.audioReviews[part];delete song.quality.mixAnalysis[part];}
+    for(const part of Object.keys(q.imports||{})){song.quality.communityReferences[part]=q.communityReferences?.[part]||q.onlineLookup?.references?.[part]||q.onlineLookup?.reference;if(!['verified-authored-drums-v1','authored-drum-track-v1','authored-recording-alignment-v1','authored-package-audio-v1','sheet-music-timing-review-v1'].includes(q.audioReviews?.[part]?.policy))delete song.quality.audioReviews[part];delete song.quality.mixAnalysis[part];}
     if(q.imports?.drums&&q.audioReviews?.drums?.policy!=='verified-authored-drums-v1'&&!q.reusedParts?.includes('drums'))for(const key of ['scoreReview','scoreRevision','preserveEasyMedium'])delete song.quality[key];
   }
   async function findAuthoredChart(){
@@ -482,7 +483,7 @@
     }catch(error){if(generation!==uploadGeneration)return;state='idle';reset();refreshSong();$('chartStatus').textContent=error.message;$('chartStatus').classList.add('error');showMessage(`Could not build ${partName(target)}: ${error.message} Your current chart is kept.`);}
     finally{if(generation===uploadGeneration){$('uploadProgress').hidden=true;updateButtons();}}
   }
-  async function uploadCharts(file,buffer,samples,targets,generation,id,identity,{authoredOnly=false,previous=null,refreshParts=[]}={}){
+  async function uploadCharts(file,buffer,samples,targets,generation,id,identity,{authoredOnly=false,previous=null,refreshParts=[],scoreFile=null}={}){
     const prior=previous||(song?.id===id?song:null),reviewed=!authoredOnly&&window.RiffAuthoredDrums?.upgrade?await window.RiffAuthoredDrums.upgrade(prior):prior;
     if(generation!==uploadGeneration)throw Error('Canceled');
     const cached=!authoredOnly&&AuthoredReuse?AuthoredReuse.reuse(reviewed,id,buffer.duration,targets.filter(part=>!refreshParts.includes(part)),{requireAudioMatch:true}):{charts:{},quality:{reusedParts:[]}};
@@ -508,6 +509,11 @@
         return reviews;
       }:undefined;
       try{online=await Community.lookup({filename:file.name,...searchIdentity,duration:buffer.duration,parts:lookupParts,includeDrumAudio:lookupParts.includes('drums')&&!authoredOnly,requireAudioMatch:true,enabled:authoredOnly||refreshParts.length>0||communityLookup,signal:controller.signal,alignAudio,onProgress:label=>uploadProgress(11,label)});}
+      finally{if(generation===uploadGeneration)cancelLookup=null;}
+    }
+    if(SheetMusic&&!authoredOnly&&lookupParts.some(p=>!online.charts?.[p])){
+      const controller=new AbortController();cancelLookup=()=>controller.abort();
+      try{online=await SheetMusic.fill(online,{...searchIdentity,filename:file.name,parts:lookupParts,duration:buffer.duration,scoreFile,enabled:sheetMusicLookup,signal:controller.signal,onProgress:label=>uploadProgress(12,label)});}
       finally{if(generation===uploadGeneration)cancelLookup=null;}
     }
     if(generation!==uploadGeneration)throw Error('Canceled');
@@ -540,14 +546,14 @@
     if(ChartTiming&&Object.keys(onlineCharts).length){const evidence=ChartTiming.evidence(samples);for(const part of Object.keys(onlineCharts)){
       const review=online.recordingReviews?.[part];
       timingReviews[part]=review?.status==='aligned'?{...review,suggestedMs:0}:ChartTiming.review(evidence,charts[part].expert);
-      audioReviews[part]={policy:'authored-recording-alignment-v1',estimated:false,timingVerified:review?.status==='aligned',recordingId:id,...(review?.status==='aligned'?{sourceOffsetSeconds:review.shiftSeconds,referenceInstrument:review.referenceInstrument,referenceScope:review.referenceScope,referenceFiles:review.referenceFiles,windows:review.windows}:{})};
+      audioReviews[part]={policy:online.scoreParts?.includes(part)?'sheet-music-timing-review-v1':'authored-recording-alignment-v1',estimated:false,timingVerified:review?.status==='aligned',recordingId:id,...(review?.status==='aligned'?{sourceOffsetSeconds:review.shiftSeconds,referenceInstrument:review.referenceInstrument,referenceScope:review.referenceScope,referenceFiles:review.referenceFiles,windows:review.windows}:{})};
     }}
     const references={...generated?.quality?.communityReferences,...cached.quality.communityReferences,...Object.fromEntries(Object.keys(onlineCharts).map(part=>[part,online.references?.[part]||online.reference]))};
     const message=(reused.length?`Reused saved authored ${reused.map(partName).join(', ')} charts with their difficulties and timing. `:'')+(online.message||'')+(drumSource&&generated?.charts?.drums?' Drums were estimated from verified isolated source audio; colors still need preview review.':'');
     const selected=charts[instrument]?instrument:Object.keys(charts)[0];
-    return {...generated,charts,waveform,instrument:selected,bpm:generated?.bpm||cached.bpm||online.bpm,beat:generated?.beat||cached.beat||online.beat,offset:generated?.offset??cached.offset??0,chartVersion:Math.max(generated?.chartVersion||1,cached.chartVersion||1),quality:{...generated?.quality,...(reused.length?cached.quality:{}),...(charts.drums?{drumLayout}:{}),reusedParts:reused,lookupIdentity:online.identity||cached.quality.lookupIdentity||identity,imports,communityReferences:references,chartTimings:{...generated?.quality?.chartTimings,...cached.quality.chartTimings,...online.timings},chartAdjustments:{...cached.quality.chartAdjustments},timingReviews,audioReviews,sources:{...generated?.quality?.sources,...cached.quality.sources,...online.sources},...(online.timing?{chartTiming:online.timing,chartArtist:online.identity?.artist||searchIdentity.artist}:{}),methods:{...generated?.quality?.methods,...cached.quality.methods,...Object.fromEntries(Object.keys(onlineCharts).map(part=>[part,'Authored community chart']))},onlineLookup:{message,reference:online.reference||null,references,availableParts:online.availableParts||[],attempts:online.attempts||[],issues:online.issues||{}}}};
+    return {...generated,charts,waveform,instrument:selected,bpm:generated?.bpm||cached.bpm||online.bpm,beat:generated?.beat||cached.beat||online.beat,offset:generated?.offset??cached.offset??0,chartVersion:Math.max(generated?.chartVersion||1,cached.chartVersion||1),quality:{...generated?.quality,...(reused.length?cached.quality:{}),...(online.sheetMusic?{sheetMusic:online.sheetMusic}:{}),...(charts.drums?{drumLayout}:{}),reusedParts:reused,lookupIdentity:online.identity||cached.quality.lookupIdentity||identity,imports,communityReferences:references,chartTimings:{...generated?.quality?.chartTimings,...cached.quality.chartTimings,...online.timings},chartAdjustments:{...cached.quality.chartAdjustments},timingReviews,audioReviews,sources:{...generated?.quality?.sources,...cached.quality.sources,...online.sources},...(online.timing?{chartTiming:online.timing,chartArtist:online.identity?.artist||searchIdentity.artist}:{}),methods:{...generated?.quality?.methods,...cached.quality.methods,...Object.fromEntries(Object.keys(onlineCharts).map(part=>[part,online.scoreParts?.includes(part)?'Sheet music converted to colored lanes':'Authored community chart']))},onlineLookup:{message,reference:online.reference||null,references,availableParts:online.availableParts||[],attempts:online.attempts||[],issues:online.issues||{}}}};
   }
-  async function uploadSong(file,targets=requestedParts(),identity={title:$('addLookupTitle').value,artist:$('addLookupArtist').value}){
+  async function uploadSong(file,targets=requestedParts(),identity={title:$('addLookupTitle').value,artist:$('addLookupArtist').value},{scoreFile=null}={}){
     if(!file)return;
     const validation=!targets.length?'Choose at least one part to chart.':audioFileError(file);
     if(validation){$('chartStatus').textContent=validation;$('chartStatus').classList.add('error');setSetlistMessage(validation,true);return;}
@@ -570,12 +576,12 @@
       const samples=await prepareSamples(buffer);if(generation!==uploadGeneration)return;
       let previous=song?.id===id?song:null;if(!previous)try{previous=await Library.get(id);}catch{}
       if(generation!==uploadGeneration)return;
-      const result=await uploadCharts(file,buffer,samples,targets,generation,id,identity,{previous});
+      const result=await uploadCharts(file,buffer,samples,targets,generation,id,identity,{previous,scoreFile});
       if(generation!==uploadGeneration)return;
       song={...result,charts:mergeSongCharts(previous?.charts,result),quality:{...previous?.quality,...result.quality,imports:{...previous?.quality?.imports,...result.quality.imports},communityReferences:{...previous?.quality?.communityReferences},chartTimings:timingByPart(previous?.quality),chartAdjustments:{...previous?.quality?.chartAdjustments},timingReviews:{...previous?.quality?.timingReviews},audioReviews:{...previous?.quality?.audioReviews,...result.quality?.audioReviews},mixAnalysis:mergeMixAnalysis(previous?.quality?.mixAnalysis,result),sources:{...previous?.quality?.sources,...result.quality.sources},methods:{...previous?.quality?.methods,...result.quality.methods}},id,buffer,audioBlob,filename:file.name,analysisSamples:samples,title:file.name.replace(/\.[^.]+$/,'')||'Your song',musicEnd:buffer.duration,duration:buffer.duration+.8};
       clearImportedParts(Object.keys(result.charts));song.quality.imports={...song.quality.imports,...result.quality.imports};song.quality.chartTimings={...song.quality.chartTimings,...result.quality.chartTimings};song.quality.timingReviews={...song.quality.timingReviews,...result.quality.timingReviews};song.quality.chartAdjustments={...song.quality.chartAdjustments,...result.quality.chartAdjustments};
       for(const part of Object.keys(result.quality.imports||{}))song.quality.communityReferences[part]=result.quality.communityReferences?.[part]||result.quality.onlineLookup?.references?.[part]||result.quality.onlineLookup?.reference;
-      for(const part of Object.keys(result.quality.imports||{})){if(!['verified-authored-drums-v1','authored-drum-track-v1','authored-recording-alignment-v1','authored-package-audio-v1'].includes(result.quality.audioReviews?.[part]?.policy))delete song.quality.audioReviews[part];delete song.quality.mixAnalysis[part];}
+      for(const part of Object.keys(result.quality.imports||{})){if(!['verified-authored-drums-v1','authored-drum-track-v1','authored-recording-alignment-v1','authored-package-audio-v1','sheet-music-timing-review-v1'].includes(result.quality.audioReviews?.[part]?.policy))delete song.quality.audioReviews[part];delete song.quality.mixAnalysis[part];}
       if(result.quality.imports?.drums&&result.quality.audioReviews?.drums?.policy!=='verified-authored-drums-v1'&&!result.quality.reusedParts?.includes('drums')){delete song.quality.scoreReview;delete song.quality.scoreRevision;delete song.quality.preserveEasyMedium;}
       instrument=result.instrument;
       setSongPercussion();
@@ -873,7 +879,7 @@
     }catch(error){if(generation===uploadGeneration){state='idle';$('chartStatus').textContent='Community check could not complete. Your imported backup charts are kept. '+error.message;showMessage($('chartStatus').textContent);}}
     finally{if(generation===uploadGeneration){state='idle';$('uploadProgress').hidden=true;updateButtons();}}
   }
-  function preferences(){try{localStorage.setItem('riffbound-preferences-v1',JSON.stringify({timingOffset,highwaySpeed,volume,muted,preMute,showHitTiming,communityLookup,...(uploadTargetExplicit?{uploadInstrument}:{})}));return true;}catch{return false;}}
+  function preferences(){try{localStorage.setItem('riffbound-preferences-v1',JSON.stringify({timingOffset,highwaySpeed,volume,muted,preMute,showHitTiming,communityLookup,sheetMusicLookup,...(uploadTargetExplicit?{uploadInstrument}:{})}));return true;}catch{return false;}}
   function stopCalibration(){
     clearTimeout(calibrationTimer);calibrationTimer=null;
     if(calibrationTest)for(const node of calibrationTest.nodes||[]){try{node.stop();node.disconnect();}catch{}}
@@ -905,13 +911,14 @@
   function openTool(id){if(busy()||resuming)return;if(running())pause({showMenu:false});closePauseMenu();$(id).showModal();}
   function audioFileError(file){return !file?'Choose an audio file first.':file.size>80*1024*1024||file.size===0?'Choose a non-empty audio file up to 80 MB.':'';}
   function canReuseOpenAudio(){return !!song?.buffer&&Library.audioStatus(song.audioBlob).ok;}
-  async function findSongWithoutAudio(identity,targets){
-    if(!Community){$('addSongError').textContent='Chart search is unavailable. Check for game updates.';return;}
+  async function findSongWithoutAudio(identity,targets,scoreFile=null){
+    if(!Community&&!SheetMusic){$('addSongError').textContent='Chart search is unavailable. Check for game updates.';return;}
     const generation=++uploadGeneration,previous=song,controller=new AbortController();cancelLookup=()=>controller.abort();
     stopAudio();previewing=false;clearHeld();state='analyzing';updateButtons();$('uploadProgress').hidden=false;$('chartStatus').classList.remove('error');
     uploadProgress(5,`Finding charts for ${identity.title} by ${identity.artist}…`);
     try{
-      const found=await Community.lookup({...identity,parts:targets,chartOnly:true,includeAudio:true,enabled:true,signal:controller.signal,onProgress:label=>uploadProgress(12,label)});if(generation!==uploadGeneration)return;
+      let found=identity.title&&identity.artist&&Community?await Community.lookup({...identity,parts:targets,chartOnly:true,includeAudio:true,enabled:true,signal:controller.signal,onProgress:label=>uploadProgress(12,label)}):{charts:{},imports:{},sources:{},references:{},timings:{},message:''};if(generation!==uploadGeneration)return;
+      if(SheetMusic)found=await SheetMusic.fill(found,{...identity,parts:targets,scoreFile,enabled:sheetMusicLookup,duration:found.audioContainer||Object.keys(found.charts||{}).length?found.duration:undefined,signal:controller.signal,onProgress:label=>uploadProgress(20,label)});if(generation!==uploadGeneration)return;
       const authoredParts=targets.filter(p=>found.charts?.[p]?.expert?.length);
       if(!authoredParts.length&&!found.audioContainer)throw Error(found.message||'No supported chart or matching audio found for this song.');
       let audio=null,buffer=null,samples=null,audioIssue='',generated=null,estimateIssue='';const packageDrums=new Map();let packageDrumSamples=null,usedPackageDrums=false;
@@ -942,11 +949,11 @@
       if(!parts.length)throw Error('Song audio was found, but its chart could not be built. '+estimateIssue);
       let prior=previous?.chartOnly&&previous.id===id?previous:null;if(!prior)try{prior=await Library.get(id);}catch{}if(generation!==uploadGeneration)return;
       const unavailable=targets.filter(p=>!parts.includes(p));
-      const message=audio?'Matching bundled audio loaded. '+(authoredParts.length?`Authored ${authoredParts.join(', ')} chart loaded. `:'')+(estimatedParts.length?`No supported authored ${estimatedParts.join(', ')} chart found in Clone Hero; built from the downloaded song audio (estimate). `:'')+'Ready to play; preview timing.'+(unavailable.length?` No usable ${unavailable.join(', ')} chart: ${estimateIssue||Object.values(generated?.quality?.unavailable||{}).join(' ')||'unavailable'}.`:''):found.message+(audioIssue?' Audio could not be included: '+audioIssue:'');
+      const message=audio?(found.sheetMusic?found.message+' ':'')+'Matching bundled audio loaded. '+(authoredParts.length?`Authored ${authoredParts.join(', ')} chart loaded. `:'')+(estimatedParts.length?`No supported authored ${estimatedParts.join(', ')} chart found in Clone Hero; built from the downloaded song audio (estimate). `:'')+'Ready to play; preview timing.'+(unavailable.length?` No usable ${unavailable.join(', ')} chart: ${estimateIssue||Object.values(generated?.quality?.unavailable||{}).join(' ')||'unavailable'}.`:''):found.message+(audioIssue?' Audio could not be included: '+audioIssue:'');
       // Estimated parts never inherit an unrelated authored import, reference,
       // offset or verification receipt from another instrument or older chart.
       const priorQ=prior?.quality||{},generatedQ=generated?.quality||{},keep=map=>Object.fromEntries(Object.entries(map||{}).filter(([part])=>!estimatedParts.includes(part)));
-      const quality={...priorQ,...generatedQ,...(charts.drums?{drumLayout}:{}),lookupIdentity:found.identity,imports:{...keep(priorQ.imports),...imports},sources:{...keep(priorQ.sources),...found.sources,...Object.fromEntries(estimatedParts.map(p=>[p,`${partName(p)} audio estimate from downloaded song`]))},communityReferences:{...keep(priorQ.communityReferences),...found.references},chartTimings:{...keep(priorQ.chartTimings),...found.timings},chartAdjustments:keep(priorQ.chartAdjustments),timingReviews:keep(priorQ.timingReviews),mixAnalysis:{...keep(priorQ.mixAnalysis),...generatedQ.mixAnalysis},audioReviews:{...keep(priorQ.audioReviews),...Object.fromEntries(estimatedParts.map(p=>[p,{...generatedQ.audioReviews?.[p],estimated:true,recordingId:id}])),...(audio?Object.fromEntries(authoredParts.map(p=>[p,{policy:'authored-package-audio-v1',estimated:false,timingVerified:false,recordingId:id,sourceMd5:found.references[p].md5}])):{})},...(audio?{packageAudio:{sourceMd5:found.reference.md5,setlist:found.reference.setlist,files:audio.files,sampleRate:audio.sampleRate}}:{}),onlineLookup:{message,searchMessage:found.message,availableParts:found.availableParts,attempts:found.attempts,issues:found.issues},methods:{...priorQ.methods,...generatedQ.methods,...Object.fromEntries(authoredParts.map(p=>[p,'Authored community chart']))}};
+      const quality={...priorQ,...generatedQ,...(found.sheetMusic?{sheetMusic:found.sheetMusic}:{}),...(charts.drums?{drumLayout}:{}),lookupIdentity:found.identity,imports:{...keep(priorQ.imports),...imports},sources:{...keep(priorQ.sources),...found.sources,...Object.fromEntries(estimatedParts.map(p=>[p,`${partName(p)} audio estimate from downloaded song`]))},communityReferences:{...keep(priorQ.communityReferences),...found.references},chartTimings:{...keep(priorQ.chartTimings),...found.timings},chartAdjustments:keep(priorQ.chartAdjustments),timingReviews:keep(priorQ.timingReviews),mixAnalysis:{...keep(priorQ.mixAnalysis),...generatedQ.mixAnalysis},audioReviews:{...keep(priorQ.audioReviews),...Object.fromEntries(estimatedParts.map(p=>[p,{...generatedQ.audioReviews?.[p],estimated:true,recordingId:id}])),...(audio?Object.fromEntries(authoredParts.map(p=>[p,{policy:found.scoreParts?.includes(p)?'sheet-music-timing-review-v1':'authored-package-audio-v1',estimated:false,timingVerified:false,recordingId:id,sourceMd5:found.references[p].md5}])):{})},...(audio?{packageAudio:{sourceMd5:found.reference.md5,setlist:found.reference.setlist,files:audio.files,sampleRate:audio.sampleRate}}:{}),onlineLookup:{message,searchMessage:found.message,availableParts:found.availableParts,attempts:found.attempts,issues:found.issues},methods:{...priorQ.methods,...generatedQ.methods,...Object.fromEntries(authoredParts.map(p=>[p,found.scoreParts?.includes(p)?'Sheet music converted to colored lanes':'Authored community chart']))}};
       if(estimatedParts.includes('drums')&&usedPackageDrums){quality.sources.drums='Drums estimate from this package’s isolated Drum audio';quality.audioReviews.drums={...quality.audioReviews.drums,policy:'package-drum-stem-estimate-v1',referenceInstrument:'drums',referenceFiles:[...packageDrums.keys()],sourceMd5:found.reference.md5};quality.methods.drums='Own Drum stem audio analysis';}
       if(estimatedParts.includes('drums'))for(const key of ['scoreReview','scoreRevision','scoreReference','preserveEasyMedium'])if(generatedQ[key]===undefined)delete quality[key];
       const selected=parts.includes(instrument)?instrument:parts[0],record={...prior,id,chartOnly:!audio,title:found.identity.title,filename:audio?found.identity.title+'.wav':found.identity.title,instrument:selected,musicEnd:buffer?.duration||found.duration,duration:(buffer?.duration||found.duration)+.8,bpm:found.bpm||generated?.bpm||120,beat:found.beat||generated?.beat||.5,offset:found.timing?.offset||0,charts:{...prior?.charts,...charts},waveform:audio?.waveform||[],quality};
@@ -956,14 +963,14 @@
     }catch(error){if(generation!==uploadGeneration)return;state='idle';$('chartStatus').textContent=error.message;$('addSongError').textContent=error.message;setSetlistMessage(error.message,true);$('addSongDialog').showModal();}
     finally{if(generation===uploadGeneration){cancelLookup=null;$('uploadProgress').hidden=true;updateButtons();}}
   }
-  async function chartOpenSong(targets,identity){
+  async function chartOpenSong(targets,identity,{scoreFile=null}={}){
     const owner=song,generation=++uploadGeneration;
     stopAudio();previewing=false;practiceLoop=null;playRate=1;clearHeld();state='analyzing';updateButtons();
     $('chartStatus').classList.remove('error');$('uploadProgress').hidden=false;$('chartPreview').hidden=true;
     uploadProgress(5,`Using the open audio for ${owner.title}…`);setAnnouncement('YOUR SONG','BUILDING CHARTS…');
     try{
       const samples=owner.analysisSamples||await prepareSamples(owner.buffer);if(generation!==uploadGeneration||song!==owner)return;
-      const result=await uploadCharts({name:owner.filename||owner.title},owner.buffer,samples,targets,generation,owner.id,identity);if(generation!==uploadGeneration||song!==owner)return;
+      const result=await uploadCharts({name:owner.filename||owner.title},owner.buffer,samples,targets,generation,owner.id,identity,{scoreFile});if(generation!==uploadGeneration||song!==owner)return;
       applyChartResult(result,samples);instrument=result.instrument;song.instrument=instrument;setSongPercussion();state='idle';newSession();refreshSong();updateUi(0);
       uploadProgress(100,readyMessage(result));setAnnouncement('CHARTS READY','CHOOSE YOUR PART');await saveSong();
     }catch(error){if(generation!==uploadGeneration)return;state='idle';reset();refreshSong();$('chartStatus').textContent=error.message+' Your current chart is kept.';$('chartStatus').classList.add('error');setSetlistMessage($('chartStatus').textContent,true);}
@@ -971,25 +978,29 @@
   }
   function openAddSong(){
     if(active()||pendingSaves||importingBackup)return;
-    $('libraryDialog').close();$('addSongFile').value='';$('addSongPart').value=uploadInstrument;$('addSongError').textContent='';$('addLookupTitle').value='';$('addLookupArtist').value='';
+    $('libraryDialog').close();$('addSongFile').value='';$('addScoreFile').value='';$('addSongPart').value=uploadInstrument;$('addSongError').textContent='';$('addLookupTitle').value='';$('addLookupArtist').value='';
     updateButtons();$('addSongDialog').showModal();
   }
   async function addSongFromDialog(){
     if(active()||pendingSaves||importingBackup)return;
-    const file=$('addSongFile').files?.[0],part=$('addSongPart').value;
+    const file=$('addSongFile').files?.[0],scoreFile=$('addScoreFile').files?.[0],part=$('addSongPart').value;
     const hasIdentity=!!$('addLookupTitle').value.trim()&&!!$('addLookupArtist').value.trim();
     const reuseOpenAudio=canReuseOpenAudio()&&!$('addLookupTitle').value.trim()&&!$('addLookupArtist').value.trim();
-    const error=(file?audioFileError(file):hasIdentity||reuseOpenAudio?'':'Enter both song title and artist, or choose an audio file.')||(![...PARTS,'whole'].includes(part)?'Choose a part to chart.':'');
+    const error=(file?audioFileError(file):hasIdentity||reuseOpenAudio||scoreFile?'':'Enter both song title and artist, choose audio, or choose a MusicXML score.')||(![...PARTS,'whole'].includes(part)?'Choose a part to chart.':'');
     if(error){$('addSongError').textContent=error;return;}
+    if(scoreFile&&(!scoreFile.size||scoreFile.size>4*1024*1024||!/^.+\.(musicxml|xml)$/i.test(scoreFile.name||''))){$('addSongError').textContent='Choose an uncompressed MusicXML score up to 4 MB.';return;}
     // Pass the new song's choices directly. Changing the current instrument
     // here would rebuild or save the previously open song before picking audio.
     if(PARTS.includes(part))chooseUploadInstrument(part,{switchExisting:false});
     const targets=part==='whole'?PARTS.slice():[part],identity={title:$('addLookupTitle').value.trim(),artist:$('addLookupArtist').value.trim()};
-    if(!file&&!hasIdentity){const stored=existingChartIdentity();identity.title||=stored.title;identity.artist||=stored.artist;}
-    $('addSongDialog').close();$('addSongFile').value='';
+    if(!file&&!hasIdentity&&reuseOpenAudio){const stored=existingChartIdentity();identity.title||=stored.title;identity.artist||=stored.artist;}
+    $('addSongDialog').close();$('addSongFile').value='';$('addScoreFile').value='';
     $('addSongButton').scrollIntoView?.({block:'start'});
-    if(file)await uploadSong(file,targets,identity);else if(hasIdentity)await findSongWithoutAudio(identity,targets);else await chartOpenSong(targets,identity);
+    if(file)await uploadSong(file,targets,identity,{scoreFile});else if(hasIdentity||scoreFile&&!reuseOpenAudio)await findSongWithoutAudio(identity,targets,scoreFile);else await chartOpenSong(targets,identity,{scoreFile});
   }
+  $('addSheetMusicLookup').checked=sheetMusicLookup;
+  $('addSheetMusicLookup').addEventListener('change',()=>{sheetMusicLookup=$('addSheetMusicLookup').checked;preferences();});
+  $('addScoreFile').addEventListener('change',()=>{$('addSongError').textContent='';updateButtons();});
   $('addCommunityLookup').checked=communityLookup;
   $('addCommunityLookup').addEventListener('change',()=>{communityLookup=$('addCommunityLookup').checked;preferences();});
   $('addSongButton').addEventListener('click',openAddSong);

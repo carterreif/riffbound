@@ -189,6 +189,10 @@
     <label class="community-option"><input id="addCommunityLookup" type="checkbox" aria-describedby="addCommunityLookupHint" checked> Find Guitar Hero / Clone Hero charts first</label>
     <p id="addCommunityLookupHint" class="secondary">Matching Guitar Hero conversions are preferred. GH1–3 supply Guitar only; Drums require an actual drum chart from a later game or the community. Uploads must match source audio. Clone Hero Drum charts can also be verified with full-song-only packages. Verified saved charts are reused for the same audio. Missing Drum charts can use verified isolated Drum audio for an estimate; other missing parts use the song audio. If your selected instrument has no matching chart, the lookup shows which other parts are available.</p>
     <div class="song-identity"><label for="addLookupTitle">Song title (optional)<input id="addLookupTitle" type="text" maxlength="160" placeholder="Song title"></label><label for="addLookupArtist">Artist (optional)<input id="addLookupArtist" type="text" maxlength="160" placeholder="Artist"></label></div>
+    <label class="community-option"><input id="addSheetMusicLookup" type="checkbox" checked aria-describedby="addSheetMusicHint"> If a game chart is missing, search sheet music</label>
+    <p id="addSheetMusicHint" class="secondary">Searches downloadable MusicXML scores on Internet Archive after game charts, separately for Guitar, Drums, Bass and Vocals. Converts the parts actually written in the score into colored lanes and four difficulties. Availability varies; missing parts can still use audio estimates.</p>
+    <label for="addScoreFile">Sheet music file (optional)<input id="addScoreFile" type="file" accept=".musicxml,.xml,application/vnd.recordare.musicxml+xml" aria-describedby="addScoreHint"></label>
+    <p id="addScoreHint" class="secondary">Use an uncompressed MusicXML export up to 4 MB, with a starting tempo and repeats written out. PDFs, photos and compressed MXL need a MusicXML export first. Score notes need timing review against your recording. Without audio, available score parts can be saved and previewed as a chart only.</p>
     <p class="secondary">Every upload searches matching community charts first when this option is on. Imported backups also check their estimated parts using the backup’s saved song title and artist. Use an Artist - Title filename or fill in both fields for new audio. Audio stays on your device.</p>
     <p class="secondary">Missing Guitar, Bass, Drums and Vocals parts are searched independently. Working authored charts saved with this recording keep their notes, difficulties and timing. Riffbound checks song length and tries other matching charts for missing parts. Parts without a usable chart use audio estimates.</p>
     <p>With title and artist only, we’ll search Guitar Hero / Clone Hero charts and retrieve the matching song audio when available. If your chosen instrument has no supported chart, we’ll make an estimate from that song audio. Each part stays separate. If audio is unavailable, supported charts can still be saved and you can attach matching audio later.</p>
@@ -305,6 +309,7 @@
   <script src="stage.js"></script>
   <script src="youtube-background.js"></script>
   <script src="background-video.js"></script>
+  <script src="sheet-music.js"></script>
   <script src="game.js"></script>
   <script src="offline-assets.js"></script>
   <script src="offline.js"></script>
