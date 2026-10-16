@@ -1,5 +1,7 @@
 # Live audio drum recognition — version 126
 
+Version 127 improves Connect audio startup and visible errors. See below.
+
 ## Playing through an EAD sensor or microphone
 
 Open **Controllers / drums → Audio drum recognition · experimental**. Connect
@@ -58,8 +60,9 @@ Closing setup cancels an unfinished soundcheck but keeps the microphone connecte
 for play/test. The main Controllers / drums button displays **mic on** whenever
 capture is connected. **Stop audio** stops every media track, disconnects nodes,
 and closes the capture context immediately; it also cancels a pending permission
-request's eventual stream. Losing window focus, hiding/leaving the page, device
-loss or a worklet error stops capture. Device loss pauses an audio gameplay run.
+request's eventual stream. After connection finishes, losing window focus stops capture. Pending microphone
+permission requests survive focus changes caused by browser permission UI.
+Hiding/leaving the page, device loss or a worklet error stops capture. Device loss pauses an audio gameplay run.
 Automatic updates wait while audio capture or a connection request is active.
 
 ## Recognition and timing
@@ -106,3 +109,25 @@ environment. Test with the user's EAD and room before relying on scores.
 
 API sources: [W3C Media Capture and Streams](https://www.w3.org/TR/mediacapture-streams/)
 and [Web Audio API](https://www.w3.org/TR/webaudio/).
+
+## Connect audio startup — version 127
+
+Status now appears immediately below Connect audio, above the level controls.
+Clicking shows the microphone-permission request message immediately; no input,
+busy Windows devices, denied access, an unavailable selected device or unsupported
+capture APIs show actionable errors in the same visible place. The privacy state
+remains explicit and capture still requires the button click.
+
+A small independent startup guard binds the button before loading recognition or
+game scripts. If dependencies fail to load or initialization throws, the button
+shows a reload instruction instead of becoming inert. If browser microphone policy
+blocks an embedded view, it recommends opening the literal published Riffbound
+link in its own tab. It does not bypass site or browser permission policies.
+
+The audio modules now export to the browser window consistently while preserving
+CommonJS test imports and the worker global. A regression test executes the actual
+classic scripts plus full game initialization, checks that Connect requests
+microphone access exactly once, simulates browser-window blur during pending
+permission, then verifies the visible missing-device error and retryable button.
+Other tests cover blocked/insecure views and dependency/startup failures. Physical
+browser/EAD behavior still needs verification on the player's Windows computer.

@@ -277,12 +277,14 @@
       <p class="secondary">Play your acoustic kit through the EAD’s <b>USB TO HOST audio</b> input or a microphone, without separate MIDI triggers. First teach Riffbound the sound of each drum. Recognition runs on this device; microphone audio is not recorded, saved or uploaded.</p>
       <label class="select-label">Audio input<select id="audioDrumDevice"><option value="">System default audio input</option></select></label>
       <div class="tool-actions"><button id="audioDrumConnect" class="upload-button">Connect audio</button><button id="audioDrumStop" class="quiet" disabled>Stop audio</button></div>
+      <p id="audioDrumStatus" class="audio-drum-connection-status" role="status" aria-live="polite">Audio is off. Choose Connect audio to request microphone access.</p>
+      <p class="secondary">If your browser blocks microphone access in this view, <a href="https://riffbound.aaronreifschneider.chatgpt.site" target="_blank" rel="noopener noreferrer">open Riffbound in its own tab ↗</a>. Allow microphone access from the address bar/site permissions. A disconnected EAD or missing microphone will show an error here.</p>
       <p class="secondary">Allow microphone access when asked. Once names appear, select your EAD USB audio input and choose Reconnect selected audio. Route only your drums into that input: keep backing tracks and the EAD click out of its USB recording mix. Use headphones so song playback does not reach the microphone. Keep EAD effects low during soundcheck and play.</p>
       <label for="audioDrumLevel">Input level</label><meter id="audioDrumLevel" min="0" max="1" value="0" aria-label="Live drum input level"></meter><p id="audioDrumLevelText" class="secondary">Microphone off</p>
       <div class="controller-selects"><label>Noise gate<select id="audioDrumGate"><option value="0.004">Quiet kit · sensitive</option><option value="0.012" selected>Normal</option><option value="0.035">Loud room · less sensitive</option></select></label><label>Extra input delay compensation (ms)<input id="audioDrumLatency" type="number" min="-100" max="200" step="5" value="0"></label></div>
       <p class="secondary">Start with Normal. Choose a lower gate for missed quiet hits, or raise it for room noise. Recognition timestamps compensate for processing delay; use extra delay only to correct your USB input latency. Positive values move recognized hits earlier.</p>
       <div class="tool-actions"><button id="audioDrumLearn" class="upload-button" disabled>Start kit soundcheck</button><button id="audioDrumCancel" class="quiet" hidden>Cancel soundcheck</button><button id="audioDrumForget" class="quiet" disabled>Clear learned sounds</button></div>
-      <p id="audioDrumStatus" class="secondary" role="status" aria-live="polite"></p><div id="audioDrumSounds" class="audio-drum-sounds"></div>
+<div id="audioDrumSounds" class="audio-drum-sounds"></div>
       <p class="secondary">Follow each prompt: hit only that drum/cymbal three times, about one second apart. No music during soundcheck. All six sounds must be learned and distinguishable before play; you can relearn individual sounds below. Learned sound profiles save for this input in this browser. Reconnect and enable audio each visit.</p>
       <label class="controller-toggle"><input id="audioDrumEnabled" type="checkbox" disabled> Use audio drums for play</label>
       <p id="audioDrumLastHit" role="status">Recognized hits appear here. Testing does not score.</p>
@@ -314,6 +316,7 @@
     <p class="secondary">Custom mapping is optional for supported setups. To customize, choose Add input, strike one pad, cymbal or pedal and release it. Some kits send a button combination for one pad. You can add alternate inputs to the same action. MIDI pitch pads use C4, D4, E4, F4, G4; C5 strums, D5 activates Overdrive, E5 pauses. Vocal mode plays pitch pads and does not score microphone singing. MIDI requires browser permission; desktop Chrome or Edge is recommended. Unknown device layouts need custom mapping. Stage Tour hardware compatibility still needs testing with a physical kit.</p>
     <button class="play-button" data-close="controllerDialog">DONE · RETURN TO THE STAGE <span>↗</span></button>
   </dialog>
+  <script src="audio-drum-bootstrap.js"></script>
   <script src="audio-drum-core.js"></script>
   <script src="audio-drum-input.js"></script>
   <script src="audio-drum-setup.js"></script>

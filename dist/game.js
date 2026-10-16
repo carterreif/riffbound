@@ -1364,7 +1364,9 @@
     }});
     window.RiffControllerSetup({document,hub:controllerInput,getContext:controllerContext,beforeOpen:()=>{if(running())pause({showMenu:false});closePauseMenu();clearHeld();}});
   }
-  if(window.RiffAudioDrumInput&&window.RiffAudioDrumSetup&&$('audioDrumConnect')){
+  if($('audioDrumConnect')){
+    try{
+    if(!window.RiffAudioDrumInput?.Core||!window.RiffAudioDrumSetup)throw Error('Audio recognition files did not finish loading. Refresh Riffbound while online.');
     const A=window.RiffAudioDrumInput;
     audioDrums=new A.Input({navigator:window.navigator,storage:localStorage,
       createContext:()=>{const C=window.AudioContext||window.webkitAudioContext;if(!C)throw Error('This browser does not support audio capture.');return new C({latencyHint:'interactive'});},
@@ -1379,8 +1381,9 @@
         const lanes=new Set(event.roles.map(role=>A.Core.lane(role,fourLaneDrums())).filter(Number.isInteger));
         for(const lane of lanes){session.tap(lane,time);flashes[lane]=.65;}
       }});
-    window.RiffAudioDrumSetup({document,input:audioDrums});
+    window.RiffAudioDrumSetup({document,input:audioDrums,boot:window.RiffAudioDrumBoot});
     window.addEventListener('pagehide',()=>audioDrums.stop());
+    }catch(error){const message='Audio setup could not start: '+String(error.message||error);if(window.RiffAudioDrumBoot)window.RiffAudioDrumBoot.fail(message);else if($('audioDrumStatus'))$('audioDrumStatus').textContent=message;audioDrums=null;}
   }
   document.addEventListener('keydown',event=>{
     if($('backgroundDialog')?.open)return;
@@ -1457,7 +1460,7 @@
   $('muteButton').addEventListener('click',()=>{if(muted||volume===0){muted=false;volume=preMute||.7;}else{preMute=volume;muted=true;}setVolume();preferences();});
   setVolume();
   document.addEventListener('visibilitychange',()=>{if(document.hidden){pause();clearHeld();audioDrums?.stop('Audio stopped while the page was hidden. Reconnect in Controllers / drums.');}});
-  window.addEventListener('blur',()=>{controllerFocused=false;pause();clearHeld();audioDrums?.stop('Audio stopped when the window lost focus. Reconnect in Controllers / drums.');});
+  window.addEventListener('blur',()=>{controllerFocused=false;pause();clearHeld();if(audioDrums?.stream&&!audioDrums.connecting)audioDrums.stop('Audio stopped when the window lost focus. Reconnect in Controllers / drums.');});
   window.addEventListener('focus',()=>{controllerFocused=true;showPauseMenu();});
 
   function updateUi(t){

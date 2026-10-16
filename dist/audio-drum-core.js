@@ -1,5 +1,5 @@
 /* Local, calibrated acoustic drum recognition. No chart or song is consulted. */
-(function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;else root.RiffAudioDrumCore=api;})(typeof globalThis==='object'?globalThis:this,()=>{
+(function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;else root.RiffAudioDrumCore=api;})(typeof window==='object'?window:globalThis,()=>{
  'use strict';
  const SIZE=2048,HOP=256,BANDS=48,ROLES=['snare','hihat','tom','cymbal','floor','kick'];
  const LABELS=['Red snare','Yellow hi-hat','Blue tom','Orange cymbal','Green floor tom','Kick'];
