@@ -28,6 +28,14 @@
     return [...pads.values()].sort((a,b)=>a.time-b.time||a.lane-b.lane).map((n,id)=>({...n,id}));
   }
   const fourDrumLevels=levels=>Object.fromEntries(Object.entries(levels).map(([level,notes])=>[level,fourDrums(notes)]));
+  const drumPlayLayout=quality=>['four','five'].includes(quality?.drumPlayLayout)?quality.drumPlayLayout:drumLayout(quality);
+  const drumViews=new WeakMap();
+  function playDrums(notes,quality){
+    const source=drumLayout(quality),target=drumPlayLayout(quality);if(source===target)return notes;
+    let views=drumViews.get(notes);if(!views){views=new Map();drumViews.set(notes,views);}const key=source+':'+target;
+    if(!views.has(key))views.set(key,target==='four'?fourDrums(notes):notes.map(n=>({...n,lane:n.lane===3?4:n.lane})));
+    return views.get(key);
+  }
   function reduce(notes,instrument,beat,level){
     const drums=instrument==='drums';
     const gap=level==='easy'?Math.max(.35,beat*1.15):level==='medium'?Math.max(.18,beat*.6):Math.max(.08,beat*.28);
@@ -85,6 +93,6 @@
     return {...charts,...build(charts.expert,instrument,beat)};
   }
   function upgradeAll(charts,beat){return Object.fromEntries(Object.entries(charts).map(([instrument,levels])=>[instrument,upgrade(levels,instrument,beat)]));}
-  const api={MAX_DURATION,MAX_REFERENCE_DURATION,LEVELS,NAMES,WINDOWS,APPROACH,frets,drumLayout,fourDrums,fourDrumLevels,build,upgrade,upgradeAll};
+  const api={MAX_DURATION,MAX_REFERENCE_DURATION,LEVELS,NAMES,WINDOWS,APPROACH,frets,drumLayout,drumPlayLayout,playDrums,fourDrums,fourDrumLevels,build,upgrade,upgradeAll};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.RiffDifficulties=api;
 })(typeof window!=='undefined'?window:globalThis);

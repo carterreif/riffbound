@@ -44,7 +44,7 @@
   const particles=[],flashes=[0,0,0,0,0,0],inputOwners=new Map();
   const mobileViewport=window.matchMedia('(max-width: 850px), (pointer: coarse) and (max-width: 1180px)');
   let padTarget=0,padWidth=0;
-  const fourLaneDrums=()=>instrument==='drums'&&D.drumLayout(song?.quality)==='four';
+  const fourLaneDrums=()=>instrument==='drums'&&D.drumPlayLayout(song?.quality)==='four';
   const highwayLanes=()=>fourLaneDrums()?4:5;
   const laneColor=lane=>instrument==='drums'?(lane===E.KICK_LANE?E.KICK_COLOR:E.DRUM_COLORS[fourLaneDrums()&&lane===3?4:lane]):E.COLORS[lane];
   let idleNotes=E.makeChart('medium'), judgeTimer=0, lastAnnounce='', finishScheduled=false;
@@ -60,7 +60,8 @@
   const inputTime=()=>running()?gameTransport().time:state==='paused'?frozenInputTime:0;
   const trackDuration=()=>song?.duration??E.DURATION,trackBeat=()=>song?.beat??E.BEAT;
   const finishedPosition=()=>practiceLoop?.end??trackDuration();
-  const chartNotes=()=>song?song.charts[instrument][difficulty]:E.makeChart(difficulty,instrument);
+  const notesForLevel=level=>{const notes=song.charts[instrument][level];return instrument==='drums'?D.playDrums(notes,song.quality):notes;};
+  const chartNotes=()=>song?notesForLevel(difficulty):E.makeChart(difficulty,instrument);
   let fretCacheNotes=null,fretCacheCount=0;
   const playableFrets=()=>{
     if(fourLaneDrums())return 4;
@@ -69,7 +70,7 @@
   };
   const effectiveMode=()=>['drums','vocals'].includes(instrument)?'tap':mode;
   const bestBaseKey=()=>song?.quality?.imports?.[instrument]?`riffbound-import-${song.id}-${song.quality.imports[instrument].id}-${instrument}-${difficulty}-${effectiveMode()}`:song?.quality?.scoreReview&&instrument==='drums'&&(song.quality.preserveEasyMedium===false||['expert','hard'].includes(difficulty))?`riffbound-${song.quality.scoreReference||'inbloom'}-score-v${song.quality.scoreRevision||2}-${song.id}-${difficulty}-${effectiveMode()}`:difficulty==='expert'?(song?`riffbound-upload-${instrument==='drums'?'v5':'v3'}-${song.id}-${instrument}-expert-${effectiveMode()}`:instrument==='guitar'?`riffbound-best-v1-expert-${mode}`:`riffbound-best-v2-${instrument}-expert-${effectiveMode()}`):`riffbound-difficulty-v1-${song?.id||'demo'}-${instrument}-${difficulty}-${effectiveMode()}`;
-  const bestKey=()=>bestBaseKey()+(fourLaneDrums()?'-four-drums-v1':'')+(song?.quality?.chartAdjustments?.[instrument]?`-shift-${song.quality.chartAdjustments[instrument]}`:'');
+  const bestKey=()=>bestBaseKey()+(fourLaneDrums()?'-four-drums-v1':instrument==='drums'&&D.drumLayout(song?.quality)==='four'?'-five-from-four-v1':'')+(song?.quality?.chartAdjustments?.[instrument]?`-shift-${song.quality.chartAdjustments[instrument]}`:'');
   function readBest(){try{return Number(localStorage.getItem(bestKey())||0);}catch{return 0;}}
   function refreshBest(){const n=readBest();$('localBest').textContent=n?n.toLocaleString():'—';}
   function setAnnouncement(small,big,visible=true,countdown=false){
@@ -101,6 +102,7 @@
     if($('backgroundExportVideo'))$('backgroundExportVideo').disabled=busy()||exportingVideo||!song||!window.RiffBackground?.hasVideo;
     if($('backgroundSaveSetlist'))$('backgroundSaveSetlist').disabled=busy()||exportingVideo||!song||!window.RiffBackground?.hasVideo;
     $('difficultyGroup').disabled=active();$('modeGroup').disabled=active()||['drums','vocals'].includes(instrument);$('instrumentGroup').disabled=busy();
+    if($('drumPlayLayout'))$('drumPlayLayout').disabled=active()||pendingSaves>0;
     document.querySelectorAll('input[name=instrument]').forEach(input=>input.disabled=canSwitchPlayback()&&!hasPlayablePart(input.value));
     refreshPlayableParts();
     $('loadKingNothingDrums').disabled=!song||active()||pendingSaves>0;
@@ -151,6 +153,11 @@
   function clearHeld(){controllerInput?.reset();held.clear();inputOwners.clear();fretButtons.forEach(b=>b.classList.remove('active'));$('kickButton').classList.remove('active');session.notes.forEach(n=>n.held=false);}
   function refreshInstrument(){
     const drums=instrument==='drums',vocals=instrument==='vocals',four=fourLaneDrums();
+    if($('drumLayoutSettings')){
+      $('drumLayoutSettings').hidden=!drums||!song?.charts.drums;
+      $('drumPlayLayout').value=D.drumPlayLayout(song?.quality);
+      $('drumPlayLayoutHint').textContent='Choose before playing. Saved with this song. '+(D.drumLayout(song?.quality)==='four'?'This four-lane source keeps Red, Yellow, Blue and Green; five-lane play moves Green to the fifth position and leaves Orange empty.':'Four-lane play combines the five-lane source into Red, Yellow, Blue and Green. Switching back restores all original notes.');
+    }
     if(!uploadTargetExplicit)uploadInstrument=instrument;
     document.querySelectorAll('input[name=instrument]').forEach(input=>input.checked=input.value===instrument);
     document.querySelectorAll('input[name=chartTarget]').forEach(input=>input.checked=input.value===uploadInstrument);
@@ -194,7 +201,7 @@
     if(context!==trainingContext||song&&notes!==trainingNotes){lastMissTime=null;trainingContext=context;trainingNotes=notes;}
     if($('hitTiming')){$('hitTiming').textContent='';$('hitTiming').classList.remove('show');}
     videoChartStart=notes.reduce((first,n)=>Number.isFinite(n.time)?Math.min(first,n.time):first,Infinity);
-    session=new E.Session(difficulty,mode,instrument,{drumLayout:D.drumLayout(song?.quality),notes:T.segment(notes,practiceLoop),musicEnd:practiceLoop?.end??song?.musicEnd??E.MUSIC_END});session.onJudge=judge;session.onMilestone=n=>{
+    session=new E.Session(difficulty,mode,instrument,{drumLayout:D.drumPlayLayout(song?.quality),notes:T.segment(notes,practiceLoop),musicEnd:practiceLoop?.end??song?.musicEnd??E.MUSIC_END});session.onJudge=judge;session.onMilestone=n=>{
       const el=$('streakCallout');el.textContent=`${n} NOTE STREAK`;el.classList.remove('show');void el.offsetWidth;el.classList.add('show');
     };
     particles.length=0;flashes.fill(0);clearHeld();finishScheduled=false;
@@ -219,7 +226,7 @@
   function refreshChartPreview(){
     $('chartPreview').hidden=!song;if(!song)return;
     const notes=chartNotes();$('chartSummary').textContent=`${partName(instrument)} · ${D.NAMES[difficulty]} · ${notes.length} notes`;
-    $('chartDifficultySummary').textContent='Expert: all detected notes. '+['expert','hard','medium','easy'].map(level=>`${D.NAMES[level]}: ${song.charts[instrument][level].length}`).join(' · ');
+    $('chartDifficultySummary').textContent='Expert: all detected notes. '+['expert','hard','medium','easy'].map(level=>`${D.NAMES[level]}: ${notesForLevel(level).length}`).join(' · ');
     $('chartMapping').textContent=instrument==='drums'?'Red: snare · Yellow: closed/open hi-hat · Blue: tom · Orange: crash/ride cymbal · Green: floor tom · Purple: kick. Easy: fewer hits and kicks. Medium: core groove. Hard: denser fills. Expert: every distinct detected hit. Drum colors keep their instrument on every level.':'Colors follow pitch from low to high. Easy uses green/red/yellow; Medium adds blue; Hard and Expert add orange. Easier levels use fewer notes and simpler chords. Expert keeps all detected attacks. Repeated pitches keep their color within each difficulty.';
     if(instrument==='bass')$('chartMapping').textContent='Bass follows detected low pitches. Easy uses three frets, Medium four, and Hard/Expert all five. Easier levels have fewer notes. Repeated pitches keep their color within each difficulty. Use tap or hold + strum.';
     if(instrument==='vocals')$('chartMapping').textContent='Vocal melody: green, red, yellow, blue, orange from low to high. Tap the pitch pad and hold its tail. This is pad play, without microphone scoring or lyrics. Repeated pitches keep their color. Other melodic instruments can affect the estimate.';
@@ -235,7 +242,7 @@
     const authored=song.quality?.imports?.[instrument];
     $('findAuthoredChart').textContent=`Find authored ${partName(instrument)} chart`;
     if(authored){
-      $('chartDifficultySummary').textContent=['expert','hard','medium','easy'].map(level=>`${D.NAMES[level]}: ${song.charts[instrument][level].length} (${authored.levels.includes(level)?'imported':authored.derived.includes(level)?('derived from '+D.NAMES[authored.derivedFrom?.[level]||'expert']):'retained'})`).join(' · ');
+      $('chartDifficultySummary').textContent=['expert','hard','medium','easy'].map(level=>`${D.NAMES[level]}: ${notesForLevel(level).length} (${authored.levels.includes(level)?'imported':authored.derived.includes(level)?('derived from '+D.NAMES[authored.derivedFrom?.[level]||'expert']):'retained'})`).join(' · ');
       $('chartDetails').textContent=`Imported from ${authored.filename}. Authored notes and supplied difficulties retained. `+names.map((name,lane)=>name?`${name}: ${notes.filter(n=>n.lane===lane).length}`:null).filter(Boolean).join(' · ');
       $('chartMapping').textContent=instrument==='drums'?'Imported drum mapping: Red snare · Yellow hi-hat · Blue tom · Orange cymbal · Green floor tom · Purple kick. '+(authored.layout==='four'?'Standard four-lane charts cannot identify every drum voice.':authored.layout==='pro'?'Pro charts map yellow cymbals to hi-hat, other cymbals to orange, and toms to blue/green.':'Five-lane colors follow the authored chart.'):'Fret colors and holds follow the imported chart. Supplied difficulty arrangements are preserved, including any extra frets they use.';
     }
@@ -246,6 +253,7 @@
     const ghosts=notes.filter(n=>n.ghost).length;
     if(ghosts)$('chartDetails').textContent+=` ${ghosts} quiet notes. Hollow centers mark soft hits; play the same color.`;
     if(instrument==='drums'&&notes.some(n=>n.rollDuration))$('chartMapping').textContent+=' Roll ribbons: tap each start note, then repeat that pad through the ribbon. Extra roll taps keep your streak but add no scored notes; holding a pad gives no points.';
+    if(instrument==='drums'&&!fourLaneDrums()&&D.drumLayout(song.quality)==='four')$('chartMapping').textContent='Five-lane play of a four-lane chart: Red, Yellow and Blue keep their colors; Green uses the fifth lane. Orange has no added notes. Purple: kick. All difficulties keep the source timing.';
     if(fourLaneDrums())$('chartMapping').textContent='Four-lane drums: Red · Yellow · Blue · Green. Purple: kick. Source pad colors stay the same on every difficulty; Pro toms and cymbals share their authored pad.'+(notes.some(n=>n.rollDuration)?' Roll ribbons: tap the start, then repeat that pad. Extra roll taps keep your streak and add no scored notes.':'');
     refreshSongTiming();
     const canvas=$('chartOverview'),c=canvas.getContext('2d'),w=canvas.width,h=canvas.height;
@@ -450,9 +458,17 @@
   }
   function setSongPercussion(){
     song.charts=D.upgradeAll(song.charts,song.beat);
-    const notes=song.charts.drums?.expert||[];
+    refreshPercussion();
+  }
+  function refreshPercussion(){
+    const notes=D.playDrums(song.charts.drums?.expert||[],song.quality);
     song.percussion=window.RiffMotion?.performanceEvents?.(notes,song.charts.guitar?.expert||song.charts.bass?.expert||[])||{left:notes.filter(n=>[0,2,4].includes(n.lane)),right:notes.filter(n=>[1,3].includes(n.lane))};
   }
+  $('drumPlayLayout')?.addEventListener('change',()=>{
+    const layout=$('drumPlayLayout').value;
+    if(!song?.charts.drums||instrument!=='drums'||active()||pendingSaves>0||!['four','five'].includes(layout)){if(song)$('drumPlayLayout').value=D.drumPlayLayout(song.quality);return;}
+    song.quality={...song.quality,drumPlayLayout:layout};refreshPercussion();newSession();refreshInstrument();updateUi(0);return saveSong();
+  });
   async function chooseInstrument(target,force=false,repair=false){
     if(!PARTS.includes(target))return;
     if(!force&&canSwitchPlayback()&&target!==instrument&&hasPlayablePart(target)){

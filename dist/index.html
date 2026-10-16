@@ -99,6 +99,10 @@
           <label><input type="radio" name="difficulty" value="hard"><span>Hard<small>5 FRETS</small></span></label>
           <label><input type="radio" name="difficulty" value="expert"><span>Expert<small>ALL NOTES</small></span></label>
         </div></fieldset>
+        <div id="drumLayoutSettings" hidden>
+          <label class="select-label" for="drumPlayLayout">DRUM LANES<select id="drumPlayLayout" aria-describedby="drumPlayLayoutHint"><option value="four">4 lanes — Red, Yellow, Blue, Green</option><option value="five">5 lanes — Red, Yellow, Blue, Orange, Green</option></select></label>
+          <p id="drumPlayLayoutHint" class="secondary">Choose before playing. Saved with this song.</p>
+        </div>
         <fieldset id="modeGroup"><legend>PLAY STYLE</legend><div class="choice-row mode-row">
           <label><input type="radio" name="mode" value="tap" checked><span>Tap frets</span></label>
           <label><input type="radio" name="mode" value="strum"><span>Hold + strum</span></label>
