@@ -37,8 +37,8 @@ for(const mobile of [false,true])test(`${mobile?'mobile':'desktop'} failed Drums
 test('file picker snapshots the selected part and identity; cancellation discards the snapshot',async()=>{
  const lookups=[],app=setup({chartFixture:notes,browserOverrides:{RiffCommunityCharts:{lookup:async q=>{lookups.push({parts:[...q.parts],title:q.title});return {charts:{},imports:{},sources:{}};}}}}),n=app.nodes;
  await app.upload();await until(()=>!n.saveCurrentButton.disabled);
- await radio(app,'chartTarget','drums').emit('change');n.lookupTitle.value='Picked song';await n.uploadButton.click();
- await radio(app,'chartTarget','bass').emit('change');n.lookupTitle.value='Changed field';
+ await radio(app,'chartTarget','drums').emit('change');n.addLookupTitle.value='Picked song';await n.uploadButton.click();
+ await radio(app,'chartTarget','bass').emit('change');n.addLookupTitle.value='Changed field';
  await app.upload('Picked.wav',9);assert.equal(app.requests.at(-1),'drums');assert.deepEqual(lookups.at(-1),{parts:['drums'],title:'Picked song'});
  await until(()=>!n.saveCurrentButton.disabled);await n.uploadButton.click();await n.songFile.emit('cancel');
  await radio(app,'chartTarget','vocals').emit('change');await app.upload('After cancel.wav',8);assert.equal(app.requests.at(-1),'vocals');

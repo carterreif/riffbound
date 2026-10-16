@@ -19,7 +19,7 @@ for(const mobile of [false,true]){
  test(`${mobile?'mobile':'desktop'} backup searches its own identity and imports only its missing Drums`,async()=>{
   const record=await backup(),n=F.network(),calls=[];
   const app=setup({mobile,browserOverrides:{RiffCommunityCharts:{...C,lookup:options=>{calls.push(options);return C.lookup({...F.verifiedLookup(options),fetcher:n.fetcher});}}}});
-  app.nodes.lookupTitle.value='Wrong upload';app.nodes.lookupArtist.value='Wrong artist';
+  app.nodes.addLookupTitle.value='Wrong upload';app.nodes.addLookupArtist.value='Wrong artist';
   const saved=await importInto(app,record);
   assert.equal(calls.length,1);assert.deepEqual(copy(calls[0].parts),['drums']);assert.equal(calls[0].title,'Fixture Song');assert.equal(calls[0].artist,'Fixture Artist');assert.equal(calls[0].enabled,true);
   assert.deepEqual(app.requests,[]);assert.deepEqual(Object.keys(saved.charts),['drums']);assert.ok(saved.quality.imports.drums);assert.notDeepEqual(saved.charts.drums,record.charts.drums);assert.equal(saved.instrument,'drums');assert.equal(saved.bpm,record.bpm);assert.equal(saved.chartVersion,record.chartVersion);

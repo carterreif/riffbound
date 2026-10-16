@@ -38,7 +38,7 @@ for(const mobile of [false,true])test(`${mobile?'mobile':'desktop'} repair bypas
  await app.nodes.libraryButton.click();await until(()=>app.nodes.songList.children.length===1);await app.nodes.songList.children[0].children[2].children[0].click();
  await app.radios.instrument.find(r=>r.value==='drums').emit('change');await until(()=>!app.nodes.repairDrumsButton.disabled);
  const before=plain([...app.savedSongs.values()][0]),audio=[...app.savedSongs.values()][0].audioBlob,jobs=app.requests.length;
- repairing=true;calls.length=0;app.nodes.lookupTitle.value='Fixture Song';app.nodes.lookupArtist.value='Fixture Artist';
+ repairing=true;calls.length=0;app.nodes.addLookupTitle.value='Fixture Song';app.nodes.addLookupArtist.value='Fixture Artist';
  await app.nodes.repairDrumsButton.click();await until(()=>!app.nodes.repairDrumsButton.disabled);
  saved=[...app.savedSongs.values()][0];assert.equal(calls.length,1);assert.deepEqual(plain(calls[0].parts),['drums']);assert.equal(calls[0].enabled,true);assert.equal(app.requests.length,jobs);
  assert.deepEqual(plain(saved.charts.drums),repaired);assert.equal(saved.quality.imports.drums.filename,'fresh-drums.chart');assert.equal(saved.audioBlob,audio);assert.equal(saved.id,before.id);

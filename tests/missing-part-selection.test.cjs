@@ -16,7 +16,7 @@ for(const mobile of [false,true])for(const event of ['change','click'])test(`${m
 });
 test('missing drum selection checks the authored Drum track first and preserves the saved Guitar source',async()=>{
  const calls=[],app=setup({chartFixture:fixture,browserOverrides:{RiffCommunityCharts:{identify:C.identify,lookup:async q=>{calls.push(q);return q.parts.includes('drums')?{charts:{drums},imports:{drums:{filename:'notes.chart',levels:D.LEVELS,derived:[]}},sources:{drums:'Own authored Drums'},bpm:120,beat:.5,message:'Authored drums loaded.'}:{charts:{}};}}}}),n=app.nodes;
- await app.upload('01 Track 1.mp3');await until(()=>!n.saveCurrentButton.disabled);const before=plain([...app.savedSongs.values()][0].charts.guitar),jobs=app.requests.length;n.lookupTitle.value='Known Song';n.lookupArtist.value='Known Artist';
+ await app.upload('01 Track 1.mp3');await until(()=>!n.saveCurrentButton.disabled);const before=plain([...app.savedSongs.values()][0].charts.guitar),jobs=app.requests.length;n.addLookupTitle.value='Known Song';n.addLookupArtist.value='Known Artist';
  await app.radios.chartTarget.find(r=>r.value==='drums').emit('change');await until(()=>!n.saveCurrentButton.disabled);
  const saved=[...app.savedSongs.values()][0];assert.deepEqual(plain(calls.at(-1).parts),['drums']);assert.equal(calls.at(-1).enabled,true);assert.equal(calls.at(-1).title,'Known Song');assert.equal(calls.at(-1).artist,'Known Artist');assert.equal(app.requests.length,jobs);assert.ok(saved.quality.imports.drums);assert.deepEqual(plain(saved.charts.guitar),before);assert.deepEqual(plain(saved.charts.drums),drums);
 });

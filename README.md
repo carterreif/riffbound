@@ -1,5 +1,7 @@
 # Riffbound
 
+Version 119 removes the sidebar's duplicate chart-search explanation, title/artist fields and community-search toggle. Add a song is the single place for those options, with the missing instrument-search, alternate-chart and song-length details retained there. Existing upload, chart repair and matching actions use those same fields and preference. The offline cache revision is 119-1.
+
 Version 118 fixes YouTube links getting stuck on Matching start frame. YouTube now acknowledges a queued start position before song audio is scheduled, without waiting for a paused decoded frame or metadata that may only arrive during playback. The queued position stays held through count-in and begins at the chart's first note. Pause, restart, sections and supported practice speeds retain their timing; preparation errors also appear beside the link button. The offline cache revision is 118-1.
 
 Version 117 accepts YouTube short/watch/Shorts/embed links through the official embedded player and displays link feedback beside Use video link. YouTube backgrounds remain muted, save with each song and link backup, and follow the chart transport. Unsupported YouTube practice speeds and embedding/playback failures give explicit recovery messages. Precise timing still depends on YouTube buffering and keyframes. The offline cache revision is 117-1.

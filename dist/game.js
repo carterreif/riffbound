@@ -109,7 +109,7 @@
     if($('drumRepairTools'))$('drumRepairTools').hidden=!song||instrument!=='drums';
     if($('repairDrumsButton'))$('repairDrumsButton').disabled=!song||active()||pendingSaves>0;
     $('chartTargetGroup').disabled=busy();$('chartScope').disabled=active();$('partsGroup').disabled=active();$('buildPartsButton').disabled=active();
-    for(const id of ['communityLookup','addCommunityLookup','lookupTitle','lookupArtist','addLookupTitle','addLookupArtist'])$(id).disabled=active();
+    for(const id of ['addCommunityLookup','addLookupTitle','addLookupArtist'])$(id).disabled=active();
     $('rechartButton').disabled=active()||song?.chartOnly===true;$('findAuthoredChart').disabled=!song||active()||pendingSaves>0||!Community;$('practiceButton').disabled=busy()||song?.chartOnly===true;$('timingButton').disabled=busy();$('libraryButton').disabled=busy();
     $('saveCurrentButton').disabled=!song||busy()||pendingSaves>0;$('exportCurrentButton').disabled=!song||busy()||(!song.chartOnly&&!Library.audioStatus(song?.audioBlob).ok);
     $('reconnectAudioButton').disabled=!song||busy()||pendingSaves>0;$('importBackupButton').disabled=busy();
@@ -280,7 +280,7 @@
     if(switchExisting&&(!active()||hasPlayablePart(target)))return chooseInstrument(target);
   }
   function pickSongFile(){
-    pendingUpload={targets:requestedParts(),identity:{title:$('lookupTitle').value,artist:$('lookupArtist').value}};
+    pendingUpload={targets:requestedParts(),identity:{title:$('addLookupTitle').value,artist:$('addLookupArtist').value}};
     $('songFile').click();
   }
   function refreshChartScope(){
@@ -390,7 +390,7 @@
   }
   function existingChartIdentity(useFields=false){
     const inferred=Community?.identify?.(song.filename||song.title)||{title:song.title,artist:''},stored=song.quality?.lookupIdentity||Object.values(song.quality?.communityReferences||{}).find(Boolean)||{};
-    return {title:useFields&&$('lookupTitle').value.trim()||stored.title||inferred.title,artist:useFields&&$('lookupArtist').value.trim()||stored.artist||song.quality?.chartArtist||inferred.artist};
+    return {title:useFields&&$('addLookupTitle').value.trim()||stored.title||inferred.title,artist:useFields&&$('addLookupArtist').value.trim()||stored.artist||song.quality?.chartArtist||inferred.artist};
   }
   function applyChartResult(result,samples){
     const previous=song,q=result.quality||{},affected=Object.keys(result.charts);
@@ -547,7 +547,7 @@
     const selected=charts[instrument]?instrument:Object.keys(charts)[0];
     return {...generated,charts,waveform,instrument:selected,bpm:generated?.bpm||cached.bpm||online.bpm,beat:generated?.beat||cached.beat||online.beat,offset:generated?.offset??cached.offset??0,chartVersion:Math.max(generated?.chartVersion||1,cached.chartVersion||1),quality:{...generated?.quality,...(reused.length?cached.quality:{}),...(charts.drums?{drumLayout}:{}),reusedParts:reused,lookupIdentity:online.identity||cached.quality.lookupIdentity||identity,imports,communityReferences:references,chartTimings:{...generated?.quality?.chartTimings,...cached.quality.chartTimings,...online.timings},chartAdjustments:{...cached.quality.chartAdjustments},timingReviews,audioReviews,sources:{...generated?.quality?.sources,...cached.quality.sources,...online.sources},...(online.timing?{chartTiming:online.timing,chartArtist:online.identity?.artist||searchIdentity.artist}:{}),methods:{...generated?.quality?.methods,...cached.quality.methods,...Object.fromEntries(Object.keys(onlineCharts).map(part=>[part,'Authored community chart']))},onlineLookup:{message,reference:online.reference||null,references,availableParts:online.availableParts||[],attempts:online.attempts||[],issues:online.issues||{}}}};
   }
-  async function uploadSong(file,targets=requestedParts(),identity={title:$('lookupTitle').value,artist:$('lookupArtist').value}){
+  async function uploadSong(file,targets=requestedParts(),identity={title:$('addLookupTitle').value,artist:$('addLookupArtist').value}){
     if(!file)return;
     const validation=!targets.length?'Choose at least one part to chart.':audioFileError(file);
     if(validation){$('chartStatus').textContent=validation;$('chartStatus').classList.add('error');setSetlistMessage(validation,true);return;}
@@ -990,9 +990,8 @@
     $('addSongButton').scrollIntoView?.({block:'start'});
     if(file)await uploadSong(file,targets,identity);else if(hasIdentity)await findSongWithoutAudio(identity,targets);else await chartOpenSong(targets,identity);
   }
-  for(const id of ['communityLookup','addCommunityLookup']){
-    $(id).checked=communityLookup;$(id).addEventListener('change',()=>{communityLookup=$(id).checked;for(const other of ['communityLookup','addCommunityLookup'])$(other).checked=communityLookup;preferences();});
-  }
+  $('addCommunityLookup').checked=communityLookup;
+  $('addCommunityLookup').addEventListener('change',()=>{communityLookup=$('addCommunityLookup').checked;preferences();});
   $('addSongButton').addEventListener('click',openAddSong);
   $('libraryAddSong').addEventListener('click',openAddSong);
   $('addSongFile').addEventListener('change',()=>{$('addSongError').textContent='';updateButtons();});
