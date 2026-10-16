@@ -60,7 +60,7 @@
   const inputTime=()=>running()?gameTransport().time:state==='paused'?frozenInputTime:0;
   const trackDuration=()=>song?.duration??E.DURATION,trackBeat=()=>song?.beat??E.BEAT;
   const finishedPosition=()=>practiceLoop?.end??trackDuration();
-  const notesForLevel=level=>{const notes=song.charts[instrument][level];return instrument==='drums'?D.playDrums(notes,song.quality):notes;};
+  const notesForLevel=level=>{const notes=song.charts[instrument][level];return instrument==='drums'?D.playDrums(notes,song.quality,{reference:song.charts.drums.expert,beat:song.beat}):notes;};
   const chartNotes=()=>song?notesForLevel(difficulty):E.makeChart(difficulty,instrument);
   let fretCacheNotes=null,fretCacheCount=0;
   const playableFrets=()=>{
@@ -70,7 +70,7 @@
   };
   const effectiveMode=()=>['drums','vocals'].includes(instrument)?'tap':mode;
   const bestBaseKey=()=>song?.quality?.imports?.[instrument]?`riffbound-import-${song.id}-${song.quality.imports[instrument].id}-${instrument}-${difficulty}-${effectiveMode()}`:song?.quality?.scoreReview&&instrument==='drums'&&(song.quality.preserveEasyMedium===false||['expert','hard'].includes(difficulty))?`riffbound-${song.quality.scoreReference||'inbloom'}-score-v${song.quality.scoreRevision||2}-${song.id}-${difficulty}-${effectiveMode()}`:difficulty==='expert'?(song?`riffbound-upload-${instrument==='drums'?'v5':'v3'}-${song.id}-${instrument}-expert-${effectiveMode()}`:instrument==='guitar'?`riffbound-best-v1-expert-${mode}`:`riffbound-best-v2-${instrument}-expert-${effectiveMode()}`):`riffbound-difficulty-v1-${song?.id||'demo'}-${instrument}-${difficulty}-${effectiveMode()}`;
-  const bestKey=()=>bestBaseKey()+(fourLaneDrums()?'-four-drums-v1':instrument==='drums'&&D.drumLayout(song?.quality)==='four'?'-five-from-four-v1':'')+(song?.quality?.chartAdjustments?.[instrument]?`-shift-${song.quality.chartAdjustments[instrument]}`:'');
+  const bestKey=()=>bestBaseKey()+(fourLaneDrums()?'-four-drums-v1':instrument==='drums'?'-separate-five-drums-v2':'')+(song?.quality?.chartAdjustments?.[instrument]?`-shift-${song.quality.chartAdjustments[instrument]}`:'');
   function readBest(){try{return Number(localStorage.getItem(bestKey())||0);}catch{return 0;}}
   function refreshBest(){const n=readBest();$('localBest').textContent=n?n.toLocaleString():'—';}
   function setAnnouncement(small,big,visible=true,countdown=false){
@@ -156,7 +156,7 @@
     if($('drumLayoutSettings')){
       $('drumLayoutSettings').hidden=!drums||!song?.charts.drums;
       $('drumPlayLayout').value=D.drumPlayLayout(song?.quality);
-      $('drumPlayLayoutHint').textContent='Choose before playing. Saved with this song. '+(D.drumLayout(song?.quality)==='four'?'This four-lane source keeps Red, Yellow, Blue and Green; five-lane play moves Green to the fifth position and leaves Orange empty.':'Four-lane play combines the five-lane source into Red, Yellow, Blue and Green. Switching back restores all original notes.');
+      $('drumPlayLayoutHint').textContent='Choose before playing. Saved with this song. '+(D.drumLayout(song?.quality)==='four'?'Five-lane play separates Orange cymbals from Green floor toms. Pro markers guide the split when saved; four-pad charts without markers use an estimated conversion. Preview to check colors.':'Four-lane play combines the five-lane source into Red, Yellow, Blue and Green. Switching back restores all original notes.');
     }
     if(!uploadTargetExplicit)uploadInstrument=instrument;
     document.querySelectorAll('input[name=instrument]').forEach(input=>input.checked=input.value===instrument);
@@ -165,10 +165,10 @@
     document.body.classList.toggle('is-drums',drums);$('modeGroup').hidden=drums||vocals;
     document.body.classList.toggle('four-lane-drums',four);
     document.body.classList.toggle('is-strum',!drums&&!vocals&&mode==='strum');
-    $('modeHint').textContent=mobileViewport.matches?(drums?'Tap the matching drum pads. Green also hits orange cymbals. Tap Kick pedal for the wide purple bars.':mode==='tap'?'Tap the matching colored pads as notes reach the rings. Hold for long notes.':'Hold the matching colored pads, then tap Strum with another finger.'):(drums?'D F J K L hit the five pads. L (green) also hits orange cymbals. Space or Enter plays the wide purple kick bars. Shift activates Overdrive.':mode==='tap'?'Press a fret key as its note hits the line.':'Hold the fret keys. Press Enter to strum.');
+    $('modeHint').textContent=mobileViewport.matches?(drums?'Tap each matching drum pad. Orange cymbals and Green floor toms are separate. Tap Kick pedal for the wide purple bars.':mode==='tap'?'Tap the matching colored pads as notes reach the rings. Hold for long notes.':'Hold the matching colored pads, then tap Strum with another finger.'):(drums?'D F J K L hit five separate pads. K is Orange cymbal; L is Green floor tom. Space or Enter plays the wide purple kick bars. Shift activates Overdrive.':mode==='tap'?'Press a fret key as its note hits the line.':'Hold the fret keys. Press Enter to strum.');
     $('touchStrum').hidden=drums||vocals||mode!=='strum';$('strumGuide').hidden=drums||vocals||mode!=='strum';$('drumLabels').hidden=!drums;$('kickButton').hidden=!drums;$('kickGuide').hidden=!drums;
     $('controlType').textContent=drums?'Pads':vocals?'Pitch pads':'Frets';$('driveKey').textContent=drums?'SHIFT':'SPACE';$('overdriveKey').textContent=drums?'SHIFT':'SPACE';$('hitLineLabel').textContent=drums?'HIT THE DRUM AT THE PAD LINE':'HIT THE NOTE AT THE FRET LINE';
-    canvas.setAttribute('aria-label',drums?'Five drum lanes from left to right: D red snare, F yellow closed or open hi-hat, J blue tom, K orange cymbal, L green floor tom. L also hits orange cymbals, including simultaneous orange and green notes. Space or Enter plays purple kick bars across the highway.':'Notes scroll down five colored lanes toward the fret line. Use D, F, J, K, and L or the touch buttons below.');
+    canvas.setAttribute('aria-label',drums?'Five drum lanes from left to right: D red snare, F yellow closed or open hi-hat, J blue tom, K orange cymbal, L green floor tom. Orange and Green need separate hits, including when they arrive together. Space or Enter plays purple kick bars across the highway.':'Notes scroll down five colored lanes toward the fret line. Use D, F, J, K, and L or the touch buttons below.');
     if(four){$('modeHint').textContent=mobileViewport.matches?'Tap the red, yellow, blue and green drum pads. Tap Kick pedal for the purple bars.':'D F J K hit red, yellow, blue and green. Space or Enter plays kick bars. Shift activates Overdrive.';canvas.setAttribute('aria-label','Four drum lanes from left to right: D red, F yellow, J blue, K green. Space or Enter plays purple kick bars across the highway.');}
     const difficultyLabels=document.querySelectorAll('.difficulty-row small');
     const limitedFrets=['guitar','bass'].includes(instrument);
@@ -176,7 +176,7 @@
     if(song?.quality?.imports?.[instrument])D.LEVELS.forEach((level,i)=>difficultyLabels[i].textContent=song.quality.imports[instrument].levels.includes(level)?'IMPORTED':song.quality.imports[instrument].derived.includes(level)?'DERIVED':'RETAINED');
     if(vocals)$('modeHint').textContent='Play the vocal melody with D F J K L or the colored pads. Low to high pitch; hold long notes. Pad play, without a microphone.';
     const guitarNames=['Green fret','Red fret','Yellow fret','Blue fret','Orange fret'];
-    fretButtons.forEach((b,i)=>{b.disabled=i>=playableFrets();b.setAttribute('aria-disabled',String(b.disabled));b.style.setProperty('--fret',laneColor(i));b.setAttribute('data-touch-label',drums?['Snare','Hi-hat','Tom','Cymbal','Floor'][i]:String(i+1));b.setAttribute('aria-label',`${drums?(i===4?'Floor tom or orange cymbal':E.DRUM_NAMES[i]):vocals?`Vocal pitch ${i+1} of 5`:guitarNames[i]}, ${E.KEYS[i].slice(3)}`);b.classList.toggle('disabled-lane',i>=playableFrets());});
+    fretButtons.forEach((b,i)=>{b.disabled=i>=playableFrets();b.setAttribute('aria-disabled',String(b.disabled));b.style.setProperty('--fret',laneColor(i));b.setAttribute('data-touch-label',drums?['Snare','Hi-hat','Tom','Cymbal','Floor'][i]:String(i+1));b.setAttribute('aria-label',`${drums?E.DRUM_NAMES[i]:vocals?`Vocal pitch ${i+1} of 5`:guitarNames[i]}, ${E.KEYS[i].slice(3)}`);b.classList.toggle('disabled-lane',i>=playableFrets());});
     $('drumLabels').querySelectorAll('span').forEach((b,i)=>{b.style.color=E.DRUM_COLORS[i];b.classList.toggle('disabled-lane',i>=playableFrets());});
     const padNames=four?['Red','Yellow','Blue','Green']:E.DRUM_NAMES;
     fretButtons.forEach((b,i)=>{b.hidden=four&&i===4;if(four&&i<4){b.setAttribute('data-touch-label',padNames[i]);b.setAttribute('aria-label',`${padNames[i]} drum pad, ${E.KEYS[i].slice(3)}`);}});
@@ -201,7 +201,7 @@
     if(context!==trainingContext||song&&notes!==trainingNotes){lastMissTime=null;trainingContext=context;trainingNotes=notes;}
     if($('hitTiming')){$('hitTiming').textContent='';$('hitTiming').classList.remove('show');}
     videoChartStart=notes.reduce((first,n)=>Number.isFinite(n.time)?Math.min(first,n.time):first,Infinity);
-    session=new E.Session(difficulty,mode,instrument,{drumLayout:D.drumPlayLayout(song?.quality),notes:T.segment(notes,practiceLoop),musicEnd:practiceLoop?.end??song?.musicEnd??E.MUSIC_END});session.onJudge=judge;session.onMilestone=n=>{
+    session=new E.Session(difficulty,mode,instrument,{drumLayout:D.drumPlayLayout(song?.quality),separateDrums:true,notes:T.segment(notes,practiceLoop),musicEnd:practiceLoop?.end??song?.musicEnd??E.MUSIC_END});session.onJudge=judge;session.onMilestone=n=>{
       const el=$('streakCallout');el.textContent=`${n} NOTE STREAK`;el.classList.remove('show');void el.offsetWidth;el.classList.add('show');
     };
     particles.length=0;flashes.fill(0);clearHeld();finishScheduled=false;
@@ -253,7 +253,7 @@
     const ghosts=notes.filter(n=>n.ghost).length;
     if(ghosts)$('chartDetails').textContent+=` ${ghosts} quiet notes. Hollow centers mark soft hits; play the same color.`;
     if(instrument==='drums'&&notes.some(n=>n.rollDuration))$('chartMapping').textContent+=' Roll ribbons: tap each start note, then repeat that pad through the ribbon. Extra roll taps keep your streak but add no scored notes; holding a pad gives no points.';
-    if(instrument==='drums'&&!fourLaneDrums()&&D.drumLayout(song.quality)==='four')$('chartMapping').textContent='Five-lane play of a four-lane chart: Red, Yellow and Blue keep their colors; Green uses the fifth lane. Orange has no added notes. Purple: kick. All difficulties keep the source timing.';
+    if(instrument==='drums'&&!fourLaneDrums()&&D.drumLayout(song.quality)==='four')$('chartMapping').textContent='Five separate drum lanes: Red snare, Yellow hi-hat, Blue tom, Orange cymbal, Green floor tom. Purple: kick. '+(song.charts.drums.expert.some(n=>[1,2,3].includes(n.lane)&&!n.drumVoice)?'Cymbal/tom placement is an estimated conversion of this four-pad chart; preview the colors. ':'Uses the saved source cymbal/tom markers. ')+'Note times stay unchanged. Orange and Green require separate pad hits.';
     if(fourLaneDrums())$('chartMapping').textContent='Four-lane drums: Red · Yellow · Blue · Green. Purple: kick. Source pad colors stay the same on every difficulty; Pro toms and cymbals share their authored pad.'+(notes.some(n=>n.rollDuration)?' Roll ribbons: tap the start, then repeat that pad. Extra roll taps keep your streak and add no scored notes.':'');
     refreshSongTiming();
     const canvas=$('chartOverview'),c=canvas.getContext('2d'),w=canvas.width,h=canvas.height;
@@ -461,7 +461,7 @@
     refreshPercussion();
   }
   function refreshPercussion(){
-    const notes=D.playDrums(song.charts.drums?.expert||[],song.quality);
+    const notes=D.playDrums(song.charts.drums?.expert||[],song.quality,{beat:song.beat});
     song.percussion=window.RiffMotion?.performanceEvents?.(notes,song.charts.guitar?.expert||song.charts.bass?.expert||[])||{left:notes.filter(n=>[0,2,4].includes(n.lane)),right:notes.filter(n=>[1,3].includes(n.lane))};
   }
   $('drumPlayLayout')?.addEventListener('change',()=>{

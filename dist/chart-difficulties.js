@@ -20,6 +20,7 @@
       // This preserves the two-pad chord rather than dropping its tom hit.
       const lane=note.lane===4?(orangeTimes.has(note.time)?2:3):note.lane,key=note.time+':'+lane,prior=pads.get(key),next={...note,lane,duration:0};
       if(prior){
+        if(prior.drumVoice!==next.drumVoice)delete prior.drumVoice;
         if(prior.rollDuration||next.rollDuration)prior.rollDuration=Math.max(prior.rollDuration||0,next.rollDuration||0);
         if(prior.velocity!==undefined||next.velocity!==undefined)prior.velocity=Math.max(prior.velocity||0,next.velocity||0);
         if(prior.ghost!==undefined||next.ghost!==undefined)prior.ghost=prior.ghost===true&&next.ghost===true;
@@ -30,11 +31,41 @@
   const fourDrumLevels=levels=>Object.fromEntries(Object.entries(levels).map(([level,notes])=>[level,fourDrums(notes)]));
   const drumPlayLayout=quality=>['four','five'].includes(quality?.drumPlayLayout)?quality.drumPlayLayout:drumLayout(quality);
   const drumViews=new WeakMap();
-  function playDrums(notes,quality){
+  const DRUM_VOICES=['snare','hihat','tom','cymbal','floor','kick'];
+  const drumVoice=lane=>DRUM_VOICES[lane];
+  function fiveDrumMap(reference,beat){
+    const map=new Map(),groups=new Map();let lastHat=-Infinity;
+    for(const n of reference){const key=n.time.toFixed(6);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(n);}
+    for(const group of [...groups.values()].sort((a,b)=>a[0].time-b[0].time)){
+      const time=group[0].time,kick=group.some(n=>n.lane===5),yellow=group.some(n=>n.lane===1),green=group.some(n=>n.lane===3),tom=group.some(n=>n.lane===2);
+      for(const n of group){
+        // Source Pro markers take priority. Four-pad sources without markers
+        // need an adaptation: separated kick accents and cymbal/tom chords
+        // guide the cymbal split, without adding attacks or shifting time.
+        let lane=DRUM_VOICES.indexOf(n.drumVoice);
+        if(lane<0){lane=n.lane===3?4:n.lane;if(n.lane===1&&(kick&&time-lastHat>=beat*1.5||green))lane=3;if(n.lane===3&&!yellow&&kick)lane=3;if(n.lane===3&&yellow&&tom)lane=4;}
+        map.set(n.time.toFixed(6)+':'+n.lane,lane);
+      }
+      if(yellow)lastHat=time;
+    }
+    return map;
+  }
+  function playDrums(notes,quality,{reference=notes,beat=.5}={}){
     const source=drumLayout(quality),target=drumPlayLayout(quality);if(source===target)return notes;
-    let views=drumViews.get(notes);if(!views){views=new Map();drumViews.set(notes,views);}const key=source+':'+target;
-    if(!views.has(key))views.set(key,target==='four'?fourDrums(notes):notes.map(n=>({...n,lane:n.lane===3?4:n.lane})));
-    return views.get(key);
+    beat=Number.isFinite(beat)&&beat>0?beat:.5;
+    let views=drumViews.get(reference);if(!views){views=new Map();drumViews.set(reference,views);}const key=source+':'+target+':'+beat;
+    if(!views.has(key))views.set(key,{notes:new WeakMap(),mapping:target==='five'?fiveDrumMap(reference,beat):null});const view=views.get(key);
+    if(!view.notes.has(notes)){
+      if(target==='four')view.notes.set(notes,fourDrums(notes));
+      else{
+        const merged=new Map(),fallback=fiveDrumMap(notes,beat);for(const n of notes){const lane=DRUM_VOICES.includes(n.drumVoice)?DRUM_VOICES.indexOf(n.drumVoice):view.mapping.get(n.time.toFixed(6)+':'+n.lane)??fallback.get(n.time.toFixed(6)+':'+n.lane)??(n.lane===3?4:n.lane),next={...n,lane},id=n.time.toFixed(6)+':'+lane,old=merged.get(id);
+          if(old){if(n.rollDuration)old.rollDuration=Math.max(old.rollDuration||0,n.rollDuration);if(n.velocity)old.velocity=Math.max(old.velocity||0,n.velocity);if(n.ghost!==undefined||old.ghost!==undefined)old.ghost=n.ghost===true&&old.ghost===true;}
+          else merged.set(id,next);
+        }
+        view.notes.set(notes,[...merged.values()].sort((a,b)=>a.time-b.time||a.lane-b.lane).map((n,id)=>({...n,id})));
+      }
+    }
+    return view.notes.get(notes);
   }
   function reduce(notes,instrument,beat,level){
     const drums=instrument==='drums';
@@ -93,6 +124,6 @@
     return {...charts,...build(charts.expert,instrument,beat)};
   }
   function upgradeAll(charts,beat){return Object.fromEntries(Object.entries(charts).map(([instrument,levels])=>[instrument,upgrade(levels,instrument,beat)]));}
-  const api={MAX_DURATION,MAX_REFERENCE_DURATION,LEVELS,NAMES,WINDOWS,APPROACH,frets,drumLayout,drumPlayLayout,playDrums,fourDrums,fourDrumLevels,build,upgrade,upgradeAll};
+  const api={MAX_DURATION,MAX_REFERENCE_DURATION,LEVELS,NAMES,WINDOWS,APPROACH,frets,drumLayout,drumPlayLayout,drumVoice,DRUM_VOICES,playDrums,fourDrums,fourDrumLevels,build,upgrade,upgradeAll};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.RiffDifficulties=api;
 })(typeof window!=='undefined'?window:globalThis);

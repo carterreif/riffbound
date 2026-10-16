@@ -46,7 +46,8 @@
           if(!Number.isInteger(n.lane)||n.lane<0||n.lane>(instrument==='drums'?5:canonical&&level!=='normal'&&!data.quality?.imports?.[instrument]?.levels?.includes(level)?Difficulties.frets(instrument,level)-1:4)||!Number.isFinite(n.time)||n.time<0||n.time>data.musicEnd||!Number.isFinite(n.duration)||n.duration<0||n.time+n.duration>data.musicEnd+1)throw Error('The backup contains an invalid note.');
           if(n.ghost!==undefined&&typeof n.ghost!=='boolean'||n.velocity!==undefined&&(!Number.isFinite(n.velocity)||n.velocity<=0||n.velocity>1))throw Error('The backup contains invalid note dynamics.');
           if(n.rollDuration!==undefined&&(instrument!=='drums'||!Number.isFinite(n.rollDuration)||n.rollDuration<=0||n.time+n.rollDuration>data.musicEnd+.01))throw Error('The backup contains an invalid drum roll.');
-          return {id,lane:n.lane,time:n.time,duration:instrument==='drums'?0:n.duration,...(n.rollDuration!==undefined?{rollDuration:n.rollDuration}:{}),...(instrument!=='drums'&&Number.isFinite(n.pitch)?{pitch:n.pitch}:{}),...(n.velocity!==undefined?{velocity:n.velocity}:{}),...(n.ghost!==undefined?{ghost:n.ghost}:{})};
+          if(n.drumVoice!==undefined&&(instrument!=='drums'||!Difficulties.DRUM_VOICES.includes(n.drumVoice)))throw Error('The backup contains an invalid drum voice.');
+          return {id,lane:n.lane,time:n.time,duration:instrument==='drums'?0:n.duration,...(n.drumVoice!==undefined?{drumVoice:n.drumVoice}:{}),...(n.rollDuration!==undefined?{rollDuration:n.rollDuration}:{}),...(instrument!=='drums'&&Number.isFinite(n.pitch)?{pitch:n.pitch}:{}),...(n.velocity!==undefined?{velocity:n.velocity}:{}),...(n.ghost!==undefined?{ghost:n.ghost}:{})};
         }).sort((a,b)=>a.time-b.time||a.lane-b.lane);
       }
       charts[instrument]=Difficulties.upgrade(charts[instrument],instrument,data.beat);

@@ -125,7 +125,12 @@
           if(time<0)throw Error('The chart places notes before the audio starts. Increase Timing shift, then review again.');
           const key=n.tick+':'+(part==='drums'&&outputDrumLayout==='four'?n.code:lane);if(seen.has(key))throw Error('Two notes map to the same pad at the same time. Correct the duplicate or use a five-lane drum arrangement.');seen.add(key);
           const rollEnd=part==='drums'?Math.max(n.tick+n.length,...rolls.filter(r=>r.codes.has(n.code)&&r.tick<=n.tick&&n.tick<r.tick+r.length).map(r=>r.tick+r.length)):n.tick;
-          notes.push({lane,time,duration,...(part==='drums'&&rollEnd>n.tick?{rollDuration:timing.toSeconds(rollEnd)-time}:{})});
+          let drumVoice;
+          if(part==='drums'&&outputDrumLayout==='four'&&drumLayout!=='four'){
+            if(lane===5||n.code===1||drumLayout==='five')drumVoice=D.drumVoice(lane);
+            else if(drumLayout==='pro')drumVoice=D.drumVoice(cymbals.has(n.tick+':'+n.code)?(n.code===2?1:3):(n.code===4?4:2));
+          }
+          notes.push({lane,time,duration,...(drumVoice?{drumVoice}:{}),...(part==='drums'&&rollEnd>n.tick?{rollDuration:timing.toSeconds(rollEnd)-time}:{})});
         }
         if(notes.length>25000)throw Error('A chart difficulty exceeds the 25,000-note limit.');
         // Editors may emit empty difficulty sections. They are unavailable

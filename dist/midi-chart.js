@@ -104,7 +104,14 @@
         const rollEnd=part==='drums'?Math.max(n.tick+(layout==='five'&&n.length>resolution/3?n.length:0),...rolls.filter(r=>r.codes.has(n.code)&&r.tick<=n.tick&&n.tick<r.tick+r.length).map(r=>r.tick+r.length)):n.tick;
         const rollDuration=rollEnd>n.tick?timing.toSeconds(rollEnd)-time:0;
         if(time<0)throw Error('Chart notes start before this audio.');
-        (charts[part][level]??=[]).push({id:charts[part][level]?.length||0,lane,time,duration:hold,...(rollDuration?{rollDuration}:{}),...(pitch!==undefined?{pitch}:{}),...(part==='drums'&&track.texts.some(e=>/ENABLE_CHART_DYNAMICS/.test(e.text))?{velocity:n.velocity/127,ghost:n.velocity===1}:{})});
+        let drumVoice;
+        if(part==='drums'&&outputDrumLayout==='four'&&layout!=='four'){
+          const code=n.code-[60,72,84,96][['easy','medium','hard','expert'].indexOf(level)];
+          if(lane===5||code===1)drumVoice=D.drumVoice(lane);
+          else if(layout==='five')drumVoice=D.drumVoice(lane);
+          else if(layout==='pro'){const tom=notes.some(m=>m.code===108+code&&m.tick<=n.tick&&(m.tick+m.length>n.tick||m.tick===n.tick));drumVoice=D.drumVoice(tom?(code===4?4:2):(code===2?1:3));}
+        }
+        (charts[part][level]??=[]).push({id:charts[part][level]?.length||0,lane,time,duration:hold,...(drumVoice?{drumVoice}:{}),...(rollDuration?{rollDuration}:{}),...(pitch!==undefined?{pitch}:{}),...(part==='drums'&&track.texts.some(e=>/ENABLE_CHART_DYNAMICS/.test(e.text))?{velocity:n.velocity/127,ghost:n.velocity===1}:{})});
       }
       drumLayout=layout;
       if(!Object.keys(charts[part]).length)delete charts[part];
