@@ -1,5 +1,53 @@
 # Controllers and drum mapping
 
+## Yamaha EAD / EAD50 — version 123
+
+Open **Controllers / drums → Enable MIDI inputs**, allow access, select the EAD
+MIDI input in **Device to configure**, and select a four- or five-lane Drums
+mapping layout. Turn on **Use EAD / EAD50 MIDI drums**. This selects the EAD MIDI
+profile for that device and saves it in this browser. It is opt-in, only available
+for MIDI inputs, and does not request permission at page load. Turning it off
+returns that device to General MIDI setup; the main **Enable mapped controllers
+and MIDI inputs** switch controls whether mapped devices play the game.
+
+Use the EAD50 **USB TO HOST** port and a data cable. On Windows, install the
+Yamaha Steinberg USB Driver from the official
+[EAD50 downloads](https://usa.yamaha.com/products/musical_instruments/drums/ea_drums/ead/ead50/downloads.html).
+The [Yamaha EAD50 user guide](https://data.yamaha.com/files/download/other_assets/7/2939157/EAD50_user_guide_En_A1.pdf)
+describes MIDI output from trigger signals, configurable MIDI notes/channels
+(p. 38) and USB computer connections and the Windows driver (p. 40). A five-pin
+MIDI OUT connection instead requires a USB-MIDI interface. Select the input port
+carrying the configured trigger notes. No MIDI output is sent by Riffbound.
+
+This is a General MIDI starter profile, **not a verified factory EAD scene map**.
+Scenes can change note numbers/channels. Test each trigger in the live input test;
+use **Add input** for the actual note sent by each pad, cymbal or pedal. Learning
+retains the input channel, supports alternate notes, and removes conflicting
+assignments. Custom maps take priority and remain intact when EAD is toggled;
+**Restore built-in layout** explicitly returns only the selected layout to starter
+notes. Four- and five-lane assignments remain separate.
+
+| Trigger role | Starter MIDI note numbers | Five-lane action |
+| --- | --- | --- |
+| Snare | 38, 40 | Red |
+| Hi-hat | 42, 44, 46 | Yellow |
+| High toms | 48, 50 | Blue |
+| Crash / ride | 49, 55, 57, 51, 59 | Orange |
+| Low / floor toms | 41, 43, 45, 47 | Green |
+| Kick | 35, 36 | Kick |
+
+In four-lane mode, ride 51/59 moves to Blue, crash notes join Green, and no
+Orange action exists. In five-lane mode Orange and Green always require distinct
+input notes. Each positive-velocity note-on creates one hit, including repeated
+kick notes without note-offs. Microphone audio alone cannot produce independent
+lane inputs; a full playable setup needs distinct trigger/pad MIDI notes for the
+drums and cymbals used by the chart. This option does not analyze microphone audio
+or turn the EAD sensor microphone mix into a full MIDI drum kit.
+
+Validation uses production setup handlers, MIDI input, saved profiles and scoring
+with deterministic adapters for both layouts, permission failures and cached
+older HTML. No physical EAD50 or Windows driver was available for device testing.
+
 ## Built-in setup — version 103
 
 Supported devices now have mappings without assigning each control or clicking a

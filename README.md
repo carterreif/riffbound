@@ -1,5 +1,7 @@
 # Riffbound
 
+Version 123 adds a saved **Use EAD / EAD50 MIDI drums** option in Controllers / drums. Enable MIDI, select the module input and a drum layout, then turn it on. General MIDI starter notes and pad learning support both layouts; five-lane Orange and Green remain independent. EAD scenes must send distinct trigger notes: microphone audio alone does not provide per-pad input. Windows connection/driver guidance is included. The offline cache revision is 123-1.
+
 Version 122 gives five-lane play an active, separate Orange cymbal lane. Clone Hero Pro cymbal/tom roles are preserved during MIDI/.chart import and backups, then used for five-lane conversion. Older/standard four-pad charts use an explicitly labeled estimated cymbal/tom split guided by existing accents and chords. Conversion keeps source attack times and the original four-pad chart; same-pad simultaneous cymbals merge in the play view. Orange and Green require independent hits/rolls throughout gameplay. The offline cache revision is 122-1.
 
 Version 121 adds a saved Drum lanes choice for each song: four lanes (Red, Yellow, Blue, Green) or five (Red, Yellow, Blue, Orange, Green). Clone Hero charts can use either layout. Four-lane sources move Green to the fifth position in five-lane play without inventing Orange notes. The original source charts remain unchanged, so returning to the original layout is lossless. Controls, controller context, preview, scoring and practice follow the selected layout; backups retain the choice. The offline cache revision is 121-1.

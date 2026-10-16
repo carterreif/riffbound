@@ -15,8 +15,10 @@
       $('controllerStorageStatus').textContent=hub.storageError;
       const device=devices.find(d=>d.id===selected),map=hub.mapping(selected,context),key=JSON.stringify([selected,context,map,hub.learning?.action,hub.learning?.id]);
       const profile=$('controllerProfile');if(profile){profile.replaceChildren(...(device?API.profileChoices(device):['auto']).map(value=>{const option=element('option',API.PROFILES[value]);option.value=value;return option;}));profile.value=device?.profile||'auto';profile.disabled=!device;}
-      const info=hub.profileInfo(selected,context),ready=Object.values(map).some(bindings=>bindings.length);
-      if($('controllerMappingMode'))$('controllerMappingMode').textContent=!device?'Built-in setups load when a supported device connects.':info.custom?'Using your saved custom assignments for this layout.':ready?`Built-in ${info.profileLabel} setup is active. No pad-by-pad setup needed.`:`${info.profileLabel}: no built-in assignments for this layout. Choose the matching instrument setup or use Add input.`;
+      const info=hub.profileInfo(selected,context),ready=Object.values(map).some(bindings=>bindings.length),ead=device?.profile==='ead-drums';
+      const eadToggle=$('controllerEadEnabled');if(eadToggle){eadToggle.checked=ead;eadToggle.disabled=device?.kind!=='midi'||context==='frets';}
+      if($('controllerEadStatus'))$('controllerEadStatus').textContent=device?.kind!=='midi'?'Choose Enable MIDI inputs, then select your EAD MIDI input in Device to configure.':context==='frets'?'Choose a four- or five-lane Drums mapping layout to configure EAD triggers.':ead?(info.custom?'EAD setup is on. Your saved custom assignments are active for this layout.':'EAD setup is on with General MIDI starter notes. Test every trigger; your scene may use different notes.'):'Turn on EAD setup for this MIDI input. Existing custom assignments are kept.';
+      if($('controllerMappingMode'))$('controllerMappingMode').textContent=!device?'Built-in setups load when a supported device connects.':info.custom?'Using your saved custom assignments for this layout.':ready?(ead?'EAD MIDI starter is active. Test every trigger and use Add input to match your scene.':`Built-in ${info.profileLabel} setup is active. No pad-by-pad setup needed.`):`${info.profileLabel}: no built-in assignments for this layout. Choose the matching instrument setup or use Add input.`;
       if($('controllerRestoreBuiltins'))$('controllerRestoreBuiltins').disabled=!device||!info.custom;
       if(key!==lastMap){lastMap=key;rows=new Map();const elements=API.actions(context).map(action=>{
         const row=element('div',null,'controller-map-row');row.dataset.action=action;
@@ -27,7 +29,7 @@
         const buttons=element('div',null,'controller-map-actions');buttons.append(learn,clear);row.append(label,bindings,buttons);rows.set(action,row);return row;
       });$('controllerMappings').replaceChildren(...elements);}
       $('controllerCancelLearn').hidden=!hub.learning;
-      $('controllerPreset').disabled=!device||(device.kind==='midi'&&context==='frets');$('controllerPreset').textContent=device?.kind==='midi'?'Use General MIDI drum preset':'Use standard gamepad preset';
+      $('controllerPreset').disabled=!device||(device.kind==='midi'&&context==='frets');$('controllerPreset').textContent=device?.kind==='midi'?(ead?'Use EAD MIDI starter':'Use General MIDI drum preset'):'Use standard gamepad preset';
       if($('controllerWorldTourPreset'))$('controllerWorldTourPreset').disabled=!device?.standard||context!=='drums-five';
       $('controllerClear').disabled=!device;
       if(!notice)$('controllerStatus').textContent=ready?'Your controls are ready. Test the inputs, close setup and play. Use Add input only to customize a control.':'Choose a built-in instrument setup above, or use Add input for a device with a different button layout.';
@@ -44,6 +46,7 @@
     $('controllerDevice').addEventListener('change',()=>{hub.cancelLearn();selected=$('controllerDevice').value;lastMap='';$('controllerLastInput').textContent='Waiting for a hit…';notice='';refresh();});
     $('controllerContext').addEventListener('change',()=>{hub.cancelLearn();context=$('controllerContext').value;lastMap='';notice='';refresh();});
     $('controllerProfile')?.addEventListener('change',()=>{hub.selectProfile(selected,$('controllerProfile').value);message('Built-in instrument setup selected and saved. Existing custom assignments are kept; choose Restore built-in layout to replace them for this layout.');});
+    $('controllerEadEnabled')?.addEventListener('change',()=>{const device=hub.list().find(d=>d.id===selected);if(device?.kind!=='midi'||context==='frets'){refresh();return;}const enabled=$('controllerEadEnabled').checked;if(hub.selectProfile(selected,enabled?'ead-drums':'midi-drums'))message(enabled?'EAD setup saved for this MIDI device. Test each trigger below; use Add input for your scene’s notes. Existing custom assignments are kept.':'EAD setup turned off for this device. General MIDI setup is selected; MIDI input and custom assignments remain active.');});
     $('controllerRestoreBuiltins')?.addEventListener('click',()=>{hub.restoreBuiltin(selected,context);message('Built-in assignments restored for this layout. Test the inputs, then return to play.');});
     $('controllerEnabled').addEventListener('change',()=>hub.setEnabled($('controllerEnabled').checked));
     $('controllerCancelLearn').addEventListener('click',()=>{hub.cancelLearn();message('Assignment cancelled.');});
@@ -52,7 +55,7 @@
     $('controllerClear').addEventListener('click',()=>{hub.clearProfile(selected,context);message('All assignments cleared for this device and layout.');});
     $('controllerEnableMidi').addEventListener('click',async()=>{
       $('controllerEnableMidi').disabled=true;message('Waiting for MIDI permission…');
-      try{await hub.enableMidi();const midi=hub.list().find(d=>d.kind==='midi');if(midi)selected=midi.id;refresh();message(midi?'MIDI connected. General MIDI drum mappings are built in; saved custom controls take priority. Test your pads, then play.':'MIDI enabled, but no MIDI inputs were found. Connect a USB-MIDI interface or USB drum kit, then try again.');}
+      try{await hub.enableMidi();const midi=hub.list().find(d=>d.id===selected&&d.kind==='midi')||hub.list().find(d=>d.kind==='midi');if(midi)selected=midi.id;refresh();message(midi?'MIDI connected. General MIDI drum mappings are built in; saved custom controls take priority. Test your pads, then play.':'MIDI enabled, but no MIDI inputs were found. Connect a USB-MIDI interface or USB drum kit, then try again.');}
       catch(error){message(error.message);}finally{$('controllerEnableMidi').disabled=false;}
     });
     const close=()=>{hub.cancelLearn();hub.reset();};dialog.addEventListener('close',close);dialog.addEventListener('cancel',close);

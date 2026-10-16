@@ -109,3 +109,16 @@ test('MIDI defaults work after permission with no preset action, and MIDI pitch 
  const r=rig();r.inputs.set('kit',{id:'kit',name:'USB MIDI'});await r.hub.enableMidi();r.hub.setBlocked(false);r.hub.midiMessage('midi:kit',[0x99,38,90]);r.hub.midiMessage('midi:kit',[0x99,36,90]);assert.deepEqual(downs(r),['lane0','kick']);
  r.hub.selectProfile('midi:kit','midi-pads');r.hub.setContext('frets');r.hub.midiMessage('midi:kit',[0x90,60,80]);r.hub.midiMessage('midi:kit',[0x90,72,80]);assert.deepEqual(downs(r).slice(-2),['lane0','strum']);
 });
+
+test('EAD is an opt-in MIDI-only profile with separate five-lane cymbal/tom inputs and persistent custom notes',async()=>{
+ const r=rig();r.connect();assert.equal(r.hub.selectProfile('gamepad:0','ead-drums'),false);
+ r.inputs.set('ead',{id:'ead',name:'EAD50 Port 1',manufacturer:'Yamaha'});await r.hub.enableMidi();const id='midi:ead';
+ assert.equal(r.hub.profileInfo(id).profile,'auto','permission alone does not turn EAD setup on');
+ assert.equal(r.hub.selectProfile(id,'ead-drums'),true);assert.deepEqual(r.hub.mapping(id,'frets'),{});r.hub.setBlocked(false);
+ for(const note of [38,42,48,49,41,36])r.hub.midiMessage(id,[0x99,note,90]);assert.deepEqual(downs(r),['lane0','lane1','lane2','lane3','lane4','kick']);
+ r.events.length=0;r.hub.setContext('drums-four');for(const note of [38,42,48,49,41,36])r.hub.midiMessage(id,[0x99,note,90]);assert.deepEqual(downs(r),['lane0','lane1','lane2','lane3','lane3','kick']);
+ r.hub.assign(id,'drums-five','lane3',['n:9:52']);const custom=structuredClone(r.hub.mapping(id,'drums-five'));
+ r.hub.selectProfile(id,'midi-drums');assert.deepEqual(r.hub.mapping(id,'drums-five'),custom);r.hub.selectProfile(id,'ead-drums');
+ const fresh=rig({data:r.data});fresh.inputs.set('ead',{id:'ead',name:'EAD50 Port 1',manufacturer:'Yamaha'});await fresh.hub.enableMidi();assert.equal(fresh.hub.profileInfo(id).profile,'ead-drums');assert.deepEqual(fresh.hub.mapping(id,'drums-five'),custom);
+ fresh.hub.restoreBuiltin(id,'drums-five');assert.deepEqual(fresh.hub.mapping(id,'drums-five').lane3,API.preset('midi','drums-five').lane3);
+});

@@ -4,7 +4,7 @@
   const STORAGE_KEY='riffbound-controller-mappings-v1';
   const CONTEXTS=['drums-four','drums-five','frets'];
   const ACTIONS=['lane0','lane1','lane2','lane3','lane4','kick','strum','overdrive','pause'];
-  const PROFILES={auto:'Automatic',standard:'Standard gamepad','gh-drums':'Guitar Hero Xbox 360 drums',guitar:'Five-fret guitar / bass','midi-drums':'General MIDI drums','midi-pads':'MIDI pitch pads',none:'Custom only'};
+  const PROFILES={auto:'Automatic',standard:'Standard gamepad','gh-drums':'Guitar Hero Xbox 360 drums',guitar:'Five-fret guitar / bass','midi-drums':'General MIDI drums','ead-drums':'Yamaha EAD / EAD50 MIDI drums','midi-pads':'MIDI pitch pads',none:'Custom only'};
   function detectProfile(device){
     if(device.kind==='midi')return 'midi-drums';
     if(!device.standard)return 'none';
@@ -13,11 +13,12 @@
     if(/guitar/.test(name)&&!/drum/.test(name))return 'guitar';
     return 'standard';
   }
-  const profileChoices=device=>['auto',...(device.kind==='midi'?['midi-drums','midi-pads']:device.standard?['standard','gh-drums','guitar']:[]),'none'];
+  const profileChoices=device=>['auto',...(device.kind==='midi'?['midi-drums','ead-drums','midi-pads']:device.standard?['standard','gh-drums','guitar']:[]),'none'];
   function builtin(device,context,profile){
     if(profile==='auto')profile=detectProfile(device);
     if(profile==='none')return {};
-    if(profile==='midi-drums')return context==='frets'?{}:preset('midi',context);
+    // EAD scenes have configurable note numbers. GM is a starting point, not a factory-scene claim.
+    if(profile==='midi-drums'||profile==='ead-drums')return device.kind==='midi'&&context!=='frets'?preset('midi',context):{};
     if(profile==='midi-pads')return context==='frets'?{...Object.fromEntries([60,62,64,65,67].map((note,i)=>['lane'+i,[[`n:*:${note}`]]])),strum:[['n:*:72']],overdrive:[['n:*:74']],pause:[['n:*:76']]}:{};
     if(profile==='guitar')return context==='frets'?preset('gamepad','frets'):{};
     if(profile==='gh-drums'){
