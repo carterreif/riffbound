@@ -1,0 +1,13 @@
+# Fallback Drum evidence (v131, estimator revision 27)
+
+Reproduced the reported adaptive-kit failure using a fast, damped distorted Guitar recording with no percussion: the previous estimator entered “Learning the sounds of this drum kit” and accepted 105 or 126 false Drum notes, depending on decay. Its tonal guard required sound persisting to 210 ms and exempted attacks with nearby presumed toms or kicks. Fast Guitar notes could end earlier, while other false candidates supplied that exemption.
+
+The Drum estimator now checks a stable multi-partial harmonic family within an attack's first 95 ms. It requires evidence of new partials above the pre-onset spectrum, so an already ringing rack tom cannot combine with a new floor tom to impersonate a Guitar harmonic family. Longer sustained-tone rejection remains. It uses audio evidence only, with no song-name rules, grid completion, or copied Guitar chart.
+
+The two percussion-free adaptive fixtures now fail explicitly with insufficient Drum evidence rather than producing playable false Drum charts. A difficult mixed fixture retains 23/30 independently labeled Drum landmarks and reduces Guitar-timed false heads from 122 to 62; substantial ambiguity remains. This is an improvement to an audio estimator, not a guarantee of accurate full-band transcription. Actual authored charts remain preferred and audio matching remains required.
+
+Progress now says “Checking possible drum sounds in this recording.” Upload completion explicitly identifies estimated Drums. Existing saved notes are not silently rewritten: select Drums and use **Rebuild this instrument from audio**, or **Repair this drum chart** to search for an authored chart first.
+
+Validation includes adaptive false-positive fixtures, real-percussion synthetic landmarks, interleaved instruments, fast tom rolls, quiet hits, overlapping hats/cymbals/kicks, irregular timing, desktop/mobile upload/rebuild/persistence, and existing offline and Chorus Encore behavior. Optional user-recording fixtures are unavailable; no real-song or browser verification is claimed.
+
+The broad selected run completed with 246 passes, 13 failures, and two unavailable-recording skips. All 13 failures were reproduced against the previous v130 game/test sources before publication: two still expect merged Orange/Green controls, and eleven expect older search-request counts or five-lane community imports. Those unrelated production behaviors were kept. The separate final fallback regression file passes all four tests, including the real upload handler's refusal to save Guitar-only audio as Drums.

@@ -399,7 +399,7 @@
   }
   function readyMessage(result){
     const unavailable=Object.keys(result.quality?.unavailable||{});
-    return `${Object.keys(result.charts).map(partName).join(' + ')} chart${Object.keys(result.charts).length>1?'s':''} ready. Preview before playing.`+(unavailable.length?` Could not chart ${unavailable.map(partName).join(', ')}: ${unavailable.map(p=>result.quality.unavailable[p]).join(' ')}`:'')+(result.quality?.onlineLookup?.message?' '+result.quality.onlineLookup.message:'');
+    return `${Object.keys(result.charts).map(partName).join(' + ')} chart${Object.keys(result.charts).length>1?'s':''} ready. Preview before playing.`+(result.quality?.audioReviews?.drums?.estimated?' Drums are an audio estimate; check the kit colors in preview.':'')+(unavailable.length?` Could not chart ${unavailable.map(partName).join(', ')}: ${unavailable.map(p=>result.quality.unavailable[p]).join(' ')}`:'')+(result.quality?.onlineLookup?.message?' '+result.quality.onlineLookup.message:'');
   }
   function existingChartIdentity(useFields=false){
     const inferred=Community?.identify?.(song.filename||song.title)||{title:song.title,artist:''},stored=song.quality?.lookupIdentity||Object.values(song.quality?.communityReferences||{}).find(Boolean)||{};

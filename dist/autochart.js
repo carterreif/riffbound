@@ -142,37 +142,67 @@
   }
   function rejectTonalDrumEvents(events,samples,sampleRate,plan,re,im){
     // A new harmonic bass/guitar/vocal tone is not a new drum body. Require
-    // a sustained harmonic family in three windows; broadband overlapping hits
-    // and inharmonic tom resonance cannot be rejected by this test.
-    const measure=(time,offset)=>{
+    // a harmonic family across this attack's own windows. The short-tone
+    // check also requires new partials above the pre-onset sound.
+    const powersAt=(time,offset)=>{
       spectrum(samples,Math.round((time+offset)*sampleRate)-re.length/2,re,im,plan);
-      const powers=Float64Array.from(re,(_,k)=>re[k]**2+im[k]**2),end=Math.min(re.length/2,Math.ceil(10000*re.length/sampleRate));
+      return Float64Array.from(re,(_,k)=>re[k]**2+im[k]**2);
+    };
+    const measure=(time,offset,background=null)=>{
+      const powers=powersAt(time,offset),end=Math.min(re.length/2,Math.ceil(10000*re.length/sampleRate));
+      if(background)for(let k=0;k<end;k++)powers[k]=Math.max(0,powers[k]-background[k]);
       let total=0;for(let k=3;k<end;k++)total+=powers[k];
       if(total<1e-8)return {harmonic:false,total};
       for(let k=3;k<Math.min(end-2,Math.ceil(1500*re.length/sampleRate));k++){
         if(powers[k]<=powers[k-1]||powers[k]<powers[k+1]||powers[k]<total*.08)continue;
         const a=Math.log(powers[k-1]+1e-20),b=Math.log(powers[k]+1e-20),c=Math.log(powers[k+1]+1e-20);
         const base=k+clamp(.5*(a-c)/(a-2*b+c||1),-.5,.5);
-        let covered=0,second=0,fundamental=0;const used=new Set();
+        let covered=0,second=0,fundamental=0,partials=0;const used=new Set();
         for(let h=1;h<=12&&base*h<end-2;h++){
           const center=Math.round(base*h);let band=0;
           for(let j=Math.max(3,center-1);j<=center+1;j++)if(!used.has(j)){used.add(j);band+=powers[j];}
           covered+=band;if(h===1)fundamental=band;if(h===2)second=band;
+          if(band>fundamental*.01)partials++;
         }
-        if(covered>total*.88&&second>fundamental*.035)return {harmonic:true,total};
+        const harmonic=covered>total*.88&&second>fundamental*.035;
+        const cleanTone=covered>total*.90&&partials>=3;
+        const growingTone=!!background&&covered>total*.70&&partials>=3;
+        if(harmonic||cleanTone||growingTone)return {harmonic,cleanTone,growingTone,coverage:covered/total,frequency:base*sampleRate/re.length,total};
       }
       return {harmonic:false,total};
     };
     const decisions=new Map();
     return events.filter(event=>{
       const key=Math.round(event.time*1000);
-      // A following fill stroke cannot supply persistence for this hit.
-      if(events.some(next=>next.time>event.time+.035&&next.time<event.time+.27&&[2,4,5].includes(next.lane)))return true;
       if(!decisions.has(key)){
-        const early=measure(event.time,.035),body=measure(event.time,.10),late=measure(event.time,.21);
+        const early=measure(event.time,.035);
+        // Fast damped strings can end before 210 ms. Their neighboring false
+        // "tom" candidates must not exempt them from tone rejection. Require
+        // a stable family of at least three partials across this attack's own
+        // first 95 ms, with almost no non-harmonic energy in its body.
+        let burst=false;
+        {
+          // Ringing cymbals can mask a new string attack's harmonic family.
+          // Test only positive spectral growth above the pre-onset sound;
+          // a wash already ringing is not fresh Drum evidence at this time.
+          const background=powersAt(event.time,-.055),onset=measure(event.time,.035,background);
+          if(onset.cleanTone){
+            const body=measure(event.time,.065,background),tail=measure(event.time,.095,background);
+            burst=body.cleanTone&&tail.cleanTone&&body.coverage>.94&&tail.coverage>.94&&
+              [body,tail].every(window=>Math.abs(Math.log2(window.frequency/onset.frequency))<.035);
+          }
+          if(!burst&&early.cleanTone&&onset.growingTone&&Math.abs(Math.log2(onset.frequency/early.frequency))<.035){
+            const body=measure(event.time,.065),tail=measure(event.time,.095);
+            burst=body.cleanTone&&tail.cleanTone&&body.coverage>.94&&tail.coverage>.94&&
+              [body,tail].every(window=>Math.abs(Math.log2(window.frequency/early.frequency))<.035);
+          }
+        }
+        // A following real fill stroke still cannot supply long persistence.
+        const following=events.some(next=>next.time>event.time+.035&&next.time<event.time+.27&&[2,4,5].includes(next.lane));
+        const body=!burst&&!following?measure(event.time,.10):null,late=body?measure(event.time,.21):null;
         // Toms can have nearly integer partials too. Only reject a tonal body
         // that persists, rather than a short decaying drum resonance.
-        decisions.set(key,early.harmonic&&body.harmonic&&late.harmonic&&late.total>early.total*.35);
+        decisions.set(key,burst||!!(early.harmonic&&body?.harmonic&&late?.harmonic&&late.total>early.total*.35));
       }
       return !decisions.get(key);
     });
@@ -1603,9 +1633,9 @@
     const waveform=Array.from({length:160},(_,i)=>{const a=Math.floor(i*frames/160),b=Math.max(a+1,Math.floor((i+1)*frames/160));let max=0;for(let f=a;f<b&&f<frames;f++)max=Math.max(max,energy[f]);return max;});
     const peak=Math.max(...waveform)||1;
     const expert=charts[instrument].expert;
-    const quality={audioReviews:{[instrument]:{policy:instrument==='drums'?'ring-residual-v1':'audible-attacks-v2',checked:true,recovered,...colorEvidence(expert,instrument),...(instrument==='drums'?{instrumentEvidencePolicy:'own-percussion-v1',tonalRejectionPolicy:'sustained-harmonic-family-v1',estimated:true,metalIdentityPolicy:'attack-release-timbre-v2',snareOverlapPolicy:'independent-metal-timbre-v1',metalCorrections}:{})}},ghostEvidencePolicy:'relative-attack-dynamics-v1',ghostHits:expert.filter(n=>n.ghost).length,evidencePolicy:'audible-attacks-v2',...(instrument==='drums'?{tomEvidencePolicy:'measured-resonance-v1'}:{}),counts:Array.from({length:instrument==='drums'?6:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:instrument==='drums'&&events.some(e=>e.part!==undefined)?'Adaptive kit separation':'Attack and tone analysis'};
+    const quality={audioReviews:{[instrument]:{policy:instrument==='drums'?'ring-residual-v1':'audible-attacks-v2',checked:true,recovered,...colorEvidence(expert,instrument),...(instrument==='drums'?{instrumentEvidencePolicy:'own-percussion-v1',tonalRejectionPolicy:'short-and-sustained-harmonic-family-v2',estimated:true,metalIdentityPolicy:'attack-release-timbre-v2',snareOverlapPolicy:'independent-metal-timbre-v1',metalCorrections}:{})}},ghostEvidencePolicy:'relative-attack-dynamics-v1',ghostHits:expert.filter(n=>n.ghost).length,evidencePolicy:'audible-attacks-v2',...(instrument==='drums'?{tomEvidencePolicy:'measured-resonance-v1'}:{}),counts:Array.from({length:instrument==='drums'?6:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:instrument==='drums'&&events.some(e=>e.part!==undefined)?'Adaptive kit separation':'Attack and tone analysis'};
     if(instrument==='guitar')quality.audioReviews.guitar={...quality.audioReviews.guitar,chordPolicy:'independent-harmonic-attacks-v1',sustainPolicy:'own-fundamental-release-v1',arrangementPolicy:'reference-guided-audio-v1',onsetPolicy:'own-tone-attack-v1',fretPolicy:'ordered-distinct-pitch-groups-v2',holdPolicy:'playable-fret-reuse-v1',chordAttacks,estimated:true};
-    return {...timing,instrument,duration,charts,quality,chartVersion:instrument==='drums'?26:11,waveform:waveform.map(v=>v/peak)};
+    return {...timing,instrument,duration,charts,quality,chartVersion:instrument==='drums'?27:11,waveform:waveform.map(v=>v/peak)};
   }
   function reviewDrumColors({notes,samples,sampleRate=22050}){
     const plan=fftPlan(2048),review=verifyMetalIdentity(notes,samples,sampleRate,plan,new Float32Array(2048),new Float32Array(2048));

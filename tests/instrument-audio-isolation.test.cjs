@@ -9,7 +9,7 @@ test('own real percussion retains all six colors and timing when tonal checks ru
  const f=I.irregular('drums'),r=A.analyze({...f,instrument:'drums',wholeSong:true}),notes=r.charts.drums.expert;
  assert.deepEqual(Object.keys(r.charts),['drums']);assert.equal(notes.length,f.truth.length);
  for(const hit of f.truth)assert.ok(notes.some(n=>n.lane===hit.lane&&Math.abs(n.time-hit.time)<.03));
- assert.equal(r.quality.audioReviews.drums.tonalRejectionPolicy,'sustained-harmonic-family-v1');
+ assert.equal(r.quality.audioReviews.drums.tonalRejectionPolicy,'short-and-sustained-harmonic-family-v2');
 });
 test('overlapping pitched music does not remove the independently heard percussion',()=>{
  const f=F.fullBand(),notes=A.analyze({...f,instrument:'drums',wholeSong:true}).charts.drums.expert;

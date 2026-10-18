@@ -69,7 +69,7 @@
         next[b*PARTS+k]=(k===4||k===5)&&centers[b]<1500?0:Math.max(1e-12,w[b*PARTS+k]*vh[b*PARTS+k]/Math.max(1e-12,denominator));
       }
       w.set(next);
-      if(iteration%30===0)progress(80+Math.round(iteration/180*8),'Learning the sounds of this drum kit…');
+      if(iteration%30===0)progress(80+Math.round(iteration/180*8),'Checking possible drum sounds in this recording…');
     }
     // Unit templates make activation magnitudes comparable between drum voices.
     for(let k=0;k<PARTS;k++){let norm=0;for(let b=0;b<BANDS;b++)norm+=w[b*PARTS+k]**2;norm=Math.sqrt(norm);for(let b=0;b<BANDS;b++)w[b*PARTS+k]/=Math.max(1e-12,norm);}
