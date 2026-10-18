@@ -112,7 +112,9 @@
         // A failed first install leaves an empty registration. Register again
         // instead of repeatedly calling update() on that unusable object.
         if(!reg||(!reg.active&&!reg.waiting&&!reg.installing)){
-          reg=await bounded(navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}),'Offline setup timed out. Check your connection and retry.');watch(reg);
+          const attempt=navigator.serviceWorker.register('sw.js',{updateViaCache:'none'});
+          attempt.then(late=>{if(!checking){watch(late);checked=true;checkError='';status();}}).catch(()=>{});
+          reg=await bounded(attempt,'Update setup timed out. Retry, or use Repair updates below to refresh only cached game files.');watch(reg);
         }else if(!reg.installing){await bounded(reg.update(),'The update check timed out. Check your connection and retry.');}
         checked=true;checking=false;if(reg.waiting)offerUpdate(reg.waiting);else await status();
       }catch(error){

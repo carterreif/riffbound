@@ -69,14 +69,15 @@ function worker({badAsset=false,tabs=[],failWrite=false,htmlRedirect=null,htmlTy
   const listeners={},banks=new Map(),requests=[];let online=true,skipped=0;
   const caches={open:async key=>{if(!banks.has(key))banks.set(key,new Map());const bank=banks.get(key);return {put:async(k,v)=>{if(failWrite)throw Error('Quota');bank.set(k,v);},match:async k=>bank.get(typeof k==='string'?k:k.url)};},keys:async()=>[...banks.keys()],delete:async key=>banks.delete(key)};
   const self={location:{href:'https://game.example/sw.js'},clients:{claim:async()=>{},matchAll:async()=>tabs},skipWaiting:async()=>{skipped++;},addEventListener:(type,fn)=>listeners[type]=fn};
-  const sandbox={self,caches,URL,Request,Promise,fetch:async request=>{if(!online)throw Error('Offline');const url=request.url||request;requests.push(url);const redirect=url.endsWith('/backup-save.html')&&htmlRedirect;return {ok:true,status:200,redirected:!!redirect||url.endsWith('/index.html')||badAsset&&url.endsWith('game.js'),headers:{get:()=>url.endsWith('.png')?'image/png':url.endsWith('.js')?'text/javascript':url.endsWith('.css')?'text/css':url.includes('/demos/')&&demoType?demoType:url.endsWith('.json')?'application/json':url.endsWith('.mp3')?'audio/mpeg':url.endsWith('/backup-save.html')?htmlType:'text/html'},url:redirect?htmlRedirect:url,clone:()=>({text:async()=>manifestVersion===null?code('offline-assets.js'):code('offline-assets.js').replace(/version:'[^']+'/,`version:'${manifestVersion}'`)})};}};
+  const sandbox={self,caches,URL,Request,Promise,AbortController,setTimeout,clearTimeout,fetch:async request=>{if(!online)throw Error('Offline');const url=request.url||request;requests.push(url);const redirect=url.endsWith('/backup-save.html')&&htmlRedirect;return {ok:true,status:200,redirected:!!redirect||url.endsWith('/index.html')||badAsset&&url.endsWith('game.js'),headers:{get:()=>url.endsWith('.png')?'image/png':url.endsWith('.js')?'text/javascript':url.endsWith('.css')?'text/css':url.includes('/demos/')&&demoType?demoType:url.endsWith('.json')?'application/json':url.endsWith('.mp3')?'audio/mpeg':url.endsWith('/backup-save.html')?htmlType:'text/html'},url:redirect?htmlRedirect:url,clone:()=>({text:async()=>manifestVersion===null?code('offline-assets.js'):code('offline-assets.js').replace(/version:'[^']+'/,`version:'${manifestVersion}'`)})};}};
   vm.createContext(sandbox);sandbox.importScripts=name=>vm.runInContext(code(name),sandbox);vm.runInContext(code('sw.js'),sandbox);
   const emit=async(type,data={})=>{let result;listeners[type]({waitUntil:p=>{result=p;},respondWith:p=>{result=p;},...data});return result?await result:null;};
   return {self,banks,requests,emit,offline:()=>{online=false;},get skipped(){return skipped;}};
 }
 test('offline package includes every runtime asset and serves the game without network access',async()=>{
   const w=worker();for(const file of w.self.RiffOfflineAssets.files)assert.ok(fs.existsSync(path.join(root,file)),file);
-  await w.emit('install');assert.equal(w.skipped,0,'Do not replace a running game without player action');await w.emit('activate');w.offline();
+  await w.emit('install');assert.equal(w.skipped,0,'Do not replace a running game without player action');await w.emit('activate');
+  const messages=[];await w.emit('message',{data:{type:'SAVE_OFFLINE',version:w.self.RiffOfflineAssets.version},ports:[{postMessage:m=>messages.push(m),close(){}}]});assert.equal(messages.at(-1).type,'SAVED');w.offline();
   const home=await w.emit('fetch',{request:new Request('https://game.example/')});assert.equal(home.url,'https://game.example/');
   for(const file of w.self.RiffOfflineAssets.files){const response=await w.emit('fetch',{request:new Request('https://game.example/'+file)});assert.ok(response?.ok,file);}
   assert.equal(await w.emit('fetch',{request:new Request('https://other.example/private')}),null,'Unknown and external requests are not cached');
@@ -86,7 +87,7 @@ test('a redirected game file prevents an incomplete offline install',async()=>{
   const w=worker({badAsset:true});await assert.rejects(w.emit('install'),/Could not download/);assert.equal(w.banks.size,0);
 });
 test('public demo audio and charts cannot be cached as an HTML error page',async()=>{
-  const w=worker({demoType:'text/html'});await assert.rejects(w.emit('install'),/demos\/.*returned an unexpected page/);assert.equal(w.banks.size,0);
+  const w=worker({demoType:'text/html'});await w.emit('install');assert.ok(!w.requests.some(url=>url.includes('/demos/')),'Optional media must not block game updates');const messages=[];await w.emit('message',{data:{type:'SAVE_OFFLINE',version:w.self.RiffOfflineAssets.version},ports:[{postMessage:m=>messages.push(m),close(){}}]});assert.equal(messages.at(-1).type,'ERROR');assert.match(messages.at(-1).message,/demos\/.*returned an unexpected page/);assert.equal(w.banks.size,1,'Keep the usable core game');assert.ok(![...w.banks.values()][0].has('https://game.example/demos/catalog.json'));
 });
 
 test('a hosted backup page redirect installs and remains available offline at both URLs',async()=>{
@@ -143,4 +144,11 @@ test('offline save reports a failed write or version mismatch without falsely cl
 
 test('a mixed-release asset download is rejected before it can publish a mismatched offline cache',async()=>{
  const w=worker({manifestVersion:'riffbound-offline-v1-1'}),old=new Map([['song','untouched']]);w.banks.set('riffbound-offline-old',old);await assert.rejects(w.emit('install'),/changed during download/);assert.equal(w.banks.size,1);assert.equal(w.banks.get('riffbound-offline-old'),old);assert.equal(w.skipped,0);
+});
+
+test('updates cache the playable runtime while demo downloads and recovery stay separate',async()=>{
+ const w=worker();await w.emit('install');const bank=w.banks.get(w.self.RiffOfflineAssets.version);
+ assert.ok(w.self.RiffOfflineAssets.files.some(file=>file.startsWith('demos/')));
+ for(const file of w.self.RiffOfflineAssets.files)assert.equal(bank.has('https://game.example/'+file),!file.startsWith('demos/'),file);
+ for(const route of ['update.html','update','update.js'])assert.equal(await w.emit('fetch',{request:new Request('https://game.example/'+route)}),null,'Recovery must reach the online server');
 });
