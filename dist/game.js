@@ -11,6 +11,7 @@
   const SongAudio=window.RiffSongAudio;
   const PartCharts=window.RiffPartCharts;
   const Sections=window.RiffSongSections;
+  const Highways=window.RiffHighwayStyles;
   const PARTS=['guitar','drums','bass','vocals'],partName=part=>({guitar:'Guitar',drums:'Drums',bass:'Bass',vocals:'Vocals'}[part]||part);
   const canvas=$('highway'), ctx=canvas.getContext('2d');
   const band=window.RiffStage.create($('performance'));
@@ -31,8 +32,10 @@
   let backupExport=null,backupSaving=false,backupTransfer=null;
   let exportingVideo=false,savingSetlistVideo=false;
   let communityLookup=true,sheetMusicLookup=true,uploadInstrument='guitar',uploadTargetExplicit=false,pendingUpload=null;
+  let highwayStyle='riffbound';
   let timingOffset=0,highwaySpeed=1,volume=.7,muted=false,preMute=.7,showHitTiming=true;
   try{const saved=JSON.parse(localStorage.getItem('riffbound-preferences-v1')||'{}');timingOffset=Math.max(-250,Math.min(250,Number(saved.timingOffset)||0));highwaySpeed=Math.max(.7,Math.min(1.6,Number(saved.highwaySpeed)||1));
+    if(Highways&&typeof saved.highwayStyle==='string')highwayStyle=Highways.get(saved.highwayStyle).id;
     if(typeof saved.showHitTiming==='boolean')showHitTiming=saved.showHitTiming;
     if(typeof saved.volume==='number'&&Number.isFinite(saved.volume))volume=Math.max(0,Math.min(1,saved.volume));
     if(typeof saved.preMute==='number'&&Number.isFinite(saved.preMute)&&saved.preMute>0)preMute=Math.min(1,saved.preMute);else if(volume>0)preMute=volume;
@@ -896,7 +899,7 @@
     }catch(error){if(generation===uploadGeneration){state='idle';$('chartStatus').textContent='Community check could not complete. Your imported backup charts are kept. '+error.message;showMessage($('chartStatus').textContent);}}
     finally{if(generation===uploadGeneration){state='idle';$('uploadProgress').hidden=true;updateButtons();}}
   }
-  function preferences(){try{localStorage.setItem('riffbound-preferences-v1',JSON.stringify({timingOffset,highwaySpeed,volume,muted,preMute,showHitTiming,communityLookup,sheetMusicLookup,...(uploadTargetExplicit?{uploadInstrument}:{})}));return true;}catch{return false;}}
+  function preferences(){try{localStorage.setItem('riffbound-preferences-v1',JSON.stringify({timingOffset,highwaySpeed,highwayStyle,volume,muted,preMute,showHitTiming,communityLookup,sheetMusicLookup,...(uploadTargetExplicit?{uploadInstrument}:{})}));return true;}catch{return false;}}
   function stopCalibration(){
     clearTimeout(calibrationTimer);calibrationTimer=null;
     if(calibrationTest)for(const node of calibrationTest.nodes||[]){try{node.stop();node.disconnect();}catch{}}
@@ -1125,6 +1128,14 @@
   if($('showHitTiming')){$('showHitTiming').checked=showHitTiming;$('showHitTiming').addEventListener('change',()=>{showHitTiming=$('showHitTiming').checked;if(!showHitTiming)$('hitTiming')?.classList.remove('show');preferences();});}
   for(const event of ['close','cancel'])$('timingDialog').addEventListener(event,stopCalibration);
   document.addEventListener('visibilitychange',()=>{if(document.hidden&&calibrationTest){stopCalibration();$('calibrationStatus').textContent='Calibration stopped when the app was hidden. Start again when ready.';}});
+  function refreshHighwayStyle(saved=true){
+    const select=$('highwayStyle');if(!select)return;
+    select.value=highwayStyle;canvas.dataset.highwayStyle=highwayStyle;
+    if($('highwayStyleHint'))$('highwayStyleHint').textContent=Highways?(saved?'Applies to all instruments and songs. Saved on this browser.':'Selected for this visit; browser storage could not save it.')+' Original game-inspired art.':'Highway styles could not load. Refresh Riffbound while online.';
+    select.disabled=!Highways;
+  }
+  $('highwayStyle')?.addEventListener('change',event=>{if(!Highways)return;highwayStyle=Highways.get(event.target.value).id;refreshHighwayStyle(preferences());event.currentTarget.blur();});
+  refreshHighwayStyle();
   $('highwaySpeed').value=String(highwaySpeed);$('highwaySpeedValue').textContent=`${highwaySpeed.toFixed(1)}×`;
   $('highwaySpeed').addEventListener('input',()=>{highwaySpeed=Math.max(.7,Math.min(1.6,Number($('highwaySpeed').value)||1));$('highwaySpeedValue').textContent=`${highwaySpeed.toFixed(1)}×`;preferences();});
   $('offlineButton').addEventListener('click',()=>openTool('offlineDialog'));
@@ -1483,7 +1494,7 @@
   let geo={top:100,target:500,topWidth:80,bottomWidth:400};
   function point(lane,z){const w=geo.topWidth+(geo.bottomWidth-geo.topWidth)*z,n=highwayLanes();return{x:width/2+(lane-(n-1)/2)*w/n,y:geo.top+(geo.target-geo.top)*z,w:w/n};}
   function quad(lane,a,b,fill,inset=0){const p=point(lane,a),q=point(lane,b);ctx.beginPath();ctx.moveTo(p.x-p.w/2+inset,p.y);ctx.lineTo(p.x+p.w/2-inset,p.y);ctx.lineTo(q.x+q.w/2-inset,q.y);ctx.lineTo(q.x-q.w/2+inset,q.y);ctx.closePath();ctx.fillStyle=fill;ctx.fill();}
-  function lineAt(z,alpha,thickness=1){const l=point(0,z),r=point(highwayLanes()-1,z);ctx.beginPath();ctx.moveTo(l.x-l.w/2,l.y);ctx.lineTo(r.x+r.w/2,r.y);ctx.strokeStyle=`rgba(197,212,214,${alpha})`;ctx.lineWidth=thickness;ctx.stroke();}
+  function lineAt(z,alpha,thickness=1){const l=point(0,z),r=point(highwayLanes()-1,z);ctx.beginPath();ctx.moveTo(l.x-l.w/2,l.y);ctx.lineTo(r.x+r.w/2,r.y);ctx.strokeStyle=`rgba(${Highways?.get(highwayStyle)?.grid||'197,212,214'},${alpha})`;ctx.lineWidth=thickness;ctx.stroke();}
   function noteHead(lane,z,color,opacity=1,ghost=false){
     const p=point(lane,z),rx=p.w*.36;
     const drums=instrument==='drums',cymbal=drums&&!fourLaneDrums()&&(lane===1||lane===3);
@@ -1533,9 +1544,10 @@
     const approach=D.APPROACH[difficulty]/highwaySpeed*playRate;
     const beatDuration=trackBeat(),beatOffset=song?.offset??0,musicBeat=Math.max(0,visualTime-beatOffset)/beatDuration,beatPulse=1-(musicBeat%1);
     const leftTop=point(0,0),rightTop=point(highwayLanes()-1,0),leftBottom=point(0,1.18),rightBottom=point(highwayLanes()-1,1.18);
-    const drums=instrument==='drums';
-    const gradient=ctx.createLinearGradient(0,geo.top,0,height);gradient.addColorStop(0,drums?'#08090d':'#141a20');gradient.addColorStop(.6,drums?'#09090c':'#171d23');gradient.addColorStop(1,'#080a0e');
+    const drums=instrument==='drums',theme=Highways?.get(highwayStyle),styled=theme&&theme.id!=='riffbound';
+    const gradient=ctx.createLinearGradient(0,geo.top,0,height);gradient.addColorStop(0,styled?theme.top:drums?'#08090d':'#141a20');gradient.addColorStop(.6,styled?theme.middle:drums?'#09090c':'#171d23');gradient.addColorStop(1,styled?theme.bottom:'#080a0e');
     ctx.beginPath();ctx.moveTo(leftTop.x-leftTop.w/2,geo.top);ctx.lineTo(rightTop.x+rightTop.w/2,geo.top);ctx.lineTo(rightBottom.x+rightBottom.w/2,rightBottom.y);ctx.lineTo(leftBottom.x-leftBottom.w/2,leftBottom.y);ctx.closePath();ctx.fillStyle=gradient;ctx.fill();
+    if(styled)Highways.draw(ctx,theme,{point,lanes:highwayLanes(),time:visualTime,reducedMotion});
     for(let lane=0;lane<highwayLanes();lane++){
       if(!drums&&lane%2===0)quad(lane,0,1.18,'#ffffff03');
       if(held.has(lane)||flashes[lane]>.01){const g=ctx.createLinearGradient(0,geo.top,0,geo.target);g.addColorStop(0,laneColor(lane)+'00');g.addColorStop(1,laneColor(lane)+(held.has(lane)?'38':'25'));quad(lane,0,1.1,g);}
@@ -1545,8 +1557,8 @@
     for(let i=0;i<=highwayLanes();i++){
       if(drums&&i>0&&i<highwayLanes())continue;
       const topX=width/2+(i-highwayLanes()/2)*geo.topWidth/highwayLanes(),bottomX=width/2+(i-highwayLanes()/2)*(geo.topWidth+(geo.bottomWidth-geo.topWidth)*1.18)/highwayLanes();
-      ctx.beginPath();ctx.moveTo(topX,geo.top);ctx.lineTo(bottomX,leftBottom.y);ctx.lineWidth=i===0||i===highwayLanes()?2:1;ctx.strokeStyle=drums?'#bdc6d0':i===0||i===highwayLanes()?'#68747d':'#77889925';ctx.stroke();
-      if(i===0||i===highwayLanes()){ctx.beginPath();ctx.moveTo(topX+(i===0?-4:4),geo.top);ctx.lineTo(bottomX+(i===0?-9:9),leftBottom.y);ctx.lineWidth=3;ctx.strokeStyle=session.overdrive?'#d8ef6955':'#8ca0b333';ctx.stroke();}
+      ctx.beginPath();ctx.moveTo(topX,geo.top);ctx.lineTo(bottomX,leftBottom.y);ctx.lineWidth=i===0||i===highwayLanes()?2:1;ctx.strokeStyle=styled?(i===0||i===highwayLanes()?theme.rail:theme.ink+'25'):drums?'#bdc6d0':i===0||i===highwayLanes()?'#68747d':'#77889925';ctx.stroke();
+      if(i===0||i===highwayLanes()){ctx.beginPath();ctx.moveTo(topX+(i===0?-4:4),geo.top);ctx.lineTo(bottomX+(i===0?-9:9),leftBottom.y);ctx.lineWidth=3;ctx.strokeStyle=session.overdrive?'#d8ef6955':styled?theme.ink+'44':'#8ca0b333';ctx.stroke();}
     }
     let grid=null;
     if(ChartTiming&&partTiming())try{grid=ChartTiming.grid(partTiming(),visualTime-approach*.08,visualTime+approach,song.quality.chartAdjustments?.[instrument]||0);}catch{}
