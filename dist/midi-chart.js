@@ -7,7 +7,7 @@
   const D=typeof module!=='undefined'&&module.exports?require('./chart-difficulties.js'):root.RiffDifficulties;
   const Sections=typeof module!=='undefined'&&module.exports?require('./song-sections.js'):root.RiffSongSections;
   const decoder=new TextDecoder();
-  function parse(input,{part,drumLayout='auto',outputDrumLayout='five',shiftMs=0,metadata={}}={}){
+  function parse(input,{part,drumLayout='auto',outputDrumLayout='five',shiftMs=0,metadata={},legacyRunningStatus=false}={}){
     const bytes=new Uint8Array(input),v=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);let p=0,count=0;
     const fail=()=>{throw Error('Invalid or unsupported MIDI chart.');};
     const need=n=>{if(p+n>bytes.length)fail();};
@@ -17,13 +17,25 @@
     const header=u32();need(header);if(header<6)fail();
     const format=v.getUint16(p),tracks=v.getUint16(p+2),resolution=v.getUint16(p+4);p+=header;
     if(format>1||format===0&&tracks!==1||tracks<1||tracks>128||!resolution||(resolution&0x8000))fail();
-    const tempos=[],signatures=[],trackData=[];
+    const tempos=[],signatures=[],trackData=[],compatibilityWarnings=new Set();
     for(let t=0;t<tracks;t++){
-      if(text(4)!=='MTrk')fail();const length=u32(),end=p+length;need(length);let tick=0,status=0,name='',ended=false;const notes=[],active=new Map(),texts=[];
+      if(text(4)!=='MTrk')fail();const length=u32(),end=p+length;need(length);let tick=0,status=0,legacyGap=false,name='',ended=false;const notes=[],active=new Map(),texts=[];
       function vlq(){let n=0;for(let i=0;i<4;i++){if(p>=end)fail();const b=bytes[p++];n=n*128+(b&127);if(!(b&128))return n;}fail();}
       while(p<end){
         tick+=vlq();if(tick>100000000||++count>300000)fail();
-        if(p>=end)fail();let s=bytes[p];if(s>=128){p++;s>=0xf0?status=0:status=s;}else{s=status;if(!s)fail();}
+        if(p>=end)fail();let s=bytes[p];
+        if(s>=128){
+          p++;
+          if(s<0xf0){status=s;legacyGap=false;}
+          else if(legacyRunningStatus&&(s===0xff||s===0xf0||s===0xf7)){legacyGap=!!status;}
+          else{status=0;legacyGap=false;}
+        }else{
+          s=status;if(!s)fail();
+          // Some Clone Hero / Phase Shift exports retain channel running status
+          // across annotations. Compatibility is opt-in; all byte/chunk bounds,
+          // channels, note pairs, offsets and unsupported-note checks still apply.
+          if(legacyGap)compatibilityWarnings.add('Legacy chart running status resumed after a metadata or SysEx event.');
+        }
         if(s===0xff){if(p>=end)fail();const type=bytes[p++],n=vlq();if(p+n>end)fail();
           const data=bytes.subarray(p,p+n);p+=n;
           if(type===3)name=decoder.decode(data).trim();
@@ -46,7 +58,7 @@
     }
     if(p!==bytes.length)fail();
     shiftMs=Number(shiftMs);if(!Number.isFinite(shiftMs)||Math.abs(shiftMs)>30000)fail();
-    const timing=X.tempoMap(resolution,tempos,shiftMs/1000),charts={},warnings=[];
+    const timing=X.tempoMap(resolution,tempos,shiftMs/1000),charts={},warnings=[...compatibilityWarnings];
     const sectionMarkers=trackData.filter(track=>track.name==='EVENTS').flatMap(track=>track.texts.map(event=>({name:Sections?.markerName(event.text),time:timing.toSeconds(event.tick)}))).filter(event=>event.name);
     const selected=trackData.filter(t=>({ 'PART GUITAR':'guitar','T1 GEMS':'guitar','PART BASS':'bass','PART DRUMS':'drums','PART DRUM':'drums','PART VOCALS':'vocals' }[t.name]===part));
     if(selected.length>1)throw Error('Duplicate MIDI instrument tracks.');
@@ -62,8 +74,16 @@
       // Uncharted/final freestyle windows still need a separate play mode.
       if(fills.length){
         const expert=part==='drums'?notes.filter(n=>n.code>=96&&n.code<=100||n.code===95||n.code===101):[];
-        if(part!=='drums'||fills.some(f=>codas.some(tick=>f.tick>=tick)||f.length<=0||!expert.some(n=>n.tick>=f.tick&&n.tick<f.tick+f.length)||!expert.some(n=>n.tick>=f.tick+f.length)))throw Error('Freestyle endings need a chart review.');
-        warnings.push('Drum activation fills use their authored note pattern.');
+        if(part!=='drums'||fills.some(f=>{
+          if(codas.some(tick=>f.tick>=tick)||f.length<=0||!expert.some(n=>n.tick>=f.tick+f.length))return true;
+          if(expert.some(n=>n.tick>=f.tick&&n.tick<f.tick+f.length))return false;
+          // A complete interior activation window can cover a rest. Keep it
+          // empty, rather than rejecting the entire authored Drum track or
+          // inventing playable notes from its five special marker pitches.
+          const complete=new Set(fills.filter(n=>n.tick===f.tick&&n.length===f.length).map(n=>n.code)).size===5;
+          return !complete||!expert.some(n=>n.tick<f.tick);
+        }))throw Error('Freestyle endings need a chart review.');
+        warnings.push('Drum activation fills use their authored note pattern; uncharted interior windows stay empty.');
       }
       if(part==='drums'&&track.texts.some(e=>/mix[ _]+[0-3][ _]+drums[0-5]d(?:\]|$)/.test(e.text)))throw Error('Disco-flip drum charts need a color review.');
       // Roll markers are modifiers, not extra hits. Preserve authored note

@@ -42,9 +42,13 @@ test('canceling a pending audio fetch keeps the existing saved song and ignores 
  assert.equal((await storage.library.list()).length,1);assert.equal(JSON.stringify((await storage.library.get(original.id)).charts),JSON.stringify(before.charts));assert.equal(n.trackTitle.textContent,'Keep me');
 });
 test('audio limits and unsupported isolated tracks stop before any stem request',async()=>{
- const net=F.network({rows:[row],container:B.sng([['guitar.opus',Buffer.from([1,2,3])]])}),r=await found(net),before=net.requests.length;
+ const net=F.network({rows:[row],container:B.sng([['bass.opus',Buffer.from([1,2,3])]])}),r=await found(net),before=net.requests.length;
  await assert.rejects(async()=>{for await(const _ of C.songAudio(r.audioContainer,{fetcher:net.fetcher})){}},/full-song audio/);assert.equal(net.requests.length,before);
  const container={...r.audioContainer,header:{...r.audioContainer.header,files:[{name:'song.opus',length:81*1024*1024,offset:100}]}};await assert.rejects(async()=>{for await(const _ of C.songAudio(container,{fetcher:net.fetcher})){}},/80 MB/);assert.equal(net.requests.length,before);
+});
+test('a single legacy guitar file loads package audio without treating preview audio as another stem',async()=>{
+ const {app,storage}=appWith({files:[['guitar.opus',Buffer.from([1,2,3,4])],['preview.opus',Buffer.from([9,8,7])]]});await enter(app);
+ const list=await storage.library.list(),s=await storage.library.get(list[0].id);assert.notEqual(s.chartOnly,true);assert.equal(app.nodes.playButton.disabled,false);assert.deepEqual(Array.from(s.quality.packageAudio.files),['guitar.opus']);assert.ok(s.charts.drums.expert.length);assert.deepEqual(app.requests,[]);
 });
 
 test('Whole song discovery saves all supported package parts and repeated searches keep one audio entry',async()=>{

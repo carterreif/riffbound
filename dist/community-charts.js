@@ -128,11 +128,17 @@
     const file=header.files.find(f=>f.name==='notes.mid')||header.files.find(f=>f.name==='notes.chart');if(!file||file.length<=0||file.length>X.MAX_BYTES)throw Error('No supported chart file in this download.');
     const data=unmask(await range(fetcher,url,file.offset,file.offset+file.length-1,signal),header.mask);return {data,file,metadata:header.metadata,container:{url,header}};
   }
+  function singleRecording(header){
+    const music=header.files.filter(f=>/\.(opus|ogg|mp3|wav|flac|m4a)$/i.test(f.name)&&!/^(preview|crowd)\./i.test(f.name));
+    // Clone Hero/EOF also use guitar.* for a single mixed recording. This is
+    // a package recording, never evidence of an isolated Drum stem.
+    return music.length===1&&/^(song|guitar)\./i.test(music[0].name)?music[0]:null;
+  }
   function songAudioFiles(container){
     if(!container?.header||!(Packs?.owns(container)||/^https:\/\/files\.enchor\.us\/[a-f0-9]{32}\.sng$/.test(container.url)))throw Error('This chart package has no downloadable song audio.');
     const files=container.header.files.filter(f=>/^(song|guitar|rhythm|bass|drums(?:_[1-4])?|vocals(?:_[12])?|keys)\.(opus|ogg|mp3|wav|flac|m4a)$/i.test(f.name));
     const roots=new Set(files.map(f=>f.name.split('.')[0].replace(/_[1-4]$/,'')));
-    if(!files.length||files.length>16||(!roots.has('song')&&roots.size<2))throw Error('The chart package has no supported full-song audio.');
+    if(!files.length||files.length>16||(!roots.has('song')&&roots.size<2&&!singleRecording(container.header)))throw Error('The chart package has no supported full-song audio.');
     const bytes=files.reduce((n,f)=>n+f.length,0);if(files.some(f=>f.length<=0)||bytes>80*1024*1024)throw Error('The bundled audio is missing or exceeds the 80 MB song limit.');
     return files;
   }
@@ -159,12 +165,12 @@
       const roots={guitar:'guitar',bass:'bass',drums:'drums(?:_[1-4])?',vocals:'vocals(?:_[12])?'}[part];if(!roots)continue;
       let files=header.files.filter(f=>new RegExp(`^${roots}\\.(opus|ogg|mp3|wav|flac|m4a)$`,'i').test(f.name));
       let scope='instrument';
-      // A sole song file can verify the recording for an already-parsed Drum
+      // A sole song/guitar file can verify the recording for a parsed Drum
       // chart. In stemmed packages song may be backing-only; never treat it as
       // isolated kit audio, or use it to estimate missing Drum notes.
       if(!files.length&&part==='drums'&&allowFullRecording){
-        const music=header.files.filter(f=>/\.(opus|ogg|mp3|wav|flac|m4a)$/i.test(f.name)&&!/^(preview|crowd)\./i.test(f.name));
-        if(music.length===1&&/^song\./i.test(music[0].name)){files=music;scope='full-recording';}
+        const recording=singleRecording(header);
+        if(recording){files=[recording];scope='full-recording';}
       }
       if(!files.length||files.length>4)continue;
       const samples=[];
@@ -190,7 +196,7 @@
     const layout=row.five_lane_drums||row.notesData?.drumType===2?'five':row.pro_drums||row.notesData?.drumType===1?'pro':'four';
     const source=setlistSource(row,downloaded.metadata),outputDrumLayout=source.game?'five':'four';
     const options=X.settings({part,drumLayout:'auto',fallbackLayout:layout,outputDrumLayout,metadata:downloaded.metadata});
-    if(downloaded.file.name==='notes.mid')return M.parse(downloaded.data,options);
+    if(downloaded.file.name==='notes.mid')return M.parse(downloaded.data,{...options,legacyRunningStatus:true});
     if(part==='vocals')throw Error('This chart has no pitched vocal MIDI track.');
     const suffix={guitar:'Single',bass:'DoubleBass',drums:'Drums'}[part],text=new TextDecoder('utf-8',{fatal:true}).decode(downloaded.data);
     // Parse each part independently: unsupported notes elsewhere cannot discard
