@@ -199,16 +199,25 @@
     const filtered=sections.filter(s=>{const name=s.match(/^\[([^\]]+)\]/)[1];return name==='Song'||name==='SyncTrack'||name==='Events'||new RegExp('^(Easy|Medium|Hard|Expert)'+suffix+'$').test(name);}).join('\n');
     return X.parse(filtered,options);
   }
-  async function lookup({filename,title='',artist='',duration,parts,chartOnly=false,includeAudio=false,includeDrumAudio=false,requireAudioMatch=false,enabled=true,signal,fetcher=root.fetch?.bind(root),alignAudio,onProgress=()=>{},timeoutMs=alignAudio?45000:chartOnly?30000:15000}){
+  async function lookup({filename,title='',artist='',duration,parts,chartOnly=false,includeAudio=false,includeDrumAudio=false,requireAudioMatch=false,checkDrums=false,enabled=true,signal,fetcher=root.fetch?.bind(root),alignAudio,onProgress=()=>{},timeoutMs=alignAudio?45000:chartOnly?30000:15000}){
     const chartMessage=reason=>chartOnly?reason.replace(/Used audio charting\./gi,'No audio was provided.').replace(/Offline: used audio charting\./i,'Offline: connect to search for charts.'):reason;
-    const identity=identify(filename,{title,artist}),empty=(reason,availableParts=[])=>({charts:{},imports:{},sources:{},identity,availableParts,message:chartMessage(reason)});
+    let drumSearchComplete=false,drumListed=false,drumProvider='Chorus Encore';
+    const report=result=>{
+      if(!checkDrums)return result;
+      const imported=!!result.charts?.drums,listed=drumListed||result.availableParts?.includes('drums');
+      const provider=imported&&Packs?.sourceUrl(result.references?.drums?.md5)?'Community pack':drumProvider;
+      const status=imported?'imported':listed?(parts.includes('drums')?'not-imported':'listed'):drumSearchComplete?'not-found':'unavailable';
+      const message=imported?provider+': authored Drum chart loaded.':status==='listed'?provider+' lists a matching Drum chart. Choose Drums or Whole song to load it.':status==='not-imported'?provider+' lists a Drum chart, but it could not be loaded'+(chartOnly?'.':' and verified against your audio.'):status==='not-found'?'Chorus Encore: no matching Drum chart found in the searched results.':'Chorus Encore Drum check could not be completed.';
+      return {...result,drumCheck:{provider,status,message},message:[result.message,message].filter(Boolean).join(' ')};
+    };
+    const identity=identify(filename,{title,artist}),empty=(reason,availableParts=[])=>report({charts:{},imports:{},sources:{},identity,availableParts,message:chartMessage(reason)});
     if(!enabled)return empty('Online chart lookup is off. Used audio charting.');
     if(!identity.artist)return empty('Add the song title and artist to find Clone Hero community charts. Used audio charting.');
     if(!fetcher||root.navigator?.onLine===false)return empty('Offline: used audio charting.');
     const controller=new AbortController(),abort=()=>controller.abort();signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)abort();const timer=setTimeout(abort,timeoutMs);
     const charts={},imports={},sources={},issues={},timings={},references={},attempts=[],recordingReviews={},downloadedCharts=new Map(),recordingChecks=new Map(),budget={remaining:24*1024*1024};let timing,bpm,beat,audioContainer,audioReference,drumAudio,accessBlocked=false,availableParts=[],reason='This chart uses unsupported or missing parts. Used audio charting.';
     try{
-      onProgress('Looking for Guitar Hero conversions and authored charts for '+parts.join(', ')+'…');
+      onProgress('Searching Chorus Encore for Guitar Hero / Clone Hero charts for '+parts.join(', ')+'…');
       const packRows=parts.includes('drums')&&Packs?Packs.rows():[];
       // A reviewed pack already provides an exact Drum source. Name-only
       // single-part searches must not depend on unrelated catalog requests.
@@ -226,12 +235,17 @@
         // rows without discarding valid grouped responses.
         if(!Array.isArray(result.data)||result.data.length>1000)throw Error('Invalid chart search response.');
         let added=0;for(const row of result.data){if(!row||typeof row.md5!=='string'||seen.has(row.md5))continue;seen.add(row.md5);rows.push(row);added++;}
+        if(checkDrums)drumListed=!!match(rows,identity,duration,['drums'],{chartOnly,verifyAudio:!!alignAudio}).row;
         if((Number.isFinite(result.found)?result.found<=page*50:result.data.length<50)||!added)return false;
       }
       return true;
       }
       if(!directPack){
-      const targeted=chartOnly||requireAudioMatch,search=identity.artist+' '+numericTitle(identity.title),saturated=await searchCatalog(search,MAX_PAGES,targeted);
+      const targeted=chartOnly||requireAudioMatch||checkDrums,search=identity.artist+' '+numericTitle(identity.title),saturated=await searchCatalog(search,MAX_PAGES,targeted);
+      // A general result can advertise drums yet contain only Guitar notes.
+      // Check the dedicated instrument index even when that result looks complete.
+      // Include non-reviewed charts; local MIDI/.chart parsing verifies actual notes.
+      if(checkDrums){onProgress('Checking Chorus Encore for matching Drum charts…');await searchCatalog(search,MAX_PAGES,true,'','drums');drumSearchComplete=true;}
       // The exact name index includes punctuation (e.g. "Broken, Beat &
       // Scarred"). Recover its spelling through the general index before
       // spending the lookup timer on empty setlist/instrument queries.
@@ -245,8 +259,8 @@
         onProgress('Checking Guitar Hero setlists for '+identity.title+'…');
         try{await searchCatalog(search,1,true,charter);}catch(error){if(controller.signal.aborted||[401,403,429].includes(error.status))throw error;break;}
       }
-      if(targeted)for(const part of parts.filter(p=>!match(rows,identity,duration,[p],{chartOnly,verifyAudio:!!alignAudio}).row)){
-        onProgress('Searching Clone Hero community '+part+' charts for '+identity.title+'…');
+      if(targeted)for(const part of parts.filter(p=>!(checkDrums&&p==='drums')&&!match(rows,identity,duration,[p],{chartOnly,verifyAudio:!!alignAudio}).row)){
+        onProgress('Searching Chorus Encore / Clone Hero '+part+' charts for '+identity.title+'…');
         await searchCatalog(search,1,true,'',part);
       }
       // Spacing/punctuation variants can differ in the catalog's text index.
@@ -262,7 +276,8 @@
       }
       }
       if(controller.signal.aborted)throw Error('aborted');
-      if(directPack)onProgress('Using the verified '+directPack.name+' Drum source…');
+      if(directPack){drumListed=true;drumProvider='Community pack';onProgress('Using the verified '+directPack.name+' Drum source…');}
+      if(!drumListed&&match(packRows,identity,duration,['drums'],{chartOnly,verifyAudio:!!alignAudio}).row)drumProvider='Community pack';
       for(const row of packRows)if(!seen.has(row.md5)){seen.add(row.md5);rows.push(row);}
       const chosen=match(rows,identity,duration,parts,{verifyAudio:!!alignAudio,chartOnly});availableParts=chosen.availableParts||[];if(!chosen.row){if(!(chartOnly&&includeAudio)&&!includeDrumAudio)return empty(chosen.reason,availableParts);reason=chosen.reason;}
       for(const row of chosen.rows||[]){
@@ -358,7 +373,7 @@
     if(signal?.aborted)throw Error('Canceled');
     const fetched=Object.keys(charts),missing=parts.filter(p=>!charts[p]);
     const drumLayout=charts.drums?(imports.drums.layout==='four'?'four':'five'):audioReference?.drumLayout||(audioContainer?(/^Guitar Hero|^Band Hero/.test(references[fetched[0]]?.setlist||'')?'five':'four'):undefined);
-    return {charts,imports,sources,bpm,beat,timing,timings,identity,availableParts,references,recordingReviews,drumLayout,reference:references[fetched[0]]||audioReference||null,attempts,issues,...(drumAudio?{drumAudio}:{}),...(chartOnly?{chartOnly:true,duration}:{}),...(includeAudio?{audioContainer,...(audioReference?{audioOnly:true}:{})}:{}),message:chartOnly?(fetched.length?`Found authored ${fetched.join(', ')} charts. Chart only: attach your audio for song playback; recording timing is unverified.`+(missing.length?` No supported ${missing.join(', ')} chart found.`:''):audioReference?`Matching Clone Hero song audio found. No supported authored ${parts.join(', ')} chart was found; an audio estimate can be built.`:chartMessage(reason)):fetched.length?`Authored ${fetched.join(', ')} fetched. `+(fetched.every(p=>recordingReviews[p]?.status==='aligned')?'Recording waveform timing verified; preview timing.':'Title, artist and length matched; preview timing.')+`${missing.length?' Audio charting used for '+missing.join(', ')+'.':''}`:reason};
+    return report({charts,imports,sources,bpm,beat,timing,timings,identity,availableParts,references,recordingReviews,drumLayout,reference:references[fetched[0]]||audioReference||null,attempts,issues,...(drumAudio?{drumAudio}:{}),...(chartOnly?{chartOnly:true,duration}:{}),...(includeAudio?{audioContainer,...(audioReference?{audioOnly:true}:{})}:{}),message:chartOnly?(fetched.length?`Found authored ${fetched.join(', ')} charts. Chart only: attach your audio for song playback; recording timing is unverified.`+(missing.length?` No supported ${missing.join(', ')} chart found.`:''):audioReference?`Matching Clone Hero song audio found. No supported authored ${parts.join(', ')} chart was found; an audio estimate can be built.`:chartMessage(reason)):fetched.length?`Authored ${fetched.join(', ')} fetched. `+(fetched.every(p=>recordingReviews[p]?.status==='aligned')?'Recording waveform timing verified; preview timing.':'Title, artist and length matched; preview timing.')+`${missing.length?' Audio charting used for '+missing.join(', ')+'.':''}`:reason});
   }
   const api={identify,gameSource,available,match,sngHeader,unmask,download,songAudio,referenceFeatures,parsePart,lookup};if(node)module.exports=api;else root.RiffCommunityCharts=api;
 })(typeof window!=='undefined'?window:globalThis);
