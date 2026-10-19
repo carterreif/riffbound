@@ -52,7 +52,9 @@ test('real setlist-save/export/import actions keep link labels, charts, audio an
 });
 
 test('song video auto-play switch preserves the video, offset and off choice across reopening',async()=>{
- const first=page(),n=first.nodes;await first.api.selectSong('autoplay-song');assert.equal(n.backgroundAutoplay.disabled,true);
+ const first=page(),n=first.nodes;await first.api.selectSong('autoplay-song');assert.equal(n.backgroundAutoplay.disabled,false);
+ n.backgroundAutoplay.checked=true;await n.backgroundAutoplay.emit('change');assert.equal(n.backgroundAutoplay.checked,true);assert.match(n.backgroundStatus.textContent,/Auto-play is on.*Choose a video/);assert.equal(first.api.hasVideo,false);
+ const pending=page(first.disk);await pending.api.selectSong('autoplay-song');assert.equal(pending.nodes.backgroundAutoplay.checked,true);assert.equal(pending.nodes.backgroundAutoplay.disabled,false);assert.equal(pending.api.mode,'stage');
  n.backgroundLink.value=url;await n.backgroundUseLink.emit('click');assert.equal(n.backgroundAutoplay.checked,true);
  n.backgroundOffset.value='7.5';await n.backgroundOffset.emit('change');
  n.backgroundAutoplay.checked=false;await n.backgroundAutoplay.emit('change');

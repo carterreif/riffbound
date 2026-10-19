@@ -112,7 +112,7 @@
     function settings(values){
       generation++;config={...config,mode:values.mode??config.mode,offset:clamp(values.offset??config.offset,-900,900,0),dim:clamp(values.dim??config.dim,0,80,35)};
       if(!['stage','dark','video'].includes(config.mode))config.mode='stage';
-      pause();blocked=false;appearance();notify(config.mode==='video'&&!hasSource(config)?'Choose a video file or direct video link for this song.':'');return save();
+      pause();blocked=false;appearance();notify(config.mode==='video'&&!hasSource(config)?'Auto-play is on. Choose a video file or paste a YouTube/direct video link below. Riffbound will play it with this song once attached.':'');return save();
     }
     function clear(){generation++;config={...config,file:null,url:'',name:'',mode:'stage'};apply();return save();}
     function attachment(){if(!hasSource(config))throw Error('Choose a video before saving a chart + video backup.');return {...config};}
@@ -206,7 +206,7 @@
   const backgroundStore=storage(root.indexedDB);
   const player=create(video,video.closest('.stage'),{store:backgroundStore,onChange:(value,message)=>{
     currentSettings={mode:value.mode,offset:value.offset,dim:value.dim};
-    if($('backgroundAutoplay')){$('backgroundAutoplay').checked=value.mode==='video'&&value.hasVideo;$('backgroundAutoplay').disabled=!value.hasVideo;}
+    if($('backgroundAutoplay')){$('backgroundAutoplay').checked=value.mode==='video';$('backgroundAutoplay').disabled=operations>0;}
     if($('backgroundYouTubeHint'))$('backgroundYouTubeHint').hidden=!value.youtube;
     const selectedLink=value.url||'';if($('backgroundLink')&&selectedLink!==renderedLink)$('backgroundLink').value=selectedLink;renderedLink=selectedLink;
     if($('backgroundSaveSetlist'))$('backgroundSaveSetlist').textContent=value.linked?'Save video link to setlist':'Save video to setlist';
@@ -221,10 +221,10 @@
       if(changed){preview.pause();previewUrl=next;if(next)preview.src=next;else preview.removeAttribute('src');preview.load();}
       showTimingFrame(value.offset,changed);
     }
-    if(message!==undefined){$('backgroundStatus').textContent=message;if($('backgroundLinkStatus'))$('backgroundLinkStatus').textContent=message;}
+    if(message!==undefined){if(value.mode==='video'&&!value.hasVideo)message+=' Auto-play is on. Choose a video file or paste a video link below.';$('backgroundStatus').textContent=message;if($('backgroundLinkStatus'))$('backgroundLinkStatus').textContent=message;}
   }});
   let operations=0;
-  async function edit(action){operations++;controls.forEach(id=>{if($(id))$(id).disabled=true;});try{return await action();}catch(error){const message=error?.message||'The video could not be opened. Try the link again or choose a video file.';$('backgroundStatus').textContent=message;if($('backgroundLinkStatus'))$('backgroundLinkStatus').textContent=message;return false;}finally{operations--;controls.forEach(id=>{if($(id))$(id).disabled=operations>0;});$('backgroundRemove').disabled=operations>0||!player.hasVideo;if($('backgroundAutoplay'))$('backgroundAutoplay').disabled=operations>0||!player.hasVideo;for(const id of ['backgroundExportVideo','backgroundSaveSetlist'])if($(id))$(id).disabled=operations>0||player.busy||!player.hasVideo||displayedSong==='demo';}}
+  async function edit(action){operations++;controls.forEach(id=>{if($(id))$(id).disabled=true;});try{return await action();}catch(error){const message=error?.message||'The video could not be opened. Try the link again or choose a video file.';$('backgroundStatus').textContent=message;if($('backgroundLinkStatus'))$('backgroundLinkStatus').textContent=message;return false;}finally{operations--;controls.forEach(id=>{if($(id))$(id).disabled=operations>0;});$('backgroundRemove').disabled=operations>0||!player.hasVideo;if($('backgroundAutoplay'))$('backgroundAutoplay').disabled=operations>0;for(const id of ['backgroundExportVideo','backgroundSaveSetlist'])if($(id))$(id).disabled=operations>0||player.busy||!player.hasVideo||displayedSong==='demo';}}
   $('backgroundAutoplay')?.addEventListener('change',()=>edit(()=>player.settings({mode:$('backgroundAutoplay').checked?'video':'stage'})));
   picker.addEventListener('change',()=>{const file=picker.files?.[0];if(!file)return;if($('backgroundLink'))$('backgroundLink').value='';return edit(()=>player.choose(file));});
   $('backgroundUseLink')?.addEventListener('click',()=>{const value=$('backgroundLink').value;return edit(()=>player.chooseLink(value));});
