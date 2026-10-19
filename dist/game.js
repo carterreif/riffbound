@@ -103,6 +103,8 @@
     if($('retryButton')){$('retryButton').disabled=busy()||!['playing','countin','paused','finished'].includes(state);$('retryButton').setAttribute('aria-label',practiceLoop?'Retry practice section (R)':'Retry track (R)');}
     if($('practiceMissButton'))$('practiceMissButton').disabled=!T.missedSection?.(lastMissTime,song?.musicEnd??E.MUSIC_END)||previewing||song?.chartOnly===true;
     if($('backgroundButton'))$('backgroundButton').disabled=busy();
+    if($('chartMusicVideo')){$('chartMusicVideo').hidden=!song;$('chartMusicVideo').disabled=busy();}
+    if($('chartMusicVideoHint'))$('chartMusicVideoHint').hidden=!song;
     if($('backgroundExportVideo'))$('backgroundExportVideo').disabled=busy()||exportingVideo||!song||!window.RiffBackground?.hasVideo;
     if($('backgroundSaveSetlist'))$('backgroundSaveSetlist').disabled=busy()||exportingVideo||!song||!window.RiffBackground?.hasVideo;
     $('difficultyGroup').disabled=active();$('modeGroup').disabled=active()||['drums','vocals'].includes(instrument);$('instrumentGroup').disabled=busy();
@@ -270,6 +272,7 @@
   function refreshSong(){
     window.RiffBackground?.selectSong(song?.id||'demo');
     if($('backgroundSong'))$('backgroundSong').textContent='Background for '+(song?.title||'Iron Voltage');
+    if($('backgroundFindMusicVideo')){$('backgroundFindMusicVideo').href='https://www.youtube.com/results?search_query='+encodeURIComponent([song?existingChartIdentity().artist:'',song?.title||'Iron Voltage','official music video'].filter(Boolean).join(' '));}
     $('trackTitle').classList.toggle('custom-title',!!song);
     if(song)$('trackTitle').textContent=song.title;else $('trackTitle').innerHTML='IRON<br><span>VOLTAGE</span>';
     const publicDemo=song?.quality?.publicDemo;
@@ -1155,7 +1158,9 @@
   $('highwaySpeed').value=String(highwaySpeed);$('highwaySpeedValue').textContent=`${highwaySpeed.toFixed(1)}×`;
   $('highwaySpeed').addEventListener('input',()=>{highwaySpeed=Math.max(.7,Math.min(1.6,Number($('highwaySpeed').value)||1));$('highwaySpeedValue').textContent=`${highwaySpeed.toFixed(1)}×`;preferences();});
   $('offlineButton').addEventListener('click',()=>openTool('offlineDialog'));
-  $('backgroundButton')?.addEventListener('click',()=>{openTool('backgroundDialog');window.RiffBackground?.showTimingFrame?.();});
+  const openMusicVideo=()=>{openTool('backgroundDialog');window.RiffBackground?.showTimingFrame?.();};
+  $('backgroundButton')?.addEventListener('click',openMusicVideo);
+  $('chartMusicVideo')?.addEventListener('click',openMusicVideo);
   $('backgroundDialog')?.addEventListener('close',()=>refreshSetlist());
   $('backgroundSaveSetlist')?.addEventListener('click',async()=>{
     if(busy()||backupSaving||exportingVideo||!song)return;
