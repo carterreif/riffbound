@@ -270,7 +270,7 @@
     canvas.setAttribute('aria-label',`${notes.length} ${instrument} notes across ${formatTime(song.musicEnd)} of audio. Use Preview from to hear a section.`);
   }
   function refreshSong(){
-    window.RiffBackground?.selectSong(song?.id||'demo');
+    window.RiffBackground?.selectSong(song?.id||'demo',song?existingChartIdentity():{});
     if($('backgroundSong'))$('backgroundSong').textContent='Background for '+(song?.title||'Iron Voltage');
     if($('backgroundFindMusicVideo')){$('backgroundFindMusicVideo').href='https://www.youtube.com/results?search_query='+encodeURIComponent([song?existingChartIdentity().artist:'',song?.title||'Iron Voltage','official music video'].filter(Boolean).join(' '));}
     $('trackTitle').classList.toggle('custom-title',!!song);

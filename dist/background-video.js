@@ -202,7 +202,21 @@
     if(!preview)return;
     if(force||previewOffset!==offset){preview.pause();previewOffset=offset;framePending=true;seekPreviewFrame();}
   }
-  const controls=['backgroundAutoplay','backgroundMode','backgroundFile','backgroundOffset','backgroundDim','backgroundRemove','backgroundLink','backgroundUseLink'];
+  let selectedIdentity={},findingVideo=false,videoLookup=null;
+  async function findMusicVideo(){
+    if(findingVideo||player.hasVideo)return;
+    const owner=displayedSong;findingVideo=true;const controller=new AbortController();videoLookup=controller;
+    try{await edit(async()=>{
+      if(!root.RiffMusicVideoSearch)throw Error('Refresh Riffbound to load music video search.');
+      $('backgroundStatus').textContent='Finding a matching music video…';
+      const result=await root.RiffMusicVideoSearch.find(selectedIdentity,{signal:controller.signal});
+      if(owner!==displayedSong||controller.signal.aborted||player.hasVideo)return;
+      if(!result){$('backgroundStatus').textContent='No matching music video link was found. You can paste a link or choose a file.';return;}
+      await player.chooseLink(result.url);
+      if(owner===displayedSong)$('backgroundStatus').textContent='Music video link found through TheAudioDB and attached. Preview timing before playing; video edits may differ and YouTube may block embedding.';
+    });}finally{findingVideo=false;if(videoLookup===controller)videoLookup=null;}
+  }
+  const controls=['backgroundFindAttach','backgroundAutoplay','backgroundMode','backgroundFile','backgroundOffset','backgroundDim','backgroundRemove','backgroundLink','backgroundUseLink'];
   const backgroundStore=storage(root.indexedDB);
   const player=create(video,video.closest('.stage'),{store:backgroundStore,onChange:(value,message)=>{
     currentSettings={mode:value.mode,offset:value.offset,dim:value.dim};
@@ -225,7 +239,8 @@
   }});
   let operations=0;
   async function edit(action){operations++;controls.forEach(id=>{if($(id))$(id).disabled=true;});try{return await action();}catch(error){const message=error?.message||'The video could not be opened. Try the link again or choose a video file.';$('backgroundStatus').textContent=message;if($('backgroundLinkStatus'))$('backgroundLinkStatus').textContent=message;return false;}finally{operations--;controls.forEach(id=>{if($(id))$(id).disabled=operations>0;});$('backgroundRemove').disabled=operations>0||!player.hasVideo;if($('backgroundAutoplay'))$('backgroundAutoplay').disabled=operations>0;for(const id of ['backgroundExportVideo','backgroundSaveSetlist'])if($(id))$(id).disabled=operations>0||player.busy||!player.hasVideo||displayedSong==='demo';}}
-  $('backgroundAutoplay')?.addEventListener('change',()=>edit(()=>player.settings({mode:$('backgroundAutoplay').checked?'video':'stage'})));
+  $('backgroundFindAttach')?.addEventListener('click',findMusicVideo);
+  $('backgroundAutoplay')?.addEventListener('change',async()=>{const enabled=$('backgroundAutoplay').checked;await edit(()=>player.settings({mode:enabled?'video':'stage'}));if(enabled&&!player.hasVideo)await findMusicVideo();});
   picker.addEventListener('change',()=>{const file=picker.files?.[0];if(!file)return;if($('backgroundLink'))$('backgroundLink').value='';return edit(()=>player.choose(file));});
   $('backgroundUseLink')?.addEventListener('click',()=>{const value=$('backgroundLink').value;return edit(()=>player.chooseLink(value));});
   $('backgroundLink')?.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();const value=$('backgroundLink').value;return edit(()=>player.chooseLink(value));}});
@@ -241,7 +256,7 @@
   }
   const pauseAll=()=>{transportJob++;preview?.pause();player.pause();};
   const commitTiming=()=>{const next={mode:$('backgroundMode').value,offset:clamp($('backgroundOffset').value,-900,900,0),dim:clamp($('backgroundDim').value,0,80,35)};return Object.keys(next).every(key=>next[key]===currentSettings[key])?Promise.resolve():player.settings(next);};
-  root.RiffBackground={selectSong:id=>{if(id===displayedSong)return selection;displayedSong=id;picker.value='';$('backgroundStatus').textContent='';selection=player.selectSong(id);return selection;},
+  root.RiffBackground={selectSong:(id,identity={})=>{selectedIdentity=identity;if(id===displayedSong)return selection;videoLookup?.abort();displayedSong=id;picker.value='';$('backgroundStatus').textContent='';selection=player.selectSong(id);return selection;},
     prepare:async options=>{const job=transportJob;preview?.pause();await selection;if(job!==transportJob)throw Object.assign(Error('Video preparation was canceled.'),{backgroundVideo:true});return player.prepare(options);},
     commitTiming,
     attachment:async id=>{await selection;if(id!==displayedSong)throw Error('Open the song paired with this video before exporting.');await commitTiming();if(id!==displayedSong)throw Error('The song changed before its video backup was ready.');return player.attachment();},
