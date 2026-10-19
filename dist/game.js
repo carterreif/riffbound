@@ -330,12 +330,31 @@
       const copy=samples.slice();worker.postMessage({samples:copy,sampleRate:22050,instrument:target,audioId,wholeSong},[copy.buffer]);
     });
   }
+  function separateForCharts(samples,parts,generation){
+    return new Promise((resolve,reject)=>{
+      let worker;try{worker=new Worker('stem-separation-worker.js',{type:'module'});}catch{reject(Error('Instrument isolation needs a current browser. Turn off Isolate instruments to use mixed-audio estimates.'));return;}
+      const end=()=>{worker.terminate();if(generation===uploadGeneration)cancelAnalysis=null;};
+      cancelAnalysis=()=>{end();reject(Error('Canceled'));};
+      worker.onmessage=({data})=>{if(generation!==uploadGeneration)return;
+        if(data.type==='progress')uploadProgress(12,data.label);
+        else if(data.type==='error'){end();reject(Error(data.message));}
+        else if(data.type==='complete'){end();try{for(const part of parts)if(!(data.stems?.[part] instanceof Float32Array)||data.stems[part].length!==samples.length||data.stems[part].some(v=>!Number.isFinite(v)))throw Error('Instrument isolation returned invalid audio.');resolve(data);}catch(error){reject(error);}}
+      };
+      worker.onerror=()=>{end();reject(Error('Instrument isolation stopped. Your device may not have enough memory. Retry with a shorter recording or turn off Isolate instruments.'));};
+      const copy=samples.slice();worker.postMessage({samples:copy,parts},[copy.buffer]);
+    });
+  }
   async function analyzeParts(samples,targets,generation,audioId,wholeSong=targets.length>1,inputs={}){
+    const toSeparate=$('addIsolateInstruments')?.checked?targets.filter(part=>!inputs[part]?.samples):[];
+    let separated=null;if(toSeparate.length){separated=await separateForCharts(samples,toSeparate,generation);inputs={...inputs,...Object.fromEntries(toSeparate.map(part=>[part,{samples:separated.stems[part],wholeSong:false}]))};}
+
     const results=[],unavailable={};
     for(const [index,target] of targets.entries()){
       if(generation!==uploadGeneration)throw Error('Canceled');
       uploadProgress(12+index/targets.length*82,`${index+1}/${targets.length} · Charting ${partName(target)}…`);
-      try{results.push({...await runAnalysis(inputs[target]?.samples||samples,target,generation,inputs[target]?.samples?'':audioId,(value,label)=>uploadProgress(12+(index+value/100)/targets.length*82,`${index+1}/${targets.length} · ${label}`),inputs[target]?.wholeSong??wholeSong),instrument:target});}
+      try{const result=await runAnalysis(inputs[target]?.samples||samples,target,generation,inputs[target]?.samples?'':audioId,(value,label)=>uploadProgress(12+(index+value/100)/targets.length*82,`${index+1}/${targets.length} · ${label}`),inputs[target]?.wholeSong??wholeSong);
+        if(separated?.stems[target]){result.quality={...result.quality,sources:{...result.quality?.sources,[target]:'Estimate from AI-separated '+partName(target)+' audio'},audioReviews:{...result.quality?.audioReviews,[target]:{...result.quality?.audioReviews?.[target],estimated:true,separation:{model:separated.model,revision:separated.revision,sha256:separated.sha256,input:'mono-22050',alignment:'original-sample-clock',estimated:true}}}};}
+        results.push({...result,instrument:target});}
       catch(error){if(generation!==uploadGeneration)throw error;unavailable[target]=error.message;}
     }
     if(generation!==uploadGeneration)throw Error('Canceled');
