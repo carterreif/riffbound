@@ -202,10 +202,11 @@
     if(!preview)return;
     if(force||previewOffset!==offset){preview.pause();previewOffset=offset;framePending=true;seekPreviewFrame();}
   }
-  const controls=['backgroundMode','backgroundFile','backgroundOffset','backgroundDim','backgroundRemove','backgroundLink','backgroundUseLink'];
+  const controls=['backgroundAutoplay','backgroundMode','backgroundFile','backgroundOffset','backgroundDim','backgroundRemove','backgroundLink','backgroundUseLink'];
   const backgroundStore=storage(root.indexedDB);
   const player=create(video,video.closest('.stage'),{store:backgroundStore,onChange:(value,message)=>{
     currentSettings={mode:value.mode,offset:value.offset,dim:value.dim};
+    if($('backgroundAutoplay')){$('backgroundAutoplay').checked=value.mode==='video'&&value.hasVideo;$('backgroundAutoplay').disabled=!value.hasVideo;}
     if($('backgroundYouTubeHint'))$('backgroundYouTubeHint').hidden=!value.youtube;
     const selectedLink=value.url||'';if($('backgroundLink')&&selectedLink!==renderedLink)$('backgroundLink').value=selectedLink;renderedLink=selectedLink;
     if($('backgroundSaveSetlist'))$('backgroundSaveSetlist').textContent=value.linked?'Save video link to setlist':'Save video to setlist';
@@ -223,7 +224,8 @@
     if(message!==undefined){$('backgroundStatus').textContent=message;if($('backgroundLinkStatus'))$('backgroundLinkStatus').textContent=message;}
   }});
   let operations=0;
-  async function edit(action){operations++;controls.forEach(id=>{if($(id))$(id).disabled=true;});try{return await action();}catch(error){const message=error?.message||'The video could not be opened. Try the link again or choose a video file.';$('backgroundStatus').textContent=message;if($('backgroundLinkStatus'))$('backgroundLinkStatus').textContent=message;return false;}finally{operations--;controls.forEach(id=>{if($(id))$(id).disabled=operations>0;});$('backgroundRemove').disabled=operations>0||!player.hasVideo;for(const id of ['backgroundExportVideo','backgroundSaveSetlist'])if($(id))$(id).disabled=operations>0||player.busy||!player.hasVideo||displayedSong==='demo';}}
+  async function edit(action){operations++;controls.forEach(id=>{if($(id))$(id).disabled=true;});try{return await action();}catch(error){const message=error?.message||'The video could not be opened. Try the link again or choose a video file.';$('backgroundStatus').textContent=message;if($('backgroundLinkStatus'))$('backgroundLinkStatus').textContent=message;return false;}finally{operations--;controls.forEach(id=>{if($(id))$(id).disabled=operations>0;});$('backgroundRemove').disabled=operations>0||!player.hasVideo;if($('backgroundAutoplay'))$('backgroundAutoplay').disabled=operations>0||!player.hasVideo;for(const id of ['backgroundExportVideo','backgroundSaveSetlist'])if($(id))$(id).disabled=operations>0||player.busy||!player.hasVideo||displayedSong==='demo';}}
+  $('backgroundAutoplay')?.addEventListener('change',()=>edit(()=>player.settings({mode:$('backgroundAutoplay').checked?'video':'stage'})));
   picker.addEventListener('change',()=>{const file=picker.files?.[0];if(!file)return;if($('backgroundLink'))$('backgroundLink').value='';return edit(()=>player.choose(file));});
   $('backgroundUseLink')?.addEventListener('click',()=>{const value=$('backgroundLink').value;return edit(()=>player.chooseLink(value));});
   $('backgroundLink')?.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();const value=$('backgroundLink').value;return edit(()=>player.chooseLink(value));}});
