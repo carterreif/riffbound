@@ -260,6 +260,30 @@
     }
     return false;
   }
+  function rejectKickTomOvertones(events,samples,sampleRate){
+    const kicks=events.filter(e=>e.lane===5),plan=fftPlan(2048),re=new Float32Array(2048),im=new Float32Array(2048);
+    const peak=(time,offset)=>{
+      spectrum(samples,Math.round((time+offset)*sampleRate)-1024,re,im,plan);
+      const power=k=>re[k]*re[k]+im[k]*im[k];let best=null;
+      for(let k=6;k*sampleRate/2048<150;k++){
+        const a=power(k-1),b=power(k),c=power(k+1);if(b<=a||b<c)continue;
+        const left=Math.log(a+1e-20),center=Math.log(b+1e-20),right=Math.log(c+1e-20);
+        const hz=(k+clamp(.5*(left-right)/(left-2*center+right||1),-.5,.5))*sampleRate/2048;
+        if(hz<68||hz>=150)continue;if(!best||b>best.power)best={frequency:hz,power:b};
+      }
+      return best;
+    };
+    return events.filter(event=>{
+      if(event.lane!==4||!kicks.some(k=>Math.abs(k.time-event.time)<.035))return true;
+      // A kick's upper modes sweep down through the floor-tom range. A single
+      // FFT peak above 68 Hz is not proof of a second physical drum strike.
+      // Require its strongest pitched mode to persist independently through
+      // attack, body and release; do not invent a second pad from the kick.
+      const attack=peak(event.time,.025),body=peak(event.time,.065),release=peak(event.time,.145);
+      return !!(attack&&body&&release&&body.power>attack.power*.015&&release.power>attack.power*.003&&
+        Math.abs(Math.log2(body.frequency/attack.frequency))<.06&&Math.abs(Math.log2(release.frequency/attack.frequency))<.06);
+    });
+  }
   function freshBodyAttack(samples,time,sampleRate){
     const at=Math.round(time*sampleRate),window=Math.round(sampleRate*.025),alpha=1-Math.exp(-2*Math.PI*500/sampleRate);
     let low=0,before=0,after=0;
@@ -1624,7 +1648,7 @@
     }
     if(instrument==='drums'){
       progress(90,'Checking overlapping drum hits…');
-      const review=recoverBuriedResonance(events,samples,sampleRate,plan,re,im);events.length=0;events.push(...rejectTonalDrumEvents(review.events,samples,sampleRate,plan,re,im));recovered=review.recovered;
+      const review=recoverBuriedResonance(events,samples,sampleRate,plan,re,im);events.length=0;events.push(...rejectKickTomOvertones(rejectTonalDrumEvents(review.events,samples,sampleRate,plan,re,im),samples,sampleRate));recovered=review.recovered;
     }
     if(!events.length)throw Error(`Not enough clear ${instrument==='guitar'?'guitar-like tones':'drum hits'} were detected. Try a recording where that instrument is louder, or upload its isolated track.`);
     progress(92,`Building the ${instrument==='guitar'?'Guitar':'Drums'} chart…`);
@@ -1633,7 +1657,7 @@
     const waveform=Array.from({length:160},(_,i)=>{const a=Math.floor(i*frames/160),b=Math.max(a+1,Math.floor((i+1)*frames/160));let max=0;for(let f=a;f<b&&f<frames;f++)max=Math.max(max,energy[f]);return max;});
     const peak=Math.max(...waveform)||1;
     const expert=charts[instrument].expert;
-    const quality={audioReviews:{[instrument]:{policy:instrument==='drums'?'ring-residual-v1':'audible-attacks-v2',checked:true,recovered,...colorEvidence(expert,instrument),...(instrument==='drums'?{instrumentEvidencePolicy:'own-percussion-v1',tonalRejectionPolicy:'short-and-sustained-harmonic-family-v2',estimated:true,metalIdentityPolicy:'attack-release-timbre-v2',snareOverlapPolicy:'independent-metal-timbre-v1',metalCorrections}:{})}},ghostEvidencePolicy:'relative-attack-dynamics-v1',ghostHits:expert.filter(n=>n.ghost).length,evidencePolicy:'audible-attacks-v2',...(instrument==='drums'?{tomEvidencePolicy:'measured-resonance-v1'}:{}),counts:Array.from({length:instrument==='drums'?6:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:instrument==='drums'&&events.some(e=>e.part!==undefined)?'Adaptive kit separation':'Attack and tone analysis'};
+    const quality={audioReviews:{[instrument]:{policy:instrument==='drums'?'ring-residual-v1':'audible-attacks-v2',checked:true,recovered,...colorEvidence(expert,instrument),...(instrument==='drums'?{kickTomPolicy:'independent-persistent-body-v1',instrumentEvidencePolicy:'own-percussion-v1',tonalRejectionPolicy:'short-and-sustained-harmonic-family-v2',estimated:true,metalIdentityPolicy:'attack-release-timbre-v2',snareOverlapPolicy:'independent-metal-timbre-v1',metalCorrections}:{})}},ghostEvidencePolicy:'relative-attack-dynamics-v1',ghostHits:expert.filter(n=>n.ghost).length,evidencePolicy:'audible-attacks-v2',...(instrument==='drums'?{tomEvidencePolicy:'measured-resonance-v1'}:{}),counts:Array.from({length:instrument==='drums'?6:5},(_,lane)=>expert.filter(n=>n.lane===lane).length),fastHits:expert.filter((n,i)=>i&&n.time-expert[i-1].time>.025&&n.time-expert[i-1].time<.1).length,method:instrument==='drums'&&events.some(e=>e.part!==undefined)?'Adaptive kit separation':'Attack and tone analysis'};
     if(instrument==='guitar')quality.audioReviews.guitar={...quality.audioReviews.guitar,chordPolicy:'independent-harmonic-attacks-v1',sustainPolicy:'own-fundamental-release-v1',arrangementPolicy:'reference-guided-audio-v1',onsetPolicy:'own-tone-attack-v1',fretPolicy:'ordered-distinct-pitch-groups-v2',holdPolicy:'playable-fret-reuse-v1',chordAttacks,estimated:true};
     return {...timing,instrument,duration,charts,quality,chartVersion:instrument==='drums'?27:11,waveform:waveform.map(v=>v/peak)};
   }
@@ -1641,7 +1665,7 @@
     const plan=fftPlan(2048),review=verifyMetalIdentity(notes,samples,sampleRate,plan,new Float32Array(2048),new Float32Array(2048));
     return {notes:review.events.sort((a,b)=>a.time-b.time),corrected:review.corrected};
   }
-  const api={analyze,reviewDrumColors,buildFocusedCharts,buildMatchedCharts,filterSeparated};
+  const api={rejectKickTomOvertones,analyze,reviewDrumColors,buildFocusedCharts,buildMatchedCharts,filterSeparated};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   else if(typeof document==='undefined')root.onmessage=event=>{try{const result=analyze(event.data,(value,label)=>root.postMessage({type:'progress',value,label}));root.postMessage({type:'complete',result});}catch(error){root.postMessage({type:'error',message:error.message});}};
   else root.RiffAutoChart=api;
