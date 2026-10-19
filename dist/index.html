@@ -220,6 +220,8 @@
     <p>With title and artist only, we’ll search Chorus Encore for Guitar Hero / Clone Hero charts, check for Drums, and retrieve the matching song audio when available. If your chosen instrument has no supported chart, we’ll make an estimate from that song audio. Each part stays separate. If audio is unavailable, supported charts can still be saved and you can attach matching audio later.</p>
     <p id="addSongLimits" class="secondary">MP3, WAV, M4A, OGG, FLAC and other audio your browser can open. 5 seconds–15 minutes, up to 80 MB per song. Saved on this device; no song links needed.</p>
     <p class="secondary">Automatic charts are estimates. Preview the notes before playing; isolated instruments give clearer results.</p>
+    <label for="addCommunityPackage">Community package (optional)<input id="addCommunityPackage" type="file" aria-describedby="communityPackageHint"></label>
+    <p id="communityPackageHint" class="secondary">For <b>Wasteland — 10 Years</b>, <a href="https://rhythmverse.co/download_file/elitestar8829/60ba773570ce4241aab2aa5c5b99bed4/wasteland10years_rb2con" target="_blank" rel="noopener noreferrer">download the authored community package</a>, then select that downloaded file here. It includes separate Guitar, Bass and four-lane Drums charts plus matching audio. This package’s host requires a manual download. Choose Drums above to load the authored version. Currently only this reviewed package is supported here.</p>
     <p id="addSongError" class="form-error" role="alert"></p>
     <div class="tool-actions"><button id="confirmAddSong" class="upload-button" disabled>Chart &amp; add to setlist</button><button class="quiet" data-close="addSongDialog">Cancel</button></div>
   </dialog>
@@ -361,6 +363,7 @@
   <script src="authored-chart-reuse.js"></script>
   <script src="authored-drums.js"></script>
   <script src="recording-alignment.js"></script>
+  <script src="reviewed-band-source.js"></script>
   <script src="community-packs.js"></script>
   <script src="community-charts.js"></script>
   <script src="song-audio.js"></script>

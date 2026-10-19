@@ -205,7 +205,7 @@
     const filtered=sections.filter(s=>{const name=s.match(/^\[([^\]]+)\]/)[1];return name==='Song'||name==='SyncTrack'||name==='Events'||new RegExp('^(Easy|Medium|Hard|Expert)'+suffix+'$').test(name);}).join('\n');
     return X.parse(filtered,options);
   }
-  async function lookup({filename,title='',artist='',duration,parts,chartOnly=false,includeAudio=false,includeDrumAudio=false,requireAudioMatch=false,checkDrums=false,enabled=true,signal,fetcher=root.fetch?.bind(root),alignAudio,onProgress=()=>{},timeoutMs=alignAudio?45000:chartOnly?30000:15000}){
+  async function lookup({filename,title='',artist='',duration,parts,packageSource=null,chartOnly=false,includeAudio=false,includeDrumAudio=false,requireAudioMatch=false,checkDrums=false,enabled=true,signal,fetcher=root.fetch?.bind(root),alignAudio,onProgress=()=>{},timeoutMs=alignAudio?45000:chartOnly?30000:15000}){
     const chartMessage=reason=>chartOnly?reason.replace(/Used audio charting\./gi,'No audio was provided.').replace(/Offline: used audio charting\./i,'Offline: connect to search for charts.'):reason;
     let drumSearchComplete=false,drumListed=false,drumProvider='Chorus Encore';
     const report=result=>{
@@ -217,17 +217,19 @@
       return {...result,drumCheck:{provider,status,message},message:[result.message,message].filter(Boolean).join(' ')};
     };
     const identity=identify(filename,{title,artist}),empty=(reason,availableParts=[])=>report({charts:{},imports:{},sources:{},identity,availableParts,message:chartMessage(reason)});
-    if(!enabled)return empty('Online chart lookup is off. Used audio charting.');
+    if(!enabled&&!packageSource)return empty('Online chart lookup is off. Used audio charting.');
     if(!identity.artist)return empty('Add the song title and artist to find Clone Hero community charts. Used audio charting.');
-    if(!fetcher||root.navigator?.onLine===false)return empty('Offline: used audio charting.');
+    if((!fetcher||root.navigator?.onLine===false)&&!packageSource)return empty('Offline: used audio charting.');
     const controller=new AbortController(),abort=()=>controller.abort();signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)abort();const timer=setTimeout(abort,timeoutMs);
     const charts={},imports={},sources={},issues={},timings={},references={},attempts=[],recordingReviews={},downloadedCharts=new Map(),recordingChecks=new Map(),budget={remaining:24*1024*1024};let timing,bpm,beat,audioContainer,audioReference,drumAudio,accessBlocked=false,availableParts=[],reason='This chart uses unsupported or missing parts. Used audio charting.';
     try{
       onProgress('Searching Chorus Encore for Guitar Hero / Clone Hero charts for '+parts.join(', ')+'…');
-      const packRows=parts.includes('drums')&&Packs?Packs.rows():[];
+      const packRows=(parts.includes('drums')||packageSource)&&Packs?Packs.rows():[];
+      if(packageSource){if(!Packs.owns(packageSource.container))throw Error('Unknown local community package.');downloadedCharts.set(packageSource.container.sourceMd5,packageSource);}
       // A reviewed pack already provides an exact Drum source. Name-only
       // single-part searches must not depend on unrelated catalog requests.
-      const directPack=chartOnly&&parts.length===1&&parts[0]==='drums'&&match(packRows,identity,duration,parts,{chartOnly:true}).row;
+      const directPack=chartOnly&&(packageSource||parts.length===1&&parts[0]==='drums')&&match(packageSource?packRows.filter(r=>r.md5===packageSource.container.sourceMd5):packRows,identity,duration,parts,{chartOnly:true}).row;
+      if(packageSource&&!directPack)return empty('The selected package has no authored chart for these instruments.');
       const rows=directPack?[directPack]:[],seen=new Set(rows.map(row=>row.md5));
       async function searchCatalog(search,pages,advanced=false,charter='',instrument=''){
       for(let page=1;page<=pages;page++){
@@ -296,7 +298,7 @@
         const attempt={md5:row.md5,charter:clean(row.charter||'Community'),setlist,parts:missing,status:'unavailable'};attempts.push(attempt);
         onProgress(`Found ${identity.title} in ${setlist}. Getting ${missing.join(', ')} chart…`);
         try{
-          const downloaded=await download(row,fetcher,controller.signal);
+          const downloaded=downloadedCharts.get(row.md5)||await download(row,fetcher,controller.signal);
           downloadedCharts.set(row.md5,downloaded);
           if(controller.signal.aborted)throw Error('aborted');
           if(titleKey(clean(downloaded.metadata.name))!==titleKey(identity.title)||normalize(clean(downloaded.metadata.artist))!==normalize(identity.artist))throw Error('Downloaded chart identity did not match this song.');
@@ -381,5 +383,5 @@
     const drumLayout=charts.drums?(imports.drums.layout==='four'?'four':'five'):audioReference?.drumLayout||(audioContainer?(/^Guitar Hero|^Band Hero/.test(references[fetched[0]]?.setlist||'')?'five':'four'):undefined);
     return report({charts,imports,sources,bpm,beat,timing,timings,identity,availableParts,references,recordingReviews,drumLayout,reference:references[fetched[0]]||audioReference||null,attempts,issues,...(drumAudio?{drumAudio}:{}),...(chartOnly?{chartOnly:true,duration}:{}),...(includeAudio?{audioContainer,...(audioReference?{audioOnly:true}:{})}:{}),message:chartOnly?(fetched.length?`Found authored ${fetched.join(', ')} charts. Chart only: attach your audio for song playback; recording timing is unverified.`+(missing.length?` No supported ${missing.join(', ')} chart found.`:''):audioReference?`Matching Clone Hero song audio found. No supported authored ${parts.join(', ')} chart was found; an audio estimate can be built.`:chartMessage(reason)):fetched.length?`Authored ${fetched.join(', ')} fetched. `+(fetched.every(p=>recordingReviews[p]?.status==='aligned')?'Recording waveform timing verified; preview timing.':'Title, artist and length matched; preview timing.')+`${missing.length?' Audio charting used for '+missing.join(', ')+'.':''}`:reason});
   }
-  const api={identify,gameSource,available,match,sngHeader,unmask,download,songAudio,referenceFeatures,parsePart,lookup};if(node)module.exports=api;else root.RiffCommunityCharts=api;
+  const api={openPackage:(file,signal)=>Packs.openFile(file,signal),identify,gameSource,available,match,sngHeader,unmask,download,songAudio,referenceFeatures,parsePart,lookup};if(node)module.exports=api;else root.RiffCommunityCharts=api;
 })(typeof window!=='undefined'?window:globalThis);

@@ -120,10 +120,10 @@
     $('saveCurrentButton').disabled=!song||busy()||pendingSaves>0;$('exportCurrentButton').disabled=!song||busy()||(!song.chartOnly&&!Library.audioStatus(song?.audioBlob).ok);
     $('reconnectAudioButton').disabled=!song||busy()||pendingSaves>0;$('importBackupButton').disabled=busy();
     for(const id of ['addSongButton','libraryAddSong'])$(id).disabled=active()||pendingSaves>0||importingBackup;
-    const hasNewAudio=!!$('addSongFile').files?.length,hasScore=!!$('addScoreFile').files?.length,reuseOpenAudio=canReuseOpenAudio()&&!$('addLookupTitle').value.trim()&&!$('addLookupArtist').value.trim(),searchByName=!!$('addLookupTitle').value.trim()&&!!$('addLookupArtist').value.trim();
-    $('confirmAddSong').disabled=active()||pendingSaves>0||importingBackup||(!hasNewAudio&&!reuseOpenAudio&&!searchByName&&!hasScore);
-    $('confirmAddSong').textContent=!hasNewAudio&&!reuseOpenAudio&&hasScore&&!searchByName?'Convert score & add to setlist':!hasNewAudio&&searchByName?'Find chart & audio':!hasNewAudio&&reuseOpenAudio?'Chart open song':'Chart & add to setlist';
-    if($('addSongAudioHint'))$('addSongAudioHint').textContent=hasNewAudio?'The selected file will be added as a song.':hasScore&&!reuseOpenAudio?'Score selected. Available parts can be saved without audio; attach matching audio later for song playback.':searchByName?'Finds matching charts and song audio. Missing parts can be estimated from that audio. No audio upload needed.':reuseOpenAudio?`Leave title and artist blank to reuse “${song.title}”, or enter both to find a different song’s chart.`:'No file needed: enter song title and artist below to find its chart and audio.';
+    const hasNewAudio=!!$('addSongFile').files?.length,hasScore=!!$('addScoreFile').files?.length,hasPackage=!!$('addCommunityPackage').files?.length,reuseOpenAudio=canReuseOpenAudio()&&!$('addLookupTitle').value.trim()&&!$('addLookupArtist').value.trim(),searchByName=!!$('addLookupTitle').value.trim()&&!!$('addLookupArtist').value.trim();
+    $('confirmAddSong').disabled=active()||pendingSaves>0||importingBackup||(!hasNewAudio&&!reuseOpenAudio&&!searchByName&&!hasScore&&!hasPackage);
+    $('confirmAddSong').textContent=hasPackage?'Import package & audio':!hasNewAudio&&!reuseOpenAudio&&hasScore&&!searchByName?'Convert score & add to setlist':!hasNewAudio&&searchByName?'Find chart & audio':!hasNewAudio&&reuseOpenAudio?'Chart open song':'Chart & add to setlist';
+    if($('addSongAudioHint'))$('addSongAudioHint').textContent=hasPackage?'Uses the selected community package’s authored charts and matching song audio.':hasNewAudio?'The selected file will be added as a song.':hasScore&&!reuseOpenAudio?'Score selected. Available parts can be saved without audio; attach matching audio later for song playback.':searchByName?'Finds matching charts and song audio. Missing parts can be estimated from that audio. No audio upload needed.':reuseOpenAudio?`Leave title and artist blank to reuse “${song.title}”, or enter both to find a different song’s chart.`:'No file needed: enter song title and artist below to find its chart and audio.';
     $('setlistRetrySave').disabled=!song||busy()||pendingSaves>0;
     $('setlistExportBackup').disabled=!song||busy()||(!song.chartOnly&&!Library.audioStatus(song?.audioBlob).ok);
     $('setlistUploadProgress').hidden=state!=='analyzing';
@@ -931,13 +931,13 @@
   function openTool(id){if(busy()||resuming)return;if(running())pause({showMenu:false});closePauseMenu();$(id).showModal();}
   function audioFileError(file){return !file?'Choose an audio file first.':file.size>80*1024*1024||file.size===0?'Choose a non-empty audio file up to 80 MB.':'';}
   function canReuseOpenAudio(){return !!song?.buffer&&Library.audioStatus(song.audioBlob).ok;}
-  async function findSongWithoutAudio(identity,targets,scoreFile=null){
+  async function findSongWithoutAudio(identity,targets,scoreFile=null,packageSource=null){
     if(!Community&&!SheetMusic){$('addSongError').textContent='Chart search is unavailable. Check for game updates.';return;}
     const generation=++uploadGeneration,previous=song,controller=new AbortController();cancelLookup=()=>controller.abort();
     stopAudio();previewing=false;clearHeld();state='analyzing';updateButtons();$('uploadProgress').hidden=false;$('chartStatus').classList.remove('error');
     uploadProgress(5,`Finding charts for ${identity.title} by ${identity.artist}…`);
     try{
-      let found=identity.title&&identity.artist&&Community?await Community.lookup({...identity,parts:targets,chartOnly:true,includeAudio:true,checkDrums:true,enabled:true,signal:controller.signal,onProgress:label=>uploadProgress(12,label)}):{charts:{},imports:{},sources:{},references:{},timings:{},message:''};if(generation!==uploadGeneration)return;
+      let found=identity.title&&identity.artist&&Community?await Community.lookup({...identity,parts:targets,packageSource,chartOnly:true,includeAudio:true,checkDrums:true,enabled:true,signal:controller.signal,onProgress:label=>uploadProgress(12,label)}):{charts:{},imports:{},sources:{},references:{},timings:{},message:''};if(generation!==uploadGeneration)return;
       if(SheetMusic)found=await SheetMusic.fill(found,{...identity,parts:targets,scoreFile,enabled:sheetMusicLookup,duration:found.audioContainer||Object.keys(found.charts||{}).length?found.duration:undefined,signal:controller.signal,onProgress:label=>uploadProgress(20,label)});if(generation!==uploadGeneration)return;
       const authoredParts=targets.filter(p=>found.charts?.[p]?.expert?.length);
       if(!authoredParts.length&&!found.audioContainer)throw Error(found.message||'No supported chart or matching audio found for this song.');
@@ -998,12 +998,20 @@
   }
   function openAddSong(){
     if(active()||pendingSaves||importingBackup)return;
-    $('libraryDialog').close();$('addSongFile').value='';$('addScoreFile').value='';$('addSongPart').value=uploadInstrument;$('addSongError').textContent='';$('addLookupTitle').value='';$('addLookupArtist').value='';
+    $('libraryDialog').close();$('addSongFile').value='';$('addScoreFile').value='';$('addCommunityPackage').value='';$('addSongPart').value=uploadInstrument;$('addSongError').textContent='';$('addLookupTitle').value='';$('addLookupArtist').value='';
     updateButtons();$('addSongDialog').showModal();
   }
   async function addSongFromDialog(){
     if(active()||pendingSaves||importingBackup)return;
-    const file=$('addSongFile').files?.[0],scoreFile=$('addScoreFile').files?.[0],part=$('addSongPart').value;
+    const file=$('addSongFile').files?.[0],scoreFile=$('addScoreFile').files?.[0],packageFile=$('addCommunityPackage').files?.[0],part=$('addSongPart').value;
+    if(packageFile){
+      try{
+        if(file||scoreFile)throw Error('Choose the community package on its own; its matching audio and charts are included.');
+        const imported=await Community.openPackage(packageFile),identity={title:$('addLookupTitle').value.trim()||imported.metadata.name,artist:$('addLookupArtist').value.trim()||imported.metadata.artist};
+        if(Community.identify('',identity).title.toLowerCase()!==imported.metadata.name.toLowerCase()||identity.artist.toLowerCase()!==imported.metadata.artist.toLowerCase())throw Error('The selected package is Wasteland by 10 Years. Clear the title/artist or enter that song.');
+        return await findSongWithoutAudio(identity,part==='whole'?PARTS.slice():[part],null,imported);
+      }catch(error){$('addSongError').textContent=error.message;return;}
+    }
     const hasIdentity=!!$('addLookupTitle').value.trim()&&!!$('addLookupArtist').value.trim();
     const reuseOpenAudio=canReuseOpenAudio()&&!$('addLookupTitle').value.trim()&&!$('addLookupArtist').value.trim();
     const error=(file?audioFileError(file):hasIdentity||reuseOpenAudio||scoreFile?'':'Enter both song title and artist, choose audio, or choose a MusicXML score.')||(![...PARTS,'whole'].includes(part)?'Choose a part to chart.':'');
@@ -1014,12 +1022,13 @@
     if(PARTS.includes(part))chooseUploadInstrument(part,{switchExisting:false});
     const targets=part==='whole'?PARTS.slice():[part],identity={title:$('addLookupTitle').value.trim(),artist:$('addLookupArtist').value.trim()};
     if(!file&&!hasIdentity&&reuseOpenAudio){const stored=existingChartIdentity();identity.title||=stored.title;identity.artist||=stored.artist;}
-    $('addSongDialog').close();$('addSongFile').value='';$('addScoreFile').value='';
+    $('addSongDialog').close();$('addSongFile').value='';$('addScoreFile').value='';$('addCommunityPackage').value='';
     $('addSongButton').scrollIntoView?.({block:'start'});
     if(file)await uploadSong(file,targets,identity,{scoreFile});else if(hasIdentity||scoreFile&&!reuseOpenAudio)await findSongWithoutAudio(identity,targets,scoreFile);else await chartOpenSong(targets,identity,{scoreFile});
   }
   $('addSheetMusicLookup').checked=sheetMusicLookup;
   $('addSheetMusicLookup').addEventListener('change',()=>{sheetMusicLookup=$('addSheetMusicLookup').checked;preferences();});
+  $('addCommunityPackage').addEventListener('change',()=>{$('addSongError').textContent='';updateButtons();});
   $('addScoreFile').addEventListener('change',()=>{$('addSongError').textContent='';updateButtons();});
   $('addCommunityLookup').checked=communityLookup;
   $('addCommunityLookup').addEventListener('change',()=>{communityLookup=$('addCommunityLookup').checked;preferences();});

@@ -3,6 +3,7 @@
 (function(root){
   'use strict';
   const X=typeof module!=='undefined'&&module.exports?require('./chart-exchange.js'):root.RiffChartExchange;
+  const Reviewed=typeof module!=='undefined'&&module.exports?require('./reviewed-band-source.js'):root.RiffReviewedBandSource;
   const id='1632cde4d0535151136667ccaf700238',fileId='1rPSsBJFTSBBwHooqqRA_v9af1AeqhDdQ',folder='METAL PACK/Tool - Stinkfist/';
   const url='https://drive.usercontent.google.com/download?id='+fileId+'&export=download&confirm=t';
   const entries=[
@@ -11,9 +12,9 @@
     {name:'song.ogg',offset:1050092177,compressed:5632181,length:5652740,sha:'54ce72395b8fd054a009a1f59d4bb5effd4b35a16a16c4b3575485ce6c393664'}
   ];
   const row={md5:id,name:'Stinkfist',artist:'Tool',charter:'DenVaktare',packName:'Clone Hero community Metal Pack',song_length:317182,pro_drums:true,notesData:{drumType:1,noteCounts:[['easy',360],['medium',708],['hard',1119],['expert',1600]].map(([difficulty,count])=>({instrument:'drums',difficulty,count}))}};
-  const has=key=>key===id;
-  const owns=c=>c?.kind==='community-zip'&&c.sourceMd5===id&&c.url===url;
-  const sourceUrl=key=>has(key)?'https://drive.google.com/file/d/'+fileId+'/view':null;
+  const has=key=>key===id||!!Reviewed?.has(key);
+  const owns=c=>!!Reviewed?.owns(c)||c?.kind==='community-zip'&&c.sourceMd5===id&&c.url===url;
+  const sourceUrl=key=>Reviewed?.sourceUrl(key)||(key===id?'https://drive.google.com/file/d/'+fileId+'/view':null);
   async function bounded(response,limit,signal){
     const reader=response.body?.getReader();if(!reader)throw Error('Streaming chart downloads are unavailable.');const chunks=[];let length=0;
     try{while(true){if(signal?.aborted)throw Error('Canceled');const {done,value}=await reader.read();if(done)break;length+=value.length;if(length>limit)throw Error('Community pack response exceeded its limit.');chunks.push(value);}const out=new Uint8Array(length);let p=0;for(const c of chunks){out.set(c,p);p+=c.length;}return out;}finally{await reader.cancel().catch(()=>{});}
@@ -26,6 +27,7 @@
     const bytes=await bounded(response,end-start+1,signal);if(bytes.length!==end-start+1)throw Error('Incomplete community pack range.');return bytes;
   }
   async function read(container,file,fetcher,signal){
+    if(Reviewed?.owns(container))return Reviewed.read(container,file,fetcher,signal);
     if(!owns(container))throw Error('Unknown community pack.');const entry=entries.find(e=>e.name===file.name);if(!entry||entry.length!==file.length)throw Error('Unknown community pack entry.');
     return readEntry(entry,fetcher,signal);
   }
@@ -43,9 +45,10 @@
     if(signal?.aborted)throw Error('Canceled');return data;
   }
   async function download(source,fetcher,signal){
+    if(Reviewed?.has(source.md5))return Reviewed.download(source,fetcher,signal);
     if(!has(source.md5))throw Error('Unknown community source.');const container={kind:'community-zip',sourceMd5:id,url,header:{files:entries.map(e=>({name:e.name,length:e.length}))}};
     const metadata=X.parseIni(new TextDecoder('utf-8',{fatal:true}).decode(await read(container,container.header.files[1],fetcher,signal)));container.header.metadata=metadata;
     return {data:await read(container,container.header.files[0],fetcher,signal),file:{name:'notes.mid',length:entries[0].length},metadata,container};
   }
-  const api={rows:()=>[JSON.parse(JSON.stringify(row))],has,owns,sourceUrl,read,download};if(typeof module!=='undefined'&&module.exports)module.exports={...api,readEntry};else root.RiffCommunityPacks=api;
+  const api={rows:()=>[JSON.parse(JSON.stringify(row)),...(Reviewed?.rows()||[])],has,owns,sourceUrl,read,download,openFile:(file,signal)=>Reviewed.openFile(file,signal)};if(typeof module!=='undefined'&&module.exports)module.exports={...api,readEntry};else root.RiffCommunityPacks=api;
 })(typeof window!=='undefined'?window:globalThis);

@@ -10,7 +10,7 @@
     let end=duration,left=new Float32Array(Math.ceil(end*RATE)),right=new Float32Array(left.length),count=0;const names=[];
     for await(const file of files){
       check(signal);const buffer=await decode(file.data,{name:file.name});check(signal);
-      if(!Number.isFinite(buffer.duration)||buffer.duration<5||buffer.duration>MAX_DURATION||buffer.duration<duration-.75||buffer.duration>duration+15||!Number.isFinite(buffer.sampleRate)||buffer.sampleRate<8000||buffer.sampleRate>192000||!Number.isInteger(buffer.numberOfChannels)||buffer.numberOfChannels<1||buffer.numberOfChannels>8)throw Error('The bundled audio does not match this chart’s recording length.');
+      if(!Number.isFinite(buffer.duration)||buffer.duration<5||buffer.duration>MAX_DURATION||buffer.duration<duration-.75||buffer.duration>duration+15||!Number.isFinite(buffer.sampleRate)||buffer.sampleRate<8000||buffer.sampleRate>192000||!Number.isInteger(buffer.numberOfChannels)||buffer.numberOfChannels<1||buffer.numberOfChannels>16)throw Error('The bundled audio does not match this chart’s recording length.');
       const data=Array.from({length:buffer.numberOfChannels},(_,i)=>buffer.getChannelData(i));let musicDuration=buffer.duration;
       if(data.some(d=>!d.length||d.length<Math.floor(buffer.duration*buffer.sampleRate)))throw Error('The bundled audio could not be decoded completely.');
       // Some conversions retain padding with faint encoder/dither noise.
